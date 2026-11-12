@@ -18,6 +18,9 @@ class NoopResizeObserver {
 }
 vi.stubGlobal("ResizeObserver", NoopResizeObserver);
 
+/* jsdom 의 window.scrollTo 는 "Not implemented" 를 출력만 하므로 조용한 빈 함수로 바꿉니다 */
+vi.stubGlobal("scrollTo", () => {});
+
 /*
   핸들러가 없는 요청은 실패시킵니다.
   테스트가 모르는 사이 실서버나 빈 응답에 기대지 않게 하려는 것입니다.
