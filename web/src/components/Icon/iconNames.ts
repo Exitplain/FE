@@ -22,6 +22,8 @@ export const ICON_NAMES = [
   "link",
   "logout",
   "minus",
+  /* Figma 아이콘 섹션에는 없고 화면(P01 실행 중·P09·E02)에서 쓰는 icon/play 를 24 그리드로 옮김 */
+  "play",
   "plus",
   "retry",
   "search",
