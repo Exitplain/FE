@@ -1,11 +1,12 @@
+import { useId } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { buttonVariants } from "@/components/Button/buttonVariants";
 import Button from "@/components/Button/Button";
+import { buttonVariants } from "@/components/Button/buttonVariants";
 import EmptyState from "@/components/EmptyState/EmptyState";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
-import { findSampleProject } from "@/constants/projects";
+import { findSampleProject, type SampleProject } from "@/constants/projects";
 import { buildPath } from "@/constants/routes";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
@@ -21,8 +22,6 @@ import { toTestRows } from "./utils/testRows";
 export default function TestListPage() {
   const { projectId } = useParams();
   const project = findSampleProject(projectId);
-  const reports = usePersonaReports();
-  const currentRun = usePersonaRun();
 
   if (!project) {
     return (
@@ -35,9 +34,22 @@ export default function TestListPage() {
     );
   }
 
+  /* 프로젝트를 확인한 뒤에만 조회하도록 안쪽 컴포넌트에서 데이터를 받습니다 */
+  return <TestList project={project} />;
+}
+
+function TestList({ project }: { project: SampleProject }) {
+  const titleId = useId();
+  const reports = usePersonaReports();
+  const currentRun = usePersonaRun();
+
   const newTestPath = buildPath("newTest", { projectId: project.id });
   const isLoading = reports.isPending || currentRun.isPending;
-  const isError = reports.isError || currentRun.isError;
+  /* 받아 둔 데이터가 있으면 polling 이 한 번 실패해도 목록을 그대로 둡니다 */
+  const isError =
+    (reports.isError && reports.data === undefined) ||
+    (currentRun.isError && currentRun.data === undefined);
+  const isRetrying = reports.isFetching || currentRun.isFetching;
   const rows = toTestRows({ reports: reports.data ?? [], currentRun: currentRun.data });
 
   return (
@@ -56,20 +68,33 @@ export default function TestListPage() {
       />
 
       <section className="flex flex-col gap-4">
-        <h2 id="test-list-title" className="text-lg font-bold text-ink">
+        <h2 id={titleId} className="text-lg font-bold text-ink">
           사전 테스트
         </h2>
+        {project.id !== "banchan" && (
+          <p className="text-caption text-subtle">
+            지금 개발 서버는 반찬로드 모의 쇼핑몰만 실행해요 · 아래 기록도 반찬로드 기준이에요
+          </p>
+        )}
 
-        {isLoading && <p className="py-8 text-sm text-muted">사전 테스트를 불러오는 중이에요…</p>}
+        {isLoading && (
+          <p role="status" className="py-8 text-sm text-muted">
+            사전 테스트를 불러오는 중이에요…
+          </p>
+        )}
 
         {!isLoading && isError && (
-          <div className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-4">
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-4"
+          >
             <p className="text-sm text-ink">
               사전 테스트를 불러오지 못했어요. 서버 연결을 확인해 주세요.
             </p>
             <Button
               variant="secondary"
               icon="retry"
+              disabled={isRetrying}
               onClick={() => {
                 void reports.refetch();
                 void currentRun.refetch();
@@ -85,6 +110,7 @@ export default function TestListPage() {
           <div className="rounded-2xl bg-canvas p-6">
             <EmptyState
               icon="play"
+              headingLevel={3}
               title="아직 사전 테스트가 없어요"
               description="AI 고객이 어디서 왜 떠나는지 알려줘요"
               action={
@@ -97,7 +123,7 @@ export default function TestListPage() {
         )}
 
         {!isLoading && !isError && rows.length > 0 && (
-          <TestListTable projectId={project.id} rows={rows} />
+          <TestListTable projectId={project.id} rows={rows} labelledBy={titleId} />
         )}
       </section>
     </div>

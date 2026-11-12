@@ -30,7 +30,9 @@ const dateFormat = new Intl.DateTimeFormat("ko-KR", {
 /* Figma P01 실행일: 오늘이면 "14:40", 아니면 "11월 7일" */
 export function formatRunDate(iso: string | null | undefined, now = new Date()): string {
   if (!iso) return "—";
+  /* BE 는 오프셋이 붙은 UTC ISO(+00:00)를 보냅니다. 읽을 수 없는 값은 화면이 깨지지 않게 — 로 */
   const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
   return dayKey.format(date) === dayKey.format(now)
     ? timeFormat.format(date)
     : dateFormat.format(date);
@@ -39,6 +41,7 @@ export function formatRunDate(iso: string | null | undefined, now = new Date()):
 /*
   목록 API 에는 이름·차수·과업 필드가 없어 이름을 "N차 · 버전 · 세션 수" 로 만듭니다.
   차수는 완료된 실행 순서(오래된 것이 1차), 진행 중인 실행은 그다음 차수입니다.
+  BE 목록은 저장된 완료 실행 전체를 페이지 없이 주므로(report_history) 길이로 차수를 셉니다.
 */
 function rowName(order: number, variant: Variant | null | undefined, sessions: number) {
   const parts = [`${order}차`];
@@ -63,16 +66,19 @@ export function toTestRows({
     date: formatRunDate(report.created_at, now),
   }));
 
-  /* 완료된 현재 실행은 목록에 이미 있고, idle 은 실행이 아닙니다 */
-  if (!currentRun?.id || currentRun.status !== "running") return done;
+  /* idle 은 실행이 아니고, 목록에 이미 있는 실행은 두 번 넣지 않습니다 */
+  if (!currentRun?.id || currentRun.status === "idle") return done;
   if (reports.some((report) => report.run_id === currentRun.id)) return done;
 
+  /* 방금 끝나 목록을 다시 받기 전인 실행도 완료 행으로 남겨 목록에서 사라지지 않게 합니다 */
   const started = currentRun.sessions.some((session) => session.status !== "queued");
+  const status: TestRowStatus =
+    currentRun.status === "completed" ? "done" : started ? "running" : "preparing";
   return [
     {
       key: currentRun.id,
       name: rowName(reports.length + 1, currentRun.variant, currentRun.sessions.length),
-      status: started ? "running" : "preparing",
+      status,
       date: formatRunDate(currentRun.created_at, now),
     },
     ...done,
