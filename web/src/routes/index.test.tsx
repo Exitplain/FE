@@ -32,15 +32,22 @@ const runId = "run-1";
 
 describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
   it.each([
-    ["newTest", buildPath("newTest", { projectId })],
     ["testRun", buildPath("testRun", { projectId, runId })],
     ["report", buildPath("report", { projectId, runId })],
     ["sessionDetail", buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })],
     ["retest", buildPath("retest", { projectId, runId })],
+    ["projectHistory", buildPath("projectHistory", { projectId })],
+    ["projectIssues", buildPath("projectIssues", { projectId })],
   ] as const)("%s 화면을 %s 에서 연다", (key, path) => {
     renderAt(path);
 
     expectPlaceholder(key);
+  });
+
+  it("새 테스트(P02~P05c)를 /tests/new 에서 연다", async () => {
+    renderAt(buildPath("newTest", { projectId }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "새 테스트" })).toBeInTheDocument();
   });
 
   it("목록(/tests)은 새 테스트가 아니라 테스트 목록(P01)을 연다", async () => {
