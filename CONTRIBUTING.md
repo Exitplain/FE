@@ -1,6 +1,6 @@
 # 기여 규칙
 
-브랜치, 커밋, PR, 리뷰 규칙입니다. 역할 분담과 공통 영역 규칙은 [docs/COLLABORATION.md](docs/COLLABORATION.md), 코드 컨벤션은 [docs/WEB_CONVENTIONS.md](docs/WEB_CONVENTIONS.md)를 따릅니다.
+브랜치, 커밋, PR, 리뷰 규칙입니다. 코드 컨벤션은 [docs/WEB_CONVENTIONS.md](docs/WEB_CONVENTIONS.md)를 따릅니다.
 
 ## 브랜치
 
@@ -57,5 +57,3 @@ docs: 라우트 표 갱신
   - 로딩·빈 상태·오류 처리
   - mock 값을 실측값처럼 보여주지 않는지
 - 막는 의견(수정 필요)과 제안(선택)을 구분해서 적습니다.
-
-머지 조건은 [완료 기준](docs/COLLABORATION.md#3-완료-기준)을 따릅니다.

@@ -1,6 +1,6 @@
 # Exitplain FE
 
-[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md) · [협업 가이드](docs/COLLABORATION.md) · [문서 목록](docs/README.md)
+[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md) · [문서 목록](docs/README.md)
 
 EXITPLAIN 프론트엔드 저장소입니다.
 
@@ -27,7 +27,7 @@ npm run dev        # http://localhost:5173, /api 는 BE로 프록시
 npm run dev:mock   # BE 없이 MSW mock으로 실행
 ```
 
-자세한 내용은 [web/README.md](web/README.md), 문서 목록은 [docs/README.md](docs/README.md), 협업 규칙은 [docs/COLLABORATION.md](docs/COLLABORATION.md)와 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+자세한 내용은 [web/README.md](web/README.md), 문서 목록은 [docs/README.md](docs/README.md), 협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 ## 기존 화면 실행 (saas-web, demo-shop)
 

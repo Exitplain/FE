@@ -8,7 +8,7 @@
 
 | 영역 | 선택 | 이유 |
 | --- | --- | --- |
-| 빌드 | Vite 8 + React 19 + TypeScript 6 | 설정이 가볍고 해커톤 일정에 맞음. Allway와 같은 구성 |
+| 빌드 | Vite 8 + React 19 + TypeScript 6 | 설정이 가볍고 해커톤 일정에 맞음 |
 | 스타일 | Tailwind CSS 4 (`@tailwindcss/vite`) | 토큰을 `src/styles/index.css`의 `@theme` 한 곳에 정의 |
 | 컴포넌트 변형 | `class-variance-authority` + `cn()` | Button처럼 variant가 있는 공통 UI. `cn()`은 `clsx` + `tailwind-merge` |
 | 라우팅 | React Router 7 | 화면 코드별 페이지 분리 |
@@ -19,9 +19,9 @@
 
 ### 버전을 고정한 이유
 
-- **TypeScript `~6.0`**: Vite 템플릿 기본값은 TypeScript 7이지만, `typescript-eslint`가 아직 7을 지원하지 않아 Allway와 같은 6으로 고정했습니다.
-- **MSW `^2`**: MSW 3은 `worker.start()` 옵션이 `onUnhandledRequest`에서 `onUnhandledFrame`으로 바뀌는 등 API가 다릅니다. Allway와 같은 2를 씁니다.
-- **ESLint**: Vite 템플릿 기본값인 oxlint 대신 Allway와 같은 ESLint 설정을 씁니다.
+- **TypeScript `~6.0`**: Vite 템플릿 기본값은 TypeScript 7이지만, `typescript-eslint`가 아직 7을 지원하지 않아 6으로 고정했습니다.
+- **MSW `^2`**: MSW 3은 `worker.start()` 옵션이 `onUnhandledRequest`에서 `onUnhandledFrame`으로 바뀌는 등 API가 다릅니다. 그래서 2를 씁니다.
+- **ESLint**: Vite 템플릿 기본값인 oxlint 대신 ESLint 설정을 씁니다.
 
 ## 2. 기존 폴더를 옮기지 않은 이유
 
