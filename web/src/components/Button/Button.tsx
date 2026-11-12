@@ -1,45 +1,37 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 
+import Icon from "@/components/Icon/Icon";
+import type { IconName } from "@/components/Icon/iconNames";
 import { cn } from "@/utils/cn";
 
-const buttonVariants = cva(
-  [
-    "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap",
-    "transition-colors select-none",
-    "focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 focus-visible:outline-none",
-    "disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500",
-  ],
-  {
-    variants: {
-      variant: {
-        primary: "bg-ink text-surface hover:bg-gray-900",
-        secondary: "border border-gray-200 bg-surface text-ink hover:bg-gray-100",
-        ghost: "text-ink hover:bg-surface/50",
-      },
-      size: {
-        sm: "h-8 px-3 text-sm",
-        md: "h-10 px-4 text-sm",
-        lg: "h-12 px-5 text-base",
-      },
-    },
-    defaultVariants: {
-      variant: "primary",
-      size: "md",
-    },
-  },
-);
+import { buttonVariants, type ButtonVariant } from "./buttonVariants";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
+/* ref 는 React 19 prop 으로 받습니다 (ComponentProps 에 포함) */
+export type ButtonProps = ComponentProps<"button"> & {
+  variant?: ButtonVariant;
+  /* 글자 앞에 붙는 16px 아이콘. 색은 글자색을 따라갑니다 */
+  icon?: IconName;
+};
 
+/*
+  사용 예
+    <Button>새 테스트 시작하기</Button>
+    <Button variant="secondary" icon="download">내보내기</Button>
+    <Button variant="link">전체 보기</Button>
+    <Button disabled>다음</Button>          // Figma `비활성`
+*/
 export default function Button({
   className,
   variant,
-  size,
+  icon,
   type = "button",
+  children,
   ...props
 }: ButtonProps) {
   return (
-    <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+    <button type={type} className={cn(buttonVariants({ variant }), className)} {...props}>
+      {icon && <Icon name={icon} />}
+      {children}
+    </button>
   );
 }

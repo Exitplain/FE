@@ -37,7 +37,7 @@ BE 개발 서버가 FE 루트의 폴더를 직접 읽습니다. 경로를 바꾸
 
 그래서 새 앱은 `web/`에 따로 만들었습니다. `saas-web/`은 `web/`이 완성되고 BE가 더 이상 참조하지 않을 때 정리합니다. `demo-shop/`은 페르소나 실행 대상이라 계속 유지합니다.
 
-폰트와 Figma SVG는 `saas-web/assets/figma/`, `demo-shop/assets/`에서 `web/public/`으로 복사했습니다.
+폰트는 `demo-shop/assets/`에서 `web/public/fonts/`로 복사했습니다. 아이콘·캐릭터·로고는 Figma `컴포넌트`·`아이콘`·`캐릭터` 섹션에서 내보내 `web/src/assets/`에 이름을 붙여 저장했습니다. 메쉬 배경 blob은 Figma 컴포넌트에 없어 `saas-web/assets/figma/`의 원본을 `web/src/assets/background/`로 옮겼습니다.
 
 ## 3. 재현 순서
 

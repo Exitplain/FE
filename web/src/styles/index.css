@@ -23,25 +23,110 @@
   --color-gray-50: #fbfbfb;
   --color-gray-100: #f5f5f5;
   --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4; /* Button 흰색 테두리 · 비활성 배경 */
   --color-gray-400: #a8a8a8;
   --color-gray-500: #8f8f8f;
   --color-gray-700: #5e5e5e;
+  --color-gray-800: #262626; /* 사이드바 메뉴 글자 · InfoTip 설명 글자 */
   --color-gray-900: #1a1a1a;
 
   /* 의미 색상 */
   --color-ink: #0a0a0a;
   --color-muted: #737373;
+  --color-subtle: #525252; /* muted 보다 진한 보조색: Button 비활성 글자 · 아이콘 버튼 */
   --color-line: #e5e5e5;
   --color-surface: #ffffff;
   --color-canvas: #f6ffea; /* 앱 배경 */
   --color-highlight: #ffdf92; /* 선택된 프로젝트 */
+  --color-veil: #ffffff8c; /* 메쉬 배경 위 흰 베일 (BG/WhiteVeil) */
+  --color-ink-pressed: #333333; /* 검정 Button 눌림 */
+  --color-surface-pressed: #ededed; /* 흰색 Button 눌림 */
+  --color-avatar: #999999; /* 사이드바 계정 아바타 배경 */
+
+  /* 모서리 · 그림자 (Figma InfoTip 말풍선) */
+  --radius-tooltip: 10px;
+  --shadow-tooltip: 0 8px 12px rgb(0 0 0 / 0.12);
+  --shadow-surface: 0 8px 32px rgb(10 10 10 / 0.06); /* Surface/Work 흰 작업 영역 */
+
+  /* 글자 크기 (Tailwind 기본에 없는 Figma 값) */
+  --text-caption: 13px; /* 아바타 글자 (페이지 부제에도 쓸 예정) */
+  --text-caption--line-height: 18px;
 
   /* 레이아웃 */
-  --spacing-sidebar: 257px;
+  --spacing-sidebar: 256px;
 
   /* 글꼴 */
   --font-sans: "Noto Sans KR", system-ui, sans-serif;
   --font-logo: "Saira Stencil One", "Noto Sans KR", sans-serif;
+}
+
+/*
+  사이드바 선택 표시 (흰 pill + Figma `Tab corner` 20×20).
+  pill 하나가 선택된 항목 위치로 미끄러져 이동합니다. 위치(transform)는 Sidebar.tsx 가 계산합니다.
+  pill 위아래에 안쪽으로 휜 모서리를 붙여 작업 영역과 이어 보이게 합니다.
+  data-animate="false" 이면(첫 배치, 크기 변화) 이동 없이 바로 놓입니다. 동작 줄이기 설정이면 항상 바로 바뀝니다.
+*/
+@utility sidebar-indicator {
+  transition-property: transform, opacity;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+
+  &[data-animate="false"] {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    width: --spacing(5);
+    height: --spacing(5);
+  }
+
+  &::before {
+    bottom: 100%;
+    background: radial-gradient(
+      circle at 0 0,
+      transparent --spacing(5),
+      var(--color-surface) calc(--spacing(5) + 0.5px)
+    );
+  }
+
+  &::after {
+    top: 100%;
+    background: radial-gradient(
+      circle at 0 100%,
+      transparent --spacing(5),
+      var(--color-surface) calc(--spacing(5) + 0.5px)
+    );
+  }
+}
+
+/*
+  아이콘 선 두께를 크기와 상관없이 2px 로 유지합니다 (Figma 는 16·20px 로 줄여도 선이 2px).
+  SVG 를 viewBox 로 줄이면 선도 같이 가늘어지므로 non-scaling-stroke 를 씁니다. Icon 컴포넌트가 붙입니다.
+*/
+@utility icon-stroke {
+  & :where(path, circle, ellipse, line, polyline, polygon, rect) {
+    vector-effect: non-scaling-stroke;
+  }
+}
+
+/*
+  사이드바처럼 스크롤은 되지만 스크롤바가 보이면 안 되는 영역.
+  Windows 의 스크롤바(약 17px)가 선택 pill 과 작업 영역 사이를 끊지 않게 합니다.
+*/
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @layer base {
