@@ -36,7 +36,8 @@ web/src/
     brand/            # 로고 마크
     background/       # 메쉬 배경 blob (mesh-blob-<색>.svg)
   styles/index.css    # Tailwind + @theme 디자인 토큰
-  mocks/              # browser.ts, handlers/, fixtures/
+  mocks/              # browser.ts(dev:mock), node.ts(테스트), handlers/, fixtures/
+  test/               # setup.ts, renderWithProviders.tsx     — 공통
 ```
 
 "공통"으로 표시한 폴더와 `constants/routes.ts`, `apis/axiosInstance.ts`, `apis/queryKeys.ts`는 공통 영역입니다.
@@ -54,6 +55,7 @@ web/src/
 | 타입 파일 | `<도메인>.type.ts` | `persona.type.ts` |
 | zustand 스토어 | `use<이름>Store.ts` | `useNewTestStore.ts` |
 | 상수 | UPPER_SNAKE_CASE | `POLLING_INTERVAL_MS` |
+| 테스트 | 대상 파일 옆에 `<대상>.test.ts(x)` | `utils/cn.test.ts` |
 | 브랜치·커밋 | [CONTRIBUTING.md](../CONTRIBUTING.md) 참고 | `feat/P12-report-nav` |
 
 - import는 `@/` 절대 경로를 씁니다. 같은 페이지 폴더 안에서는 `./` 상대 경로도 괜찮습니다.

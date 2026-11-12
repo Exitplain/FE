@@ -16,6 +16,7 @@
 | 클라이언트 상태 | zustand 5 | 새 테스트 단계별 입력처럼 화면 사이에서 유지할 값만 |
 | API mock | MSW 2 | 미구현 `/api/v1`을 핸들러만 지우면 실제 API로 전환 |
 | 코드 품질 | ESLint 10 + Prettier 3 + `prettier-plugin-tailwindcss` | 클래스 순서까지 자동 정렬해 diff 충돌 감소 |
+| 테스트 | Vitest 5 + Testing Library + jsdom | Vite 설정·alias를 그대로 쓰고, MSW 핸들러를 `msw/node`로 재사용 |
 
 ### 버전을 고정한 이유
 
@@ -102,15 +103,26 @@ proxy.on("proxyReq", (proxyReq) => {
 | `npm run build:mock` | mock 데모 빌드 |
 | `npm run lint` | ESLint |
 | `npm run format` / `format:check` | Prettier 적용 / 검사 |
+| `npm run test` / `test:run` | Vitest 감시 모드 / 1회 실행 |
+
+### 테스트 작성 규칙
+
+- 테스트 파일은 대상 옆에 `*.test.ts(x)`로 둡니다. (예: `utils/cn.ts` → `utils/cn.test.ts`)
+- 테스트 대상: 검증·계산 로직(순수 함수), zustand 스토어 액션, API 훅, 화면 동작. 스타일은 테스트하지 않습니다.
+- API는 `src/mocks/handlers`가 `msw/node`로 응답합니다. 핸들러가 없는 요청은 테스트를 실패시킵니다.
+  테스트별 응답은 `server.use(...)`로 덮어쓰고, 각 테스트 뒤에 원래대로 돌아갑니다.
+- Query·Router가 필요한 컴포넌트는 `src/test/renderWithProviders.tsx`로 렌더링합니다.
+- `describe`·`it`·`expect`는 `vitest`에서 직접 import합니다(globals 미사용).
 
 ## 7. CI
 
-`.github/workflows/web-ci.yml`이 `web/**`를 바꾼 PR과 `main` 푸시에서 아래를 실행합니다.
+`.github/workflows/web-ci.yml`이 `web/**`를 바꾼 PR과 `main`·`develop` 푸시에서 아래를 실행합니다.
 
 1. `npm ci`
 2. `npm run lint`
 3. `npm run format:check`
-4. `npm run build`
+4. `npm run test:run`
+5. `npm run build`
 
 하나라도 실패하면 머지하지 않습니다.
 
