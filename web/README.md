@@ -85,15 +85,7 @@ web/
     mocks/              # browser.ts, handlers/, fixtures/
 ```
 
-### 규칙
-
-- 페이지 폴더는 kebab-case, 진입 파일은 `index.tsx`입니다. 컴포넌트 폴더와 파일은 PascalCase입니다.
-- 한 페이지에서만 쓰는 컴포넌트는 `pages/<페이지>/components/`에 둡니다. 두 번째 페이지가 쓰게 되면 `src/components/`로 옮깁니다.
-- 화면에서 axios를 직접 부르지 않습니다. `apis/*.api.ts` 함수 → `pages/<페이지>/hooks/` 훅 → 컴포넌트 순서로 씁니다.
-- 쿼리 키는 `apis/queryKeys.ts`에서만 만듭니다.
-- 서버 데이터는 TanStack Query에만 두고, zustand에는 여러 화면이 공유하는 입력값만 둡니다.
-- 색·간격·글꼴은 `styles/index.css`의 `@theme` 토큰 클래스를 씁니다. `bg-[#...]` 같은 임의값은 쓰지 않습니다.
-- import는 `@/` 절대 경로를 씁니다.
+이름 규칙, 상태 관리, 스타일 토큰, 공통 컴포넌트 목록은 [docs/WEB_CONVENTIONS.md](../docs/WEB_CONVENTIONS.md)에 있습니다.
 
 ## 라우트 표
 
@@ -121,15 +113,12 @@ web/
 
 로딩·빈 상태·오류(E01~E20) 화면은 각 화면 담당자가 공통 컴포넌트로 함께 만듭니다.
 
-## API 연동
+## 문서
 
-- 기준 문서: BE [`docs/API_SPEC.md`](https://github.com/Exitplain/BE/blob/main/docs/API_SPEC.md). 사본은 `../docs/API_SPEC.md`.
-- 지금 동작하는 API는 개발 서버의 `/api/personas/*`, `/api/state`, `/api/artifacts/*`입니다. 제품 API `/api/v1/*`은 아직 구현 전입니다.
-- 타입은 명세 필드 이름(snake_case) 그대로 `types/*.type.ts`에 둡니다.
-- 오류는 `apis/axiosInstance.ts`가 개발 API `{ error: "..." }`와 제품 API `{ error: { code, message, fields } }`를 `ApiError` 하나로 바꿉니다. EXITPLAIN BE는 성공 응답을 래퍼로 감싸지 않습니다.
-- 실행 상태(`/api/personas`)는 `status === "running"`일 때만 polling합니다. 예시: `pages/test-run/hooks/usePersonaRun.ts`
-- 미구현 API는 `mocks/handlers/`에 명세 8절 형태 그대로 추가하고, BE가 구현하면 해당 핸들러만 지웁니다.
-- mock 값을 실측값처럼 화면에 보여주지 않습니다. 데이터가 없으면 빈 상태나 표본 부족으로 표시합니다.
-- 명세와 실제 응답이 다르면 프론트에서 맞추지 말고 BE 저장소에 이슈를 남깁니다.
-
-협업 규칙(브랜치, 커밋, PR, 리뷰)은 [CONTRIBUTING.md](../CONTRIBUTING.md)를 따릅니다.
+| 문서                                                  | 내용                                                           |
+| ----------------------------------------------------- | -------------------------------------------------------------- |
+| [docs/WEB_SETUP.md](../docs/WEB_SETUP.md)             | 기술 스택 선택 이유, 환경변수, BE 프록시, CI, 자주 생기는 문제 |
+| [docs/WEB_CONVENTIONS.md](../docs/WEB_CONVENTIONS.md) | 폴더 구조, 이름 규칙, 상태 관리, 스타일 토큰, 공통 컴포넌트    |
+| [docs/WEB_API_GUIDE.md](../docs/WEB_API_GUIDE.md)     | API 호출 흐름, 타입, 오류 처리, polling, mock 작성법           |
+| [docs/COLLABORATION.md](../docs/COLLABORATION.md)     | 역할 분담, 공통 영역 규칙, 완료 기준, 소통                     |
+| [CONTRIBUTING.md](../CONTRIBUTING.md)                 | 브랜치, 커밋, PR, 리뷰 규칙                                    |

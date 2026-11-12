@@ -1,6 +1,6 @@
 # Exitplain FE
 
-[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md) · [협업 규칙](CONTRIBUTING.md)
+[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md) · [협업 가이드](docs/COLLABORATION.md) · [문서 목록](docs/README.md)
 
 EXITPLAIN 프론트엔드 저장소입니다.
 
@@ -9,7 +9,7 @@ EXITPLAIN 프론트엔드 저장소입니다.
 | `web/` | React + TypeScript + Tailwind SaaS 앱 | **신규 개발 중** — [web/README.md](web/README.md) |
 | `saas-web/` | 기존 HTML/CSS/JavaScript SaaS 화면 | 유지 (BE 개발 서버가 제공, `web/` 완성 후 정리) |
 | `demo-shop/` | 합성 데이터 기반 반찬로드 테스트 쇼핑몰 | 유지 (페르소나 실행 대상) |
-| `docs/` | API 명세 사본, Figma 반영 내역 | |
+| `docs/` | API 명세 사본, Figma 반영 내역, web 세팅·컨벤션·API·협업 가이드 | [목록](docs/README.md) |
 
 `saas-web/`과 `demo-shop/`은 BE의 `agent.console`, `agent.shop`이 FE 루트에서 직접 읽으므로 경로를 바꾸지 않습니다.
 에이전트·개발 API·테스트·공통 설계 문서는 [Exitplain/BE](https://github.com/Exitplain/BE)에 있습니다.
@@ -27,7 +27,7 @@ npm run dev        # http://localhost:5173, /api 는 BE로 프록시
 npm run dev:mock   # BE 없이 MSW mock으로 실행
 ```
 
-자세한 내용은 [web/README.md](web/README.md), 협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+자세한 내용은 [web/README.md](web/README.md), 문서 목록은 [docs/README.md](docs/README.md), 협업 규칙은 [docs/COLLABORATION.md](docs/COLLABORATION.md)와 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 ## 기존 화면 실행 (saas-web, demo-shop)
 
