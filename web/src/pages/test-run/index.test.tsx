@@ -96,9 +96,10 @@ describe("P08~P11 실행 화면", () => {
     expect(screen.getByRole("progressbar", { name: "진행률" })).toBeInTheDocument();
 
     await user.click(within(tabs).getByRole("radio", { name: "쿠폰으로 주문" }));
-    expect(
-      within(screen.getByRole("list", { name: "세션" })).getByText(/쿠폰으로 주문/),
-    ).toBeTruthy();
+    // 과업을 바꾸면 타일이 모두 그 과업 세션으로 바뀝니다
+    const couponTiles = within(screen.getByRole("list", { name: "세션" })).getAllByRole("listitem");
+    expect(couponTiles).toHaveLength(3);
+    couponTiles.forEach((tile) => expect(tile).toHaveTextContent("쿠폰으로 주문"));
 
     await user.click(screen.getByRole("radio", { name: /^대기/ }));
     expect(screen.getByRole("radio", { name: /^대기/ })).toBeChecked();
@@ -184,5 +185,35 @@ describe("P08~P11 실행 화면", () => {
       "href",
       "/projects/banchan/tests",
     );
+  });
+  it("받아 둔 실행이 있을 때 다시 받기에 실패하면 화면은 두고 다시 시도를 안내한다", async () => {
+    const run = await startRun(["order"]);
+    await advance(2);
+    const { queryClient } = renderRun(run.id!);
+    await screen.findByRole("list", { name: "세션" });
+
+    server.use(http.get("*/api/personas", () => HttpResponse.error()));
+    await queryClient.refetchQueries({ queryKey: ["personas", "current"] }).catch(() => {});
+
+    expect(await screen.findByText(/최신 상태를 불러오지 못했어요/)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "세션" })).toBeInTheDocument();
+  });
+
+  it("세션 라이브에서 돌아와도 고른 과업을 유지한다", async () => {
+    const user = userEvent.setup();
+    const run = await startRun();
+    await advance(3);
+    renderRun(run.id!);
+
+    const tabs = await screen.findByRole("radiogroup", { name: "과업" });
+    await user.click(within(tabs).getByRole("radio", { name: "쿠폰으로 주문" }));
+    await user.click(within(screen.getByRole("list", { name: "세션" })).getAllByRole("link")[0]);
+    await user.click(await screen.findByRole("link", { name: "실행 화면으로" }));
+
+    expect(
+      within(await screen.findByRole("radiogroup", { name: "과업" })).getByRole("radio", {
+        name: "쿠폰으로 주문",
+      }),
+    ).toBeChecked();
   });
 });

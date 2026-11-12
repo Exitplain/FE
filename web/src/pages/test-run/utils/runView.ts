@@ -150,3 +150,40 @@ export function formatElapsed(ms: number) {
 
 /* BE 실행 한도 (agent/persona_dashboard.py) — 세션당 최대 행동 수 */
 export const MAX_STEPS = 35;
+
+/*
+  P11 라이브 화면 iframe 주소 검증.
+  sandbox 에 allow-scripts + allow-same-origin 을 함께 주면, 앱과 같은 출처의 문서는 sandbox 를 스스로
+  풀 수 있습니다. 그래서 앱과 다른 출처의 http(s) 주소(BE 개발 원격 브라우저 등)만 허용하고
+  같은 출처·상대 경로·그 밖의 스킴은 막습니다.
+*/
+export function safeViewerUrl(raw: string | null | undefined, appOrigin: string): string | null {
+  if (!raw) return null;
+  let url: URL;
+  let app: URL;
+  try {
+    /* file: 등에서 origin 이 "null" 이면 파싱이 실패하므로 막는 쪽으로 처리합니다 */
+    app = new URL(appOrigin);
+    url = new URL(raw, app);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (url.origin === app.origin) return null;
+  return url.href;
+}
+
+/* E05 문구: 기술 실패 이유와 정상 종료(완료·이탈) 세션 수 */
+export function failureSummary(sessions: PersonaSession[]) {
+  const counts = countSessions(sessions);
+  const reasons = [...new Set(sessions.map((session) => session.reason).filter(Boolean))];
+  const allBudget =
+    sessions.length > 0 && sessions.every((session) => session.status === "budget_exceeded");
+  return {
+    reason: allBudget
+      ? "모든 세션이 행동·시간 한도에 닿았어요"
+      : reasons.slice(0, 2).join(" · ") || "브라우저를 실행하지 못했어요",
+    finishedNormally: counts.success + counts.dropout,
+    total: counts.all,
+  };
+}

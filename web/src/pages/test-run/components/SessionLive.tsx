@@ -7,7 +7,7 @@ import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import type { SampleProject } from "@/constants/projects";
 import type { PersonaSession } from "@/types/persona.type";
 
-import { MAX_STEPS, sessionBadge, STAGE_LABELS } from "../utils/runView";
+import { MAX_STEPS, safeViewerUrl, sessionBadge, STAGE_LABELS } from "../utils/runView";
 
 /*
   P11 세션 라이브 (?session=세션ID)
@@ -18,14 +18,19 @@ import { MAX_STEPS, sessionBadge, STAGE_LABELS } from "../utils/runView";
 export default function SessionLive({
   project,
   session,
+  backSearch,
 }: {
   project: SampleProject;
   session: PersonaSession;
+  /* 실행 화면으로 돌아갈 때 유지할 과업·필터 쿼리 */
+  backSearch: string;
 }) {
   const badge = sessionBadge(session.status);
   const last = session.trace.at(-1);
   const threshold = last?.threshold ?? session.max_required_fields * 16;
   const isRunning = session.status === "running";
+  /* 앱과 다른 출처의 http(s) 주소만 iframe 으로 띄웁니다 (같은 출처면 sandbox 가 풀릴 수 있음) */
+  const viewerUrl = isRunning ? safeViewerUrl(session.viewer_url, window.location.origin) : null;
 
   return (
     <div className="flex flex-col gap-12">
@@ -38,7 +43,7 @@ export default function SessionLive({
         actions={
           <>
             <StatusBadge {...badge} />
-            <Link to={{ search: "" }} className={buttonVariants()}>
+            <Link to={{ search: backSearch }} className={buttonVariants()}>
               실행 화면으로
             </Link>
           </>
@@ -51,16 +56,15 @@ export default function SessionLive({
             <h2 id="live-screen-title" className="text-base font-bold text-ink">
               라이브 화면
             </h2>
-            <span className="text-xs text-muted">
-              {isRunning && session.viewer_url ? "실시간" : "마지막 화면"}
-            </span>
+            <span className="text-xs text-muted">{viewerUrl ? "실시간" : "마지막 화면"}</span>
           </div>
-          <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50">
-            {isRunning && session.viewer_url ? (
+          <div className="flex aspect-3/4 items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50">
+            {viewerUrl ? (
               <iframe
                 title={`${session.name} 실시간 브라우저`}
-                src={session.viewer_url}
+                src={viewerUrl}
                 sandbox="allow-scripts allow-same-origin"
+                referrerPolicy="no-referrer"
                 className="size-full"
               />
             ) : session.artifact_id ? (
@@ -117,8 +121,11 @@ export default function SessionLive({
               <p className="text-caption text-muted">아직 행동이 없어요</p>
             ) : (
               <ol className="flex flex-col">
-                {[...session.events].reverse().map((event) => (
-                  <li key={event.step} className="flex gap-6 border-b border-line py-3 text-sm">
+                {[...session.events].reverse().map((event, index) => (
+                  <li
+                    key={`${event.step}-${index}`}
+                    className="flex gap-6 border-b border-line py-3 text-sm"
+                  >
                     <span className="w-8 shrink-0 text-muted">{event.step}</span>
                     <span className="w-12 shrink-0 font-bold text-ink">{event.action}</span>
                     <span className="text-gray-800">{event.description}</span>

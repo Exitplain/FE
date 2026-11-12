@@ -296,7 +296,8 @@ function advance() {
     if (session.status !== "queued") continue;
     session.status = "running";
     session.reason = "실제 브라우저를 열고 있습니다.";
-    session.viewer_url = `/mock/live/${session.id}`;
+    /* 실제 원격 브라우저가 없어 라이브 주소는 비워 둡니다 (화면은 마지막 화면 안내로 대체) */
+    session.viewer_url = null;
     slots -= 1;
   }
 

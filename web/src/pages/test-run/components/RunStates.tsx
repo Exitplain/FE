@@ -6,7 +6,7 @@ import Icon from "@/components/Icon/Icon";
 import { buildPath } from "@/constants/routes";
 import type { PersonaRun } from "@/types/persona.type";
 
-import { countSessions } from "../utils/runView";
+import { countSessions, failureSummary } from "../utils/runView";
 
 /*
   P08 실행 준비 중 — Figma 의 3단계 체크리스트.
@@ -76,7 +76,7 @@ export function RunCompleted({ run, projectId }: { run: PersonaRun; projectId: s
 
 /* E05 실행 실패 — 모든 세션이 기술 실패로 끝남 */
 export function RunFailed({ run, projectId }: { run: PersonaRun; projectId: string }) {
-  const reasons = [...new Set(run.sessions.map((session) => session.reason).filter(Boolean))];
+  const summary = failureSummary(run.sessions);
   return (
     <section
       aria-labelledby="run-failed-title"
@@ -87,8 +87,7 @@ export function RunFailed({ run, projectId }: { run: PersonaRun; projectId: stri
         실행을 끝내지 못했어요
       </h2>
       <p className="text-caption text-subtle">
-        {reasons.slice(0, 2).join(" · ") || "브라우저를 실행하지 못했어요"} · 끝난 세션 0 /{" "}
-        {run.sessions.length}
+        {summary.reason} · 정상 종료 세션 {summary.finishedNormally} / {summary.total}
       </p>
       <Link
         to={buildPath("newTest", { projectId })}

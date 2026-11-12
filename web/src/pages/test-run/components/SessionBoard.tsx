@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
@@ -21,8 +20,21 @@ const FILTERS: SessionFilter[] = ["all", "running", "success", "dropout", "queue
   Figma P09 `Card/SessionTiles` — 상태 필터(SegmentedControl)와 세션 타일.
   타일을 누르면 세션 라이브(P11)로 갑니다. 타일에는 P09b 미리보기 내용(현재 단계·스텝)을 함께 적습니다.
 */
-export default function SessionBoard({ sessions }: { sessions: PersonaSession[] }) {
-  const [filter, setFilter] = useState<SessionFilter>("all");
+type SessionBoardProps = {
+  sessions: PersonaSession[];
+  /* 필터는 주소(?filter=)에 두어 세션 라이브에 갔다 와도 유지합니다 */
+  filter: SessionFilter;
+  onFilterChange: (filter: SessionFilter) => void;
+  /* 세션 라이브 주소의 쿼리 (?session=… + 지금 과업·필터) */
+  sessionSearch: (sessionId: string) => string;
+};
+
+export default function SessionBoard({
+  sessions,
+  filter,
+  onFilterChange,
+  sessionSearch,
+}: SessionBoardProps) {
   const counts = countSessions(sessions);
   const visible = filterSessions(sessions, filter);
 
@@ -42,7 +54,7 @@ export default function SessionBoard({ sessions }: { sessions: PersonaSession[] 
             type="button"
             role="radio"
             aria-checked={filter === key}
-            onClick={() => setFilter(key)}
+            onClick={() => onFilterChange(key)}
             className={cn(
               "min-h-10 rounded-md px-4 text-caption",
               filter === key ? "bg-surface font-bold text-ink" : "text-subtle hover:text-ink",
@@ -63,7 +75,8 @@ export default function SessionBoard({ sessions }: { sessions: PersonaSession[] 
             return (
               <li key={session.id}>
                 <Link
-                  to={{ search: `?session=${encodeURIComponent(session.id)}` }}
+                  to={{ search: sessionSearch(session.id) }}
+                  aria-label={`${session.name} · ${session.task_name} · ${badge.label} — 세션 라이브 보기`}
                   className="flex h-full flex-col gap-3 rounded-xl bg-gray-50 p-4 hover:bg-gray-100"
                 >
                   <span className="flex flex-col gap-1">

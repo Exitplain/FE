@@ -16,7 +16,15 @@ import RunProgress from "./components/RunProgress";
 import { PreparingChecklist, RunCompleted, RunFailed } from "./components/RunStates";
 import SessionBoard from "./components/SessionBoard";
 import SessionLive from "./components/SessionLive";
-import { runPhase, type RunPhase, taskOptions } from "./utils/runView";
+import {
+  FILTER_LABELS,
+  runPhase,
+  type RunPhase,
+  type SessionFilter,
+  taskOptions,
+} from "./utils/runView";
+
+const FILTER_KEYS = Object.keys(FILTER_LABELS) as SessionFilter[];
 
 const PHASE_BADGE = {
   preparing: { icon: "status-wait", label: "준비 중", tone: "muted" },
@@ -81,10 +89,38 @@ function RunView({ project, runId }: { project: SampleProject; runId: string }) 
   }
 
   const session = sessionId ? run.sessions.find((item) => item.id === sessionId) : undefined;
-  if (sessionId && session) return <SessionLive project={project} session={session} />;
+  /* 실행 화면으로 돌아갈 때 과업·필터는 남기고 세션만 뺍니다 */
+  const backParams = new URLSearchParams(searchParams);
+  backParams.delete("session");
+  const backSearch = backParams.toString() ? `?${backParams}` : "";
 
   return (
-    <RunDashboard project={project} run={run} missingSession={sessionId != null && !session} />
+    <>
+      {/* 받아 둔 화면은 그대로 두고, 최신 상태를 못 받는 동안 알립니다 (polling 중 서버 끊김 등) */}
+      {currentRun.isError && (
+        <div
+          role="alert"
+          className="mb-6 flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-3"
+        >
+          <p className="text-caption text-ink">
+            최신 상태를 불러오지 못했어요 · 아래는 마지막으로 받은 상태예요
+          </p>
+          <Button
+            variant="secondary"
+            icon="retry"
+            disabled={currentRun.isFetching}
+            onClick={() => void currentRun.refetch()}
+          >
+            다시 시도
+          </Button>
+        </div>
+      )}
+      {sessionId && session ? (
+        <SessionLive project={project} session={session} backSearch={backSearch} />
+      ) : (
+        <RunDashboard project={project} run={run} missingSession={sessionId != null && !session} />
+      )}
+    </>
   );
 }
 
@@ -99,8 +135,27 @@ function RunDashboard({
 }) {
   const phase = runPhase(run);
   const tasks = taskOptions(run.sessions);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const activeTaskId = taskId ?? tasks[0]?.id ?? "";
+  /* 과업·상태 필터는 주소에 두어 세션 라이브에 갔다 와도 유지합니다 */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTask = searchParams.get("task");
+  const activeTaskId = tasks.some((task) => task.id === requestedTask)
+    ? requestedTask!
+    : (tasks[0]?.id ?? "");
+  const requestedFilter = searchParams.get("filter");
+  const filter: SessionFilter = (FILTER_KEYS as string[]).includes(requestedFilter ?? "")
+    ? (requestedFilter as SessionFilter)
+    : "all";
+  /* 과업·필터를 바꾸면 찾지 못한 세션 값(?session=)도 함께 지웁니다 */
+  const updateQuery = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("session");
+    for (const [key, value] of Object.entries(patch)) {
+      if (value == null) next.delete(key);
+      else next.set(key, value);
+    }
+    setSearchParams(next, { replace: true });
+  };
+  const taskSessions = run.sessions.filter((session) => session.task_id === activeTaskId);
   const elapsedMs = useElapsed(run.created_at, phase === "preparing" || phase === "running");
 
   const title =
@@ -135,20 +190,27 @@ function RunDashboard({
           <RunProgress
             sessions={run.sessions}
             taskId={activeTaskId}
-            onTaskChange={setTaskId}
+            onTaskChange={(id) => {
+              /* 지금 과업을 다시 누른 경우에는 필터를 그대로 둡니다 */
+              if (id !== activeTaskId) updateQuery({ task: id, filter: null });
+            }}
             elapsedMs={phase === "completed" ? null : elapsedMs}
           />
           {phase === "preparing" && <PreparingChecklist run={run} />}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <SessionBoard
-                key={activeTaskId}
-                sessions={run.sessions.filter((session) => session.task_id === activeTaskId)}
+                sessions={taskSessions}
+                filter={filter}
+                onFilterChange={(next) => updateQuery({ filter: next === "all" ? null : next })}
+                sessionSearch={(id) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("session", id);
+                  return `?${next}`;
+                }}
               />
             </div>
-            <ActionFeed
-              sessions={run.sessions.filter((session) => session.task_id === activeTaskId)}
-            />
+            <ActionFeed sessions={taskSessions} />
           </div>
         </>
       )}
@@ -173,6 +235,12 @@ function useElapsed(createdAt: string | undefined, ticking: boolean) {
 function RunNotCurrent({ project, runId }: { project: SampleProject; runId: string }) {
   const reports = usePersonaReports();
   const isCompleted = reports.data?.some((report) => report.run_id === runId) ?? false;
+  /* 목록을 받기 전에는 "찾을 수 없음"을 먼저 보여주지 않습니다 */
+  const title = reports.isPending
+    ? "실행을 확인하는 중이에요"
+    : isCompleted
+      ? "이미 끝난 실행이에요"
+      : "이 실행을 찾을 수 없어요";
 
   return (
     <div className="flex flex-col gap-12">
@@ -183,9 +251,7 @@ function RunNotCurrent({ project, runId }: { project: SampleProject; runId: stri
         activeTab="tests"
       />
       <section className="flex flex-col items-start gap-4 rounded-xl bg-gray-50 p-6">
-        <h2 className="text-lg font-bold text-ink">
-          {isCompleted ? "이미 끝난 실행이에요" : "이 실행을 찾을 수 없어요"}
-        </h2>
+        <h2 className="text-lg font-bold text-ink">{title}</h2>
         <p className="text-sm text-subtle">
           {isCompleted
             ? "결과는 리포트에서 볼 수 있어요."
