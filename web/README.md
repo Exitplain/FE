@@ -91,25 +91,33 @@ web/
 
 모든 화면이 빈 페이지(`PagePlaceholder`)로 미리 등록돼 있습니다. 화면을 만들기 시작하면 해당 `index.tsx`에서 `PagePlaceholder`를 지웁니다. 경로 문자열은 `src/constants/routes.ts`에서만 관리합니다.
 
-| 경로                               | 화면                    | Figma    | 폴더                      | 담당   |
-| ---------------------------------- | ----------------------- | -------- | ------------------------- | ------ |
-| `/login`                           | 로그인                  | L01~L10  | `pages/login`             | 고명준 |
-| `/`                                | 대시보드·새 테스트 모달 | W01, W07 | `pages/dashboard`         | 고명준 |
-| `/history`                         | 진단 기록               | W02      | `pages/diagnosis-history` | 고명준 |
-| `/issues`                          | 발견한 문제             | W03      | `pages/issues`            | 고명준 |
-| `/settings`                        | 워크스페이스 설정       | W04      | `pages/settings`          | 고명준 |
-| `/guide`                           | 시작 가이드             | W05      | `pages/guide`             | 고명준 |
-| `/projects`                        | 프로젝트 찾기·생성      | C02~C04  | `pages/project-list`      | 고명준 |
-| `/projects/:projectId`             | 프로젝트 개요           | C05~C09  | `pages/project-detail`    | 고명준 |
-| `/projects/:projectId/tests`       | 사전 테스트 목록        | P01      | `pages/test-list`         | 팀원   |
-| `/tests/new`                       | 새 테스트               | P02~P05c | `pages/new-test`          | 팀원   |
-| `/runs/:runId`                     | 실행 준비·실행·분석     | P06~P11  | `pages/test-run`          | 팀원   |
-| `/runs/:runId/report`              | 리포트                  | P12~P14  | `pages/report`            | 팀원   |
-| `/runs/:runId/sessions/:sessionId` | 세션 상세               | P15~P16  | `pages/session-detail`    | 팀원   |
-| `/runs/:runId/retest`              | 재테스트 전후 비교      | P17~P18  | `pages/retest`            | 팀원   |
-| `/share/:shareId`                  | 공유 리포트             | P20~P21  | `pages/shared-report`     | 팀원   |
-| `/projects/:projectId/analytics`   | 실측 분석               | R01~R11  | `pages/analytics`         | 미정   |
-| `/projects/:projectId/calibration` | 보정                    | K01~K04  | `pages/calibration`       | 미정   |
+화면 이동 주소는 경로 문자열을 직접 쓰지 않고 `buildPath`로 만듭니다. 파라미터 이름이나 누락은 타입 오류로 잡힙니다.
+
+```ts
+import { buildPath } from "@/constants/routes";
+
+navigate(buildPath("testRun", { projectId, runId })); // /projects/banchan/runs/run-1
+```
+
+| 경로                                                   | 화면                    | Figma    | 폴더                      | 담당   |
+| ------------------------------------------------------ | ----------------------- | -------- | ------------------------- | ------ |
+| `/login`                                               | 로그인                  | L01~L10  | `pages/login`             | 고명준 |
+| `/`                                                    | 대시보드·새 테스트 모달 | W01, W07 | `pages/dashboard`         | 고명준 |
+| `/history`                                             | 진단 기록               | W02      | `pages/diagnosis-history` | 고명준 |
+| `/issues`                                              | 발견한 문제             | W03      | `pages/issues`            | 고명준 |
+| `/settings`                                            | 워크스페이스 설정       | W04      | `pages/settings`          | 고명준 |
+| `/guide`                                               | 시작 가이드             | W05      | `pages/guide`             | 고명준 |
+| `/projects`                                            | 프로젝트 찾기·생성      | C02~C04  | `pages/project-list`      | 고명준 |
+| `/projects/:projectId`                                 | 프로젝트 개요           | C05~C09  | `pages/project-detail`    | 고명준 |
+| `/projects/:projectId/tests`                           | 사전 테스트 목록        | P01      | `pages/test-list`         | 팀원   |
+| `/projects/:projectId/tests/new`                       | 새 테스트               | P02~P05c | `pages/new-test`          | 팀원   |
+| `/projects/:projectId/runs/:runId`                     | 실행 준비·실행·분석     | P06~P11  | `pages/test-run`          | 팀원   |
+| `/projects/:projectId/runs/:runId/report`              | 리포트                  | P12~P14  | `pages/report`            | 팀원   |
+| `/projects/:projectId/runs/:runId/sessions/:sessionId` | 세션 상세               | P15~P16  | `pages/session-detail`    | 팀원   |
+| `/projects/:projectId/runs/:runId/retest`              | 재테스트 전후 비교      | P17~P18  | `pages/retest`            | 팀원   |
+| `/share/:shareId`                                      | 공유 리포트             | P20~P21  | `pages/shared-report`     | 팀원   |
+| `/projects/:projectId/analytics`                       | 실측 분석               | R01~R11  | `pages/analytics`         | 미정   |
+| `/projects/:projectId/calibration`                     | 보정                    | K01~K04  | `pages/calibration`       | 미정   |
 
 로딩·빈 상태·오류(E01~E20) 화면은 각 화면 담당자가 공통 컴포넌트로 함께 만듭니다.
 
