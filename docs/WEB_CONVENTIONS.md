@@ -25,6 +25,7 @@ web/src/
       components/     # 이 화면에서만 쓰는 컴포넌트
       hooks/          # 이 화면의 TanStack Query 훅
       utils/          # 이 화면에서만 쓰는 함수
+  hooks/              # 두 화면 이상이 쓰는 TanStack Query 훅 (usePersonaRun 등)
   apis/               # axiosInstance.ts, queryKeys.ts, 도메인별 *.api.ts
   types/              # 도메인별 *.type.ts
   stores/             # zustand 스토어
