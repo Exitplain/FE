@@ -106,9 +106,11 @@ web/src/
 | `ink-pressed` | `#333333` | `active:bg-ink-pressed` | 검정 Button 눌림 |
 | `surface-pressed` | `#ededed` | `active:bg-surface-pressed` | 흰색 Button 눌림 |
 | `avatar` | `#999999` | `bg-avatar` | 사이드바 계정 아바타 |
+| `danger` | `#c93638` | `text-danger` | 이탈·실패 (P01 실패 아이콘, P09 세션 타일 이탈) |
 | `radius-tooltip` | `10px` | `rounded-tooltip` | InfoTip 말풍선 |
 | `shadow-tooltip` | `0 8px 12px rgb(0 0 0 / .12)` | `shadow-tooltip` | InfoTip 말풍선 |
 | `shadow-surface` | `0 8px 32px rgb(10 10 10 / .06)` | `shadow-surface` | 흰 작업 영역 (Surface/Work) |
+| `shadow-dialog` | `0 16px 24px rgb(10 10 10 / .16)` | `shadow-dialog` | 모달 (Dialog/*) |
 | `text-caption` | `13px / 18px` | `text-caption` | 아바타 글자 (페이지 부제에도 쓸 예정) |
 | `spacing-sidebar` | `256px` | `w-sidebar` | Figma W01 사이드바 |
 | `font-sans` | Noto Sans KR | `font-sans` | 본문 |
@@ -124,17 +126,21 @@ Figma 컬러팔레트에 없는 강조색이 필요하면 디자인 담당과 �
 | --- | --- | --- | --- |
 | AppLayout (사이드바·작업 영역) | 로그인 후 전 화면 | 고명준 | 사이드바 템플릿 완료 (샘플 데이터) |
 | MeshBackground | AppLayout (로그인 화면 작업 때 AuthLayout 에도 적용 예정) | 고명준 | 완료 |
-| Icon | 전 화면 | 고명준 | 완료 (Figma 아이콘 36개, `<Icon name="search" />`) |
+| Icon | 전 화면 | 고명준 | 완료 (Figma 아이콘 섹션 36개 + 화면에서 쓰는 `play` 1개, `<Icon name="search" />`) |
 | AuthLayout | L01~L10, P21 | 고명준 | 뼈대 완료 |
 | Button | 전 화면 | 고명준 | 완료 (Figma 5종: primary=검정, secondary=흰색, outline=흰색 검은 테두리, link=밑줄, 비활성=`disabled` / 높이 40 하나) |
 | InfoTip | 섹션 제목 옆 | 고명준 | 완료 (hover·focus 로 열림, Escape 로 닫힘) |
 | IconButton | 모달 닫기, 행 삭제, 검색 지우기, 사이드바 검색 | 고명준 | 완료 (sm 24 / md 32 / lg 40, `label` 필수) |
 | PagePlaceholder | 미구현 화면 | 고명준 | 완료 (화면 구현 시 제거) |
-| Input, Select, Checkbox | 전 화면 | 고명준 | 예정 |
-| Modal, Toast | W07, C03, P04, P17, P20 등 | 고명준 | 예정 |
-| EmptyState, ErrorState, Skeleton | E01~E20, 각 화면 로딩 | 고명준 | 예정 |
-| Stepper (단계 표시) | P02~P05c | 팀원 | 예정 |
-| StatusBadge (실행·세션 상태) | P01, P09, P11, W02 | 팀원 | 예정 |
+| Field + Input / TextArea | P02, P04, P05 등 입력 화면 | 사전 테스트 | 완료 (라벨·hint·도움말·오류를 Field 가 연결, `{(control) => <Input {...control} />}`) |
+| ChoiceChip | P04, P05(과업·연령), P09(과업 전환) | 사전 테스트 | 완료 (선택=노란 바탕+체크, 여러 개=`aria-pressed`, 하나만=`kind="radio"` + radiogroup, md 40 / sm) |
+| Modal | P04, W07, C03, P17, P20 등 | 사전 테스트 | 완료 (Escape·닫기·덮개 클릭으로 닫힘, 초점 이동·복귀, 스크롤 잠금, md 720 / lg 960) |
+| EmptyState | E01~E03 등 빈 상태 | 사전 테스트 | 완료 (아이콘·제목·설명·action. 메쉬 띠는 화면에서 감쌈) |
+| Stepper (단계 표시) | P02~P05c | 사전 테스트 | 완료 (지난 단계 체크, 현재 `aria-current="step"`) |
+| StatusBadge (실행·세션 상태) | P01, P09, P11, W02 | 사전 테스트 | 완료 (tone: muted·strong·alert·danger, 상태→아이콘 매핑은 화면에서) |
+| Select, Checkbox | 전 화면 | 고명준 | 예정 |
+| Toast | P20, K03 등 | 고명준 | 예정 |
+| ErrorState, Skeleton | E04~E20, 각 화면 로딩 | 고명준 | 예정 |
 
 ### Button·IconButton·InfoTip 규칙
 
