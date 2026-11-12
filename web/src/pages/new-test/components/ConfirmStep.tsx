@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
 
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
@@ -7,7 +9,7 @@ import { useNewTestStore } from "@/stores/useNewTestStore";
 import type { ApiError } from "@/types/api.type";
 import type { DiscoverResponse } from "@/types/persona.type";
 
-import { isPlanExpired, type StepKey } from "../utils/newTest";
+import { isPlanExpired, PLAN_TTL_MS, type StepKey, STEPS } from "../utils/newTest";
 import { RUN_CONDITIONS } from "./PersonaStep";
 import StepSection, { StatusRow, StepFooter } from "./StepSection";
 
@@ -40,7 +42,32 @@ export default function ConfirmStep({
   onStart,
   onExpired,
 }: ConfirmStepProps) {
-  const store = useNewTestStore();
+  const store = useNewTestStore(
+    useShallow((state) => ({
+      discoveredAt: state.discoveredAt,
+      taskIds: state.taskIds,
+      ages: state.ages,
+      siteUrl: state.siteUrl,
+      variant: state.variant,
+      loginMode: state.loginMode,
+      accounts: state.accounts,
+      targetDescription: state.targetDescription,
+      memo: state.memo,
+      customTasks: state.customTasks,
+    })),
+  );
+
+  /* 이 화면에 머무는 동안 15분이 지나면 다시 그려 만료 안내를 띄웁니다 */
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (store.discoveredAt == null) return;
+    const remaining = store.discoveredAt + PLAN_TTL_MS - Date.now();
+    if (remaining <= 0) return;
+    /* 타이머가 조금 일찍 울려 아직 만료 전으로 판정되지 않게 여유를 둡니다 */
+    const timer = window.setTimeout(() => setTick((tick) => tick + 1), remaining + 100);
+    return () => window.clearTimeout(timer);
+  }, [store.discoveredAt]);
+
   const expired = store.discoveredAt != null && isPlanExpired(store.discoveredAt);
   const tasks = plan.tasks.filter((task) => store.taskIds.includes(task.id));
   const ageLabels = store.ages.map((age) =>
@@ -101,13 +128,14 @@ export default function ConfirmStep({
             <li key={row.label} className="flex items-start gap-6 border-b border-line py-4">
               <span className="w-32 shrink-0 text-caption text-muted">{row.label}</span>
               <span className="flex-1 text-sm text-ink">{row.value}</span>
-              {row.step && (
+              {/* 실행 시작 요청 중에는 단계를 옮기지 못하게 변경 링크를 숨깁니다 */}
+              {row.step && !isStarting && (
                 <Link
                   to={{ search: `?step=${row.step}` }}
                   className="shrink-0 text-caption text-subtle underline underline-offset-4"
                   aria-label={`${row.label} 변경`}
                 >
-                  변경 · {row.step === "site" ? 1 : row.step === "task" ? 2 : 3}단계
+                  변경 · {STEPS.indexOf(row.step) + 1}단계
                 </Link>
               )}
             </li>
@@ -144,7 +172,7 @@ export default function ConfirmStep({
           )}
         </StatusRow>
       )}
-      {error && error.status !== 409 && error.status !== 400 && (
+      {error && error.status !== 409 && (
         <p role="alert" className="flex items-center gap-2 text-caption">
           <Icon name="status-error" className="size-5 text-danger" />
           <span className="font-bold text-ink">실행을 시작하지 못했어요</span>
@@ -156,10 +184,10 @@ export default function ConfirmStep({
       )}
 
       <StepFooter>
-        <Button variant="link" onClick={onPrev}>
+        <Button variant="link" disabled={isStarting} onClick={onPrev}>
           이전
         </Button>
-        <Button disabled={expired || isStarting} onClick={onStart}>
+        <Button disabled={expired || isStarting || tasks.length === 0} onClick={onStart}>
           {isStarting ? "시작하는 중…" : "실행 시작"}
         </Button>
       </StepFooter>

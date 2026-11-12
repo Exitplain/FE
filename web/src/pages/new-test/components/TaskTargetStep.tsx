@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import Button from "@/components/Button/Button";
 import ChoiceChip from "@/components/ChoiceChip/ChoiceChip";
@@ -32,7 +33,25 @@ export default function TaskTargetStep({
   onPrev,
   onNext,
 }: TaskTargetStepProps) {
-  const store = useNewTestStore();
+  /* 필요한 값만 구독해 다른 단계 입력에 이 화면이 다시 그려지지 않게 합니다 (액션은 바뀌지 않는 참조) */
+  const store = useNewTestStore(
+    useShallow((state) => ({
+      taskIds: state.taskIds,
+      customTasks: state.customTasks,
+      memo: state.memo,
+      targetDescription: state.targetDescription,
+      ages: state.ages,
+      toggleTask: state.toggleTask,
+      addCustomTask: state.addCustomTask,
+      removeCustomTask: state.removeCustomTask,
+      setMemo: state.setMemo,
+      setTargetDescription: state.setTargetDescription,
+      setAges: state.setAges,
+    })),
+  );
+  const taskErrorId = useId();
+  const tasksRef = useRef<HTMLDivElement>(null);
+  const targetRef = useRef<HTMLTextAreaElement>(null);
   const [customInput, setCustomInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
@@ -42,7 +61,16 @@ export default function TaskTargetStep({
 
   const next = () => {
     setSubmitted(true);
-    if (!taskError && !targetError) onNext();
+    /* 첫 번째로 고쳐야 할 곳으로 초점을 옮겨 오류를 바로 알 수 있게 합니다 */
+    if (taskError) {
+      tasksRef.current?.querySelector("button")?.focus();
+      return;
+    }
+    if (targetError) {
+      targetRef.current?.focus();
+      return;
+    }
+    onNext();
   };
 
   return (
@@ -51,7 +79,13 @@ export default function TaskTargetStep({
         title="확인할 과업"
         description={`사이트에서 찾은 기능 · 사이트를 분석해 맞는 과업을 골라 왔어요 · ${plan.note}`}
       >
-        <div className="flex flex-col gap-6">
+        <div
+          ref={tasksRef}
+          role="group"
+          aria-label="확인할 과업"
+          aria-describedby={submitted && taskError ? taskErrorId : undefined}
+          className="flex flex-col gap-6"
+        >
           {plan.features.map((feature) => {
             const tasks = plan.tasks.filter((task) => task.feature_id === feature.id);
             if (tasks.length === 0) return null;
@@ -89,7 +123,7 @@ export default function TaskTargetStep({
           {profileCount}개 × 과업)
         </p>
         {submitted && taskError && (
-          <p role="alert" className="text-xs font-medium text-danger">
+          <p id={taskErrorId} role="alert" className="text-xs font-medium text-danger">
             {taskError}
           </p>
         )}
@@ -105,8 +139,14 @@ export default function TaskTargetStep({
               value={customInput}
               onChange={(event) => setCustomInput(event.target.value)}
               onKeyDown={(event) => {
-                /* 한글 조합 중 Enter 는 글자 확정이라 무시합니다 */
-                if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+                /* 한글 조합 중 Enter(Safari 는 keyCode 229)는 글자 확정이라 무시합니다 */
+                if (
+                  event.key !== "Enter" ||
+                  event.nativeEvent.isComposing ||
+                  event.keyCode === 229
+                ) {
+                  return;
+                }
                 event.preventDefault();
                 store.addCustomTask(customInput);
                 setCustomInput("");
@@ -161,6 +201,7 @@ export default function TaskTargetStep({
           {(control) => (
             <TextArea
               {...control}
+              ref={targetRef}
               rows={3}
               maxLength={TEXT_MAX}
               value={store.targetDescription}
