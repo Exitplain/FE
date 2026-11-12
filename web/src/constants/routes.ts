@@ -28,7 +28,23 @@ export const ROUTES = {
   projectDetail: {
     path: "/projects/:projectId",
     title: "프로젝트 개요",
-    screens: "C05~C09",
+    screens: "C05~C06",
+    owner: "고명준",
+  },
+  /*
+    프로젝트 안의 진단 기록·발견한 문제. 워크스페이스 화면(/history, /issues, W02·W03)은 모든 프로젝트를
+    모아 보고, 이 화면은 한 프로젝트만 자세히 봅니다 (Figma IA C08·C09, 사이드바 프로젝트 하위 메뉴).
+  */
+  projectHistory: {
+    path: "/projects/:projectId/history",
+    title: "프로젝트 진단 기록",
+    screens: "C08",
+    owner: "고명준",
+  },
+  projectIssues: {
+    path: "/projects/:projectId/issues",
+    title: "프로젝트 발견한 문제",
+    screens: "C09",
     owner: "고명준",
   },
   testList: {
