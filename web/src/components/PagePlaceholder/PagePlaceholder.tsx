@@ -16,8 +16,6 @@ export default function PagePlaceholder({ routeKey }: { routeKey: RouteKey }) {
         <dd>
           <code>{route.path}</code>
         </dd>
-        <dt className="text-muted">담당</dt>
-        <dd>{route.owner}</dd>
       </dl>
       <a
         className="mt-6 inline-block text-sm underline underline-offset-4"
