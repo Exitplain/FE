@@ -62,12 +62,12 @@ npm run dev:mock     # .env.mock 사용, MSW가 /api 요청을 가로챕니다
 web/
   .env.example          # 환경변수 설명 (복사해서 .env.local)
   .env.mock             # mock 모드 설정 (비밀 값 없음)
-  public/               # 폰트, 로고, Figma SVG, mockServiceWorker.js
+  public/               # 폰트, favicon.svg, mockServiceWorker.js
   src/
     main.tsx            # QueryClientProvider, mock 모드면 MSW 시작
     App.tsx
     routes/index.tsx    # 전체 라우트 — 공통
-    layouts/            # AppLayout(사이드바), AuthLayout — 공통
+    layouts/            # AppLayout/(AppLayout, Sidebar), AuthLayout/ — 공통
     components/         # 두 페이지 이상이 쓰는 UI — 공통
       Button/Button.tsx
     pages/              # 화면 단위, kebab-case
@@ -80,7 +80,7 @@ web/
     stores/             # zustand, use*Store.ts
     constants/          # routes.ts (라우트 표)
     utils/              # cn.ts
-    assets/             # 화면별 이미지
+    assets/             # Figma 공통 에셋(icons, characters, brand, background) + 화면별 이미지
     styles/index.css    # Tailwind + @theme 디자인 토큰
     mocks/              # browser.ts, handlers/, fixtures/
 ```
@@ -120,5 +120,4 @@ web/
 | [docs/WEB_SETUP.md](../docs/WEB_SETUP.md)             | 기술 스택 선택 이유, 환경변수, BE 프록시, CI, 자주 생기는 문제 |
 | [docs/WEB_CONVENTIONS.md](../docs/WEB_CONVENTIONS.md) | 폴더 구조, 이름 규칙, 상태 관리, 스타일 토큰, 공통 컴포넌트    |
 | [docs/WEB_API_GUIDE.md](../docs/WEB_API_GUIDE.md)     | API 호출 흐름, 타입, 오류 처리, polling, mock 작성법           |
-| [docs/COLLABORATION.md](../docs/COLLABORATION.md)     | 역할 분담, 공통 영역 규칙, 완료 기준, 소통                     |
 | [CONTRIBUTING.md](../CONTRIBUTING.md)                 | 브랜치, 커밋, PR, 리뷰 규칙                                    |

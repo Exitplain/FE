@@ -1,8 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
 
 import { ROUTES } from "@/constants/routes";
-import AppLayout from "@/layouts/AppLayout";
-import AuthLayout from "@/layouts/AuthLayout";
+import AppLayout from "@/layouts/AppLayout/AppLayout";
+import AuthLayout from "@/layouts/AuthLayout/AuthLayout";
 import AnalyticsPage from "@/pages/analytics";
 import CalibrationPage from "@/pages/calibration";
 import DashboardPage from "@/pages/dashboard";
