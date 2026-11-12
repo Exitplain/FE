@@ -1,9 +1,21 @@
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { server } from "@/mocks/node";
+
+/*
+  jsdom 에는 ResizeObserver 가 없습니다. 사이드바(AppLayout)처럼 크기 변화를 지켜보는
+  컴포넌트도 렌더링할 수 있게 아무 일도 하지 않는 구현으로 채웁니다. (레이아웃 계산은 테스트하지 않음)
+  파일 시작 시 한 번만 넣으므로, vite.config 의 test.unstubGlobals 를 켜면 beforeEach 로 옮겨야 합니다.
+*/
+class NoopResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal("ResizeObserver", NoopResizeObserver);
 
 /*
   핸들러가 없는 요청은 실패시킵니다.
