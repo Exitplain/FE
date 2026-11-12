@@ -69,6 +69,20 @@ describe("toTestRows", () => {
     expect(toTestRows({ reports, currentRun: completed, now: NOW })).toHaveLength(2);
   });
 
+  it("방금 끝나 목록에 아직 없는 현재 실행은 완료 행으로 보여준다", () => {
+    const justCompleted = run({ id: "r3", status: "completed", sessions: [] });
+
+    expect(toTestRows({ reports, currentRun: justCompleted, now: NOW })[0]).toMatchObject({
+      key: "r3",
+      name: "3차 · 문제 버전 · 세션 0개",
+      status: "done",
+    });
+  });
+
+  it("날짜를 읽을 수 없으면 — 로 보여준다", () => {
+    expect(formatRunDate("not-a-date", NOW)).toBe("—");
+  });
+
   it("idle 은 목록에 넣지 않는다", () => {
     const idle = run({ id: null, status: "idle" });
 

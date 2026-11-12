@@ -15,16 +15,18 @@ const STATUS_BADGE = {
 type TestListTableProps = {
   projectId: string;
   rows: TestRow[];
+  /* 표 이름이 될 제목의 id */
+  labelledBy: string;
 };
 
 /*
-  P01 사전 테스트 표. 행 전체가 링크입니다:
+  P01 사전 테스트 표. 테스트 이름이 링크입니다 (행 전체를 링크로 감싸면 표 의미가 깨져서):
   진행 중 → 실행 화면(P08~P10), 완료 → 리포트(P12).
   목표 달성률은 목록 API 에 없어 "—" 로 둡니다 (리포트에서 계산).
 */
-export default function TestListTable({ projectId, rows }: TestListTableProps) {
+export default function TestListTable({ projectId, rows, labelledBy }: TestListTableProps) {
   return (
-    <table aria-labelledby="test-list-title" className="w-full text-left text-sm">
+    <table aria-labelledby={labelledBy} className="w-full text-left text-sm">
       <thead>
         <tr className="border-b border-line text-xs font-medium text-muted">
           <th className="py-4 font-medium">테스트 이름</th>
