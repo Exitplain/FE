@@ -5,6 +5,7 @@ import logoMark from "@/assets/brand/logo-mark.svg";
 import Icon from "@/components/Icon/Icon";
 import type { IconName } from "@/components/Icon/iconNames";
 import { iconButtonVariants } from "@/components/IconButton/iconButtonVariants";
+import { SAMPLE_PROJECTS } from "@/constants/projects";
 import { buildPath, ROUTES } from "@/constants/routes";
 import { cn } from "@/utils/cn";
 
@@ -13,12 +14,6 @@ import { cn } from "@/utils/cn";
   템플릿 단계라 프로젝트 목록과 계정 정보는 정적 예시 값입니다.
   API 가 붙으면 SAMPLE_PROJECTS·SAMPLE_ACCOUNT 를 조회 결과로 바꿉니다.
 */
-
-const SAMPLE_PROJECTS = [
-  { id: "banchan", name: "반찬로드" },
-  { id: "studio", name: "스튜디오 예약" },
-  { id: "phone", name: "중고폰 매입" },
-] as const;
 
 const SAMPLE_ACCOUNT = { name: "메이커", email: "maker@example.com" } as const;
 
