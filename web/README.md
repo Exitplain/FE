@@ -108,7 +108,9 @@ navigate(buildPath("testRun", { projectId, runId })); // /projects/banchan/runs/
 | `/settings`                                            | 워크스페이스 설정       | W04      | `pages/settings`          | 고명준 |
 | `/guide`                                               | 시작 가이드             | W05      | `pages/guide`             | 고명준 |
 | `/projects`                                            | 프로젝트 찾기·생성      | C02~C04  | `pages/project-list`      | 고명준 |
-| `/projects/:projectId`                                 | 프로젝트 개요           | C05~C09  | `pages/project-detail`    | 고명준 |
+| `/projects/:projectId`                                 | 프로젝트 개요           | C05~C06  | `pages/project-detail`    | 고명준 |
+| `/projects/:projectId/history`                         | 프로젝트 진단 기록      | C08      | `pages/project-history`   | 고명준 |
+| `/projects/:projectId/issues`                          | 프로젝트 발견한 문제    | C09      | `pages/project-issues`    | 고명준 |
 | `/projects/:projectId/tests`                           | 사전 테스트 목록        | P01      | `pages/test-list`         | 팀원   |
 | `/projects/:projectId/tests/new`                       | 새 테스트               | P02~P05c | `pages/new-test`          | 팀원   |
 | `/projects/:projectId/runs/:runId`                     | 실행 준비·실행·분석     | P06~P11  | `pages/test-run`          | 팀원   |

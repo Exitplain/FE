@@ -13,6 +13,8 @@ import LoginPage from "@/pages/login";
 import NewTestPage from "@/pages/new-test";
 import NotFoundPage from "@/pages/not-found";
 import ProjectDetailPage from "@/pages/project-detail";
+import ProjectHistoryPage from "@/pages/project-history";
+import ProjectIssuesPage from "@/pages/project-issues";
 import ProjectListPage from "@/pages/project-list";
 import ReportPage from "@/pages/report";
 import RetestPage from "@/pages/retest";
@@ -44,6 +46,8 @@ export const routes: RouteObject[] = [
       { path: ROUTES.guide.path, element: <GuidePage /> },
       { path: ROUTES.projectList.path, element: <ProjectListPage /> },
       { path: ROUTES.projectDetail.path, element: <ProjectDetailPage /> },
+      { path: ROUTES.projectHistory.path, element: <ProjectHistoryPage /> },
+      { path: ROUTES.projectIssues.path, element: <ProjectIssuesPage /> },
       { path: ROUTES.testList.path, element: <TestListPage /> },
       { path: ROUTES.analytics.path, element: <AnalyticsPage /> },
       { path: ROUTES.calibration.path, element: <CalibrationPage /> },

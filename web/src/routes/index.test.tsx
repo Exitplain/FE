@@ -37,6 +37,8 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     ["report", buildPath("report", { projectId, runId })],
     ["sessionDetail", buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })],
     ["retest", buildPath("retest", { projectId, runId })],
+    ["projectHistory", buildPath("projectHistory", { projectId })],
+    ["projectIssues", buildPath("projectIssues", { projectId })],
   ] as const)("%s 화면을 %s 에서 연다", (key, path) => {
     renderAt(path);
 
