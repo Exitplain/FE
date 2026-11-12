@@ -1,11 +1,11 @@
 import { type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
-import { generatePath, Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 
 import logoMark from "@/assets/brand/logo-mark.svg";
 import Icon from "@/components/Icon/Icon";
 import type { IconName } from "@/components/Icon/iconNames";
 import { iconButtonVariants } from "@/components/IconButton/iconButtonVariants";
-import { ROUTES } from "@/constants/routes";
+import { buildPath, ROUTES } from "@/constants/routes";
 import { cn } from "@/utils/cn";
 
 /*
@@ -180,7 +180,7 @@ export default function Sidebar() {
         {SAMPLE_PROJECTS.map((project) => (
           <SidebarLink
             key={project.id}
-            to={generatePath(ROUTES.projectDetail.path, { projectId: project.id })}
+            to={buildPath("projectDetail", { projectId: project.id })}
             icon="folder"
           >
             {project.name}
