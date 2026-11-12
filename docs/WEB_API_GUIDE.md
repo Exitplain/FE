@@ -24,7 +24,7 @@
 - 컴포넌트에서 axios를 직접 부르지 않습니다.
 - 쿼리 키는 `apis/queryKeys.ts`에서만 만듭니다.
 
-예시 — 실행 상태 조회 (`pages/test-run/hooks/usePersonaRun.ts`):
+예시 — 실행 상태 조회 (`hooks/usePersonaRun.ts`, 여러 화면이 함께 씀):
 
 ```ts
 export function usePersonaRun() {
