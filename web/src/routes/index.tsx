@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, type RouteObject } from "react-router-dom";
 
 import { ROUTES } from "@/constants/routes";
 import AppLayout from "@/layouts/AppLayout/AppLayout";
@@ -22,8 +22,11 @@ import SharedReportPage from "@/pages/shared-report";
 import TestListPage from "@/pages/test-list";
 import TestRunPage from "@/pages/test-run";
 
-/* 경로 문자열은 constants/routes.ts 에서만 관리합니다 */
-export const router = createBrowserRouter([
+/*
+  경로 문자열은 constants/routes.ts 에서만 관리합니다.
+  라우트 배열을 따로 내보내는 이유: 테스트에서 createMemoryRouter 로 원하는 주소를 열어 보려고.
+*/
+export const routes: RouteObject[] = [
   {
     element: <AuthLayout />,
     children: [
@@ -52,4 +55,6 @@ export const router = createBrowserRouter([
       { path: "*", element: <NotFoundPage /> },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);
