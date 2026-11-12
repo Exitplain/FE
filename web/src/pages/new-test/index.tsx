@@ -6,7 +6,6 @@ import Stepper from "@/components/Stepper/Stepper";
 import { findSampleProject } from "@/constants/projects";
 import { buildPath } from "@/constants/routes";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
-import { PROFILES } from "@/mocks/fixtures/personas";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 
 import ConfirmStep from "./components/ConfirmStep";
@@ -15,6 +14,9 @@ import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
 import { useConfirmRun } from "./hooks/useNewTestMutations";
 import { buildConfirmRequest, parseStep, STEP_LABELS, STEPS, type StepKey } from "./utils/newTest";
+
+/* BE agent/persona_dashboard.py PROFILES 개수 */
+const DEFAULT_PROFILE_COUNT = 3;
 
 /*
   P02~P05c 새 테스트 (단계: ?step=site|task|persona|confirm)
@@ -50,8 +52,9 @@ export default function NewTestPage() {
 
   const plan = store.plan;
   const step: StepKey = plan ? parseStep(searchParams.get("step")) : "site";
-  /* 실행 전에는 현재 실행 응답의 고정 프로필을 쓰고, 아직 못 받았으면 BE 와 같은 기본값 */
-  const profiles = currentRun.data?.profiles.length ? currentRun.data.profiles : PROFILES;
+  /* BE 고정 프로필은 GET /api/personas 응답에 있습니다. 받기 전에는 세션 수 계산에 BE 기본값(3)을 씁니다 */
+  const profiles = currentRun.data?.profiles ?? [];
+  const profileCount = profiles.length || DEFAULT_PROFILE_COUNT;
 
   const goTo = (next: StepKey) => {
     setNotice(null);
@@ -96,7 +99,7 @@ export default function NewTestPage() {
       {step === "task" && plan && (
         <TaskTargetStep
           plan={plan}
-          profileCount={profiles.length}
+          profileCount={profileCount}
           onPrev={() => goTo("site")}
           onNext={() => goTo("persona")}
         />
@@ -114,7 +117,7 @@ export default function NewTestPage() {
         <ConfirmStep
           projectId={project.id}
           plan={plan}
-          profileCount={profiles.length}
+          profileCount={profileCount}
           isStarting={confirm.isPending}
           error={confirm.error}
           currentRunId={currentRun.data?.id ?? null}
