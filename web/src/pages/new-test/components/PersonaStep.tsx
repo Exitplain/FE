@@ -34,6 +34,11 @@ export default function PersonaStep({
         title="세그먼트"
         description={`프로필 ${profiles.length}개가 과업마다 1세션씩 실행해요 · 세그먼트 비율 조정은 서버가 지원하면 열려요`}
       >
+        {profiles.length === 0 && (
+          <p role="status" className="text-sm text-muted">
+            페르소나 프로필을 불러오는 중이에요…
+          </p>
+        )}
         <ul aria-label="페르소나 프로필" className="flex flex-col">
           {profiles.map((profile) => (
             <li
