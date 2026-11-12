@@ -1,15 +1,35 @@
 # Exitplain FE
 
-[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md)
+[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md) · [문서 목록](docs/README.md)
 
+EXITPLAIN 프론트엔드 저장소입니다.
 
-DropSpot의 HTML/CSS/JavaScript 프론트엔드입니다. 별도 빌드 단계는 없습니다.
+| 폴더 | 내용 | 상태 |
+| --- | --- | --- |
+| `web/` | React + TypeScript + Tailwind SaaS 앱 | **신규 개발 중** — [web/README.md](web/README.md) |
+| `saas-web/` | 기존 HTML/CSS/JavaScript SaaS 화면 | 유지 (BE 개발 서버가 제공, `web/` 완성 후 정리) |
+| `demo-shop/` | 합성 데이터 기반 반찬로드 테스트 쇼핑몰 | 유지 (페르소나 실행 대상) |
+| `docs/` | API 명세 사본, Figma 반영 내역, web 세팅·컨벤션·API·협업 가이드 | [목록](docs/README.md) |
 
-- `saas-web/`: SaaS 대시보드, 페르소나 실행 준비, 리포트 화면과 정적 자산.
-- `demo-shop/`: 합성 데이터 기반 반찬로드 테스트 쇼핑몰과 폰트·이미지.
-- 에이전트·개발 API·테스트·공통 설계 문서: [Exitplain/BE](https://github.com/Exitplain/BE).
+`saas-web/`과 `demo-shop/`은 BE의 `agent.console`, `agent.shop`이 FE 루트에서 직접 읽으므로 경로를 바꾸지 않습니다.
+에이전트·개발 API·테스트·공통 설계 문서는 [Exitplain/BE](https://github.com/Exitplain/BE)에 있습니다.
 
-## 실행
+## web 실행 (React 앱)
+
+```bash
+# BE 저장소, 가상환경에서
+python -m agent.console --port 4174
+
+# 이 저장소
+cd web
+npm install
+npm run dev        # http://localhost:5173, /api 는 BE로 프록시
+npm run dev:mock   # BE 없이 MSW mock으로 실행
+```
+
+자세한 내용은 [web/README.md](web/README.md), 문서 목록은 [docs/README.md](docs/README.md), 협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+
+## 기존 화면 실행 (saas-web, demo-shop)
 
 BE와 FE를 같은 상위 폴더 아래에 클론한 다음 [BE 설치 안내](https://github.com/Exitplain/BE#분리-저장소-로컬-실행)를 따릅니다.
 BE 가상환경에서 실행하세요.
