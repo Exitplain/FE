@@ -21,13 +21,13 @@ docs/readme-routes
 
 ## 커밋
 
-[Conventional Commits](https://www.conventionalcommits.org/ko/v1.0.0/)에 화면 코드를 scope로 붙입니다. 공통 영역 변경은 `common`을 씁니다.
+[Conventional Commits](https://www.conventionalcommits.org/ko/v1.0.0/)의 타입만 씁니다. `feat(P12):`처럼 괄호 안 scope는 붙이지 않습니다. 어느 화면인지는 설명에 적습니다.
 
 ```
-feat(P12): 리포트 구역 이동 메뉴 추가
-fix(W01): KPI 로딩 중 레이아웃 흔들림 수정
-style(C02): 프로젝트 카드 간격 Figma 기준으로 조정
-refactor(common): Modal 닫기 로직 분리
+feat: P12 리포트 구역 이동 메뉴 추가
+fix: W01 KPI 로딩 중 레이아웃 흔들림 수정
+style: C02 프로젝트 카드 간격 Figma 기준으로 조정
+refactor: Modal 닫기 로직 분리
 chore: MSW 핸들러 파일 분리
 docs: 라우트 표 갱신
 ```
