@@ -42,11 +42,13 @@
   --color-ink-pressed: #333333; /* 검정 Button 눌림 */
   --color-surface-pressed: #ededed; /* 흰색 Button 눌림 */
   --color-avatar: #999999; /* 사이드바 계정 아바타 배경 */
+  --color-danger: #c93638; /* 이탈·실패 (P01 실패 아이콘, P09 세션 타일 이탈) */
 
   /* 모서리 · 그림자 (Figma InfoTip 말풍선) */
   --radius-tooltip: 10px;
   --shadow-tooltip: 0 8px 12px rgb(0 0 0 / 0.12);
   --shadow-surface: 0 8px 32px rgb(10 10 10 / 0.06); /* Surface/Work 흰 작업 영역 */
+  --shadow-dialog: 0 16px 24px rgb(10 10 10 / 0.16); /* Dialog (P04 테스트 계정 등록) */
 
   /* 글자 크기 (Tailwind 기본에 없는 Figma 값) */
   --text-caption: 13px; /* 아바타 글자 (페이지 부제에도 쓸 예정) */
