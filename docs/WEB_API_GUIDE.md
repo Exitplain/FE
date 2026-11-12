@@ -95,6 +95,18 @@ export const projectHandlers = [
 ];
 ```
 
+### 페르소나 실행 mock (`/api/personas*`)
+
+- `src/mocks/personaMock.ts`가 BE 개발 API를 메모리 상태로 흉내 냅니다. 탐색 → 확인(BE와 같은 검증 규칙) → 실행 진행 → 완료 → 목록·질문까지 이어집니다.
+- `GET /api/personas`를 부를 때마다 한 단계씩 진행합니다(동시 3세션, 과업 × 프로필 3개). 세션 결과는 정해 둔 예시입니다(빠른 구매=이탈, 여유 있는 탐색의 배송 지역 확인=실행 오류, 나머지=완료).
+- 오류 화면은 `personaErrorHandlers`(`handlers/personas.ts`)로 재현합니다: `discoverUnavailable`(503), `confirmExpired`(400), `confirmRunning`(409), `personasNetworkError`, `reportsEmpty`.
+  - 테스트: `server.use(personaErrorHandlers.confirmExpired)`
+- 테스트에서는 `src/test/setup.ts`가 테스트마다 mock 상태를 처음으로 돌립니다.
+- 주의
+  - 진행은 시간이 아니라 **조회 횟수** 기준입니다. 같은 쿼리를 여러 곳에서 다시 부르면(invalidate, StrictMode 등) 더 빨리 끝납니다.
+  - 브라우저를 새로고침하면 mock 상태(탐색 계획 포함)가 사라집니다. 새로고침 뒤 confirm 은 계획 만료(400)로 응답합니다.
+  - mock 은 항상 idle 에서 시작하지만, 실제 BE 는 저장된 최근 완료 실행을 복원해 첫 조회부터 `completed`일 수 있습니다.
+
 ### mock 데이터 원칙
 
 - 실측값·보정값처럼 보이는 숫자를 지어내 화면에 보여주지 않습니다. 데모에서도 "예시 데이터"임을 알 수 있게 합니다.
