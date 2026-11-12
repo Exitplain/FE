@@ -5,9 +5,11 @@ import type { PersonaRun, PersonaSession, SessionStatus } from "@/types/persona.
 import {
   busiestStage,
   countSessions,
+  failureSummary,
   filterSessions,
   formatElapsed,
   runPhase,
+  safeViewerUrl,
   sessionGroup,
   taskOptions,
 } from "./runView";
@@ -151,5 +153,41 @@ describe("formatElapsed", () => {
     expect(formatElapsed(42_000)).toBe("0분 42초");
     expect(formatElapsed(372_000)).toBe("6분 12초");
     expect(formatElapsed(-5)).toBe("0분 0초");
+  });
+});
+
+describe("safeViewerUrl — 라이브 화면 iframe 주소 검증", () => {
+  const APP = "http://localhost:5173";
+
+  it("다른 출처의 http(s) 주소만 허용한다", () => {
+    expect(safeViewerUrl("http://localhost:8080/browser-session/s1", APP)).toBe(
+      "http://localhost:8080/browser-session/s1",
+    );
+    expect(safeViewerUrl("https://viewer.example/s1", APP)).toBe("https://viewer.example/s1");
+  });
+
+  it("앱과 같은 출처·상대 경로·http 가 아닌 주소·빈 값은 막는다", () => {
+    expect(safeViewerUrl("/mock/live/s1", APP)).toBeNull();
+    expect(safeViewerUrl("http://localhost:5173/other", APP)).toBeNull();
+    expect(safeViewerUrl("javascript:alert(1)", APP)).toBeNull();
+    expect(safeViewerUrl("data:text/html,hi", APP)).toBeNull();
+    expect(safeViewerUrl(null, APP)).toBeNull();
+    expect(safeViewerUrl("::not a url", APP)).toBeNull();
+    // 앱 출처를 알 수 없는 환경(file: 등)에서도 화면이 깨지지 않습니다
+    expect(safeViewerUrl("https://viewer.example/s1", "null")).toBeNull();
+  });
+});
+
+describe("failureSummary — E05 문구", () => {
+  it("한도 도달만 있으면 한도 문구, 정상 종료 세션 수를 센다", () => {
+    expect(
+      failureSummary([
+        session("a_order", "budget_exceeded"),
+        session("b_order", "budget_exceeded"),
+      ]),
+    ).toEqual({ reason: "모든 세션이 행동·시간 한도에 닿았어요", finishedNormally: 0, total: 2 });
+    expect(
+      failureSummary([session("a_order", "agent_failure", { reason: "브라우저 실행 오류 (X)" })]),
+    ).toEqual({ reason: "브라우저 실행 오류 (X)", finishedNormally: 0, total: 1 });
   });
 });

@@ -76,8 +76,9 @@ export default function RunProgress({
           role="progressbar"
           aria-label="진행률"
           aria-valuemin={0}
-          aria-valuemax={counts.all}
+          aria-valuemax={Math.max(counts.all, 1)}
           aria-valuenow={counts.finished}
+          aria-valuetext={`${counts.finished} / ${counts.all} 세션 끝남`}
           className="h-2 overflow-hidden rounded-full bg-line"
         >
           {/* 막대 길이는 진행 값이라 style 로 둡니다 */}
