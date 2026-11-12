@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import Button from "@/components/Button/Button";
 import ChoiceChip from "@/components/ChoiceChip/ChoiceChip";
@@ -21,6 +22,8 @@ const VARIANTS: { value: Variant; label: string }[] = [
 type SiteStepProps = {
   /* 만료 등으로 돌아왔을 때 위에 보여줄 안내 */
   notice: string | null;
+  /* 사이트 확인이 성공했을 때 */
+  onDiscovered: () => void;
   onNext: () => void;
 };
 
@@ -28,22 +31,52 @@ type SiteStepProps = {
   P02 사이트 · P02b 확인 중 · P03 확인 완료 · E07 잘못된 URL · E08 접근 불가
   - "사이트 확인"은 POST /api/personas/discover 를 부릅니다. 개발 서버는 주소 대신 반찬 데모 버전만 받아
     입력한 주소는 아직 탐색에 쓰이지 않습니다(주소 모양만 확인). 응답 시간·화면 수도 응답에 없습니다.
+  - 확인하는 동안 주소·버전을 잠가, 이전 요청의 응답이 바뀐 입력의 결과로 들어가지 않게 합니다.
   - 로그인 연결: 테스트 계정은 등록(P04)까지만 하고 실행에는 쓰이지 않습니다(서버 미지원).
 */
-export default function SiteStep({ notice, onNext }: SiteStepProps) {
-  const store = useNewTestStore();
+export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps) {
+  const { siteUrl, variant, loginMode, accountCount, plan } = useNewTestStore(
+    useShallow((state) => ({
+      siteUrl: state.siteUrl,
+      variant: state.variant,
+      loginMode: state.loginMode,
+      accountCount: state.accounts.length,
+      plan: state.plan,
+    })),
+  );
+  const actions = useNewTestStore.getState();
   const discover = useDiscoverPlan();
   const [urlError, setUrlError] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const isChecking = discover.isPending;
 
   const check = () => {
-    const error = validateSiteUrl(store.siteUrl);
+    if (isChecking) return;
+    const error = validateSiteUrl(siteUrl);
     setUrlError(error);
     if (error) return;
-    discover.mutate({ variant: store.variant }, { onSuccess: (plan) => store.setPlan(plan) });
+    const requested = { siteUrl, variant };
+    discover.mutate(
+      { variant },
+      {
+        onSuccess: (result) => {
+          /* 응답을 기다리는 사이 입력이 바뀌었다면 이 결과는 버립니다 */
+          const current = useNewTestStore.getState();
+          if (current.siteUrl !== requested.siteUrl || current.variant !== requested.variant)
+            return;
+          current.setPlan(result);
+          onDiscovered();
+        },
+        /* 다시 확인이 실패하면 이전 결과로 다음 단계에 가지 않도록 지웁니다 */
+        onError: () => {
+          const current = useNewTestStore.getState();
+          if (current.siteUrl === requested.siteUrl && current.variant === requested.variant) {
+            current.clearPlan();
+          }
+        },
+      },
+    );
   };
-
-  const plan = store.plan;
 
   return (
     <div className="flex flex-col gap-12">
@@ -62,13 +95,22 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
                 {...control}
                 type="url"
                 inputMode="url"
-                value={store.siteUrl}
+                disabled={isChecking}
+                value={siteUrl}
                 onChange={(event) => {
-                  store.setSiteUrl(event.target.value);
+                  actions.setSiteUrl(event.target.value);
                   setUrlError(null);
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") check();
+                  /* 한글 조합 중 Enter(Safari 는 keyCode 229)는 글자 확정이라 무시합니다 */
+                  if (
+                    event.key !== "Enter" ||
+                    event.nativeEvent.isComposing ||
+                    event.keyCode === 229
+                  ) {
+                    return;
+                  }
+                  check();
                 }}
               />
             )}
@@ -76,7 +118,7 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
           <Button
             variant="secondary"
             onClick={check}
-            disabled={discover.isPending}
+            disabled={isChecking}
             className={urlError ? "mb-6" : undefined}
           >
             {plan ? "다시 확인" : "사이트 확인"}
@@ -88,14 +130,15 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
             데모 사이트 버전
           </span>
           <div role="radiogroup" aria-labelledby="variant-label" className="flex gap-2">
-            {VARIANTS.map((variant) => (
+            {VARIANTS.map((item) => (
               <ChoiceChip
-                key={variant.value}
+                key={item.value}
                 kind="radio"
-                selected={store.variant === variant.value}
-                onClick={() => store.setVariant(variant.value)}
+                disabled={isChecking}
+                selected={variant === item.value}
+                onClick={() => actions.setVariant(item.value)}
               >
-                {variant.label}
+                {item.label}
               </ChoiceChip>
             ))}
           </div>
@@ -105,7 +148,7 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
           </p>
         </div>
 
-        {discover.isPending && (
+        {isChecking && (
           <StatusRow>
             <Icon name="status-running" className="size-5 animate-spin" />
             <span className="font-bold text-ink">
@@ -113,7 +156,7 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
             </span>
           </StatusRow>
         )}
-        {!discover.isPending && discover.isError && (
+        {!isChecking && discover.isError && (
           <div
             role="alert"
             className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-3"
@@ -130,7 +173,7 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
             </Button>
           </div>
         )}
-        {!discover.isPending && plan && (
+        {!isChecking && plan && (
           <StatusRow>
             <Icon name="check" className="size-5" />
             <span className="font-bold text-ink">
@@ -142,14 +185,15 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
       </StepSection>
 
       <StepSection title="로그인 연결" description="로그인이 필요하면 테스트 계정만 써 주세요">
-        <div role="radiogroup" aria-label="로그인 연결" className="flex flex-col gap-3">
+        <fieldset className="flex flex-col gap-3">
+          <legend className="sr-only">로그인 연결 방식</legend>
           <label className="flex cursor-pointer items-start gap-3">
             <input
               type="radio"
               name="login-mode"
               className="mt-0.5 size-5 accent-ink"
-              checked={store.loginMode === "none"}
-              onChange={() => store.setLoginMode("none")}
+              checked={loginMode === "none"}
+              onChange={() => actions.setLoginMode("none")}
             />
             <span className="flex flex-col gap-1">
               <span className="text-sm font-bold text-ink">로그인 없이 테스트</span>
@@ -162,41 +206,40 @@ export default function SiteStep({ notice, onNext }: SiteStepProps) {
                 type="radio"
                 name="login-mode"
                 className="mt-0.5 size-5 accent-ink"
-                checked={store.loginMode === "account"}
-                onChange={() => store.setLoginMode("account")}
+                checked={loginMode === "account"}
+                onChange={() => actions.setLoginMode("account")}
               />
               <span className="flex flex-col gap-1">
                 <span className="text-sm text-ink">테스트 계정 로그인 상태로 테스트</span>
                 <span className="text-xs text-muted">
-                  {store.accounts.length > 0
-                    ? `테스트 계정 ${store.accounts.length}개 등록 · 지금은 저장만 하고 실행에는 쓰지 않아요`
+                  {accountCount > 0
+                    ? `테스트 계정 ${accountCount}개 등록 · 지금은 저장만 하고 실행에는 쓰지 않아요`
                     : "테스트 계정 1개 = 에이전트 1명 · 최대 20개"}
                 </span>
               </span>
             </label>
             <Button
               variant="secondary"
-              disabled={store.loginMode !== "account"}
+              disabled={loginMode !== "account"}
               onClick={() => setAccountOpen(true)}
             >
               테스트 계정 등록
             </Button>
           </div>
-        </div>
+        </fieldset>
       </StepSection>
 
       <StepFooter>
-        <Button disabled={!plan} onClick={onNext}>
+        <Button disabled={!plan || isChecking} onClick={onNext}>
           다음: 과업 · 타겟
         </Button>
       </StepFooter>
 
       <AccountModal
         open={accountOpen}
-        initialAccounts={store.accounts}
         onClose={() => setAccountOpen(false)}
         onSave={(accounts) => {
-          store.setAccounts(accounts);
+          actions.setAccounts(accounts);
           setAccountOpen(false);
         }}
       />

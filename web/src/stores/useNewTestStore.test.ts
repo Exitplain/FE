@@ -34,6 +34,23 @@ describe("useNewTestStore", () => {
     expect(useNewTestStore.getState().discoveredAt).toBe(1);
   });
 
+  it("다시 탐색하면 이전에 고른 과업 중 새 결과에 있는 것은 유지한다", () => {
+    useNewTestStore.getState().setPlan(plan, 1);
+    useNewTestStore.getState().toggleTask("cart");
+    useNewTestStore.getState().toggleTask("order");
+    useNewTestStore.getState().setPlan(plan, 2);
+
+    expect(useNewTestStore.getState().taskIds).toEqual(["cart"]);
+  });
+
+  it("로그인 없이로 바꾸면 테스트 계정을 지운다", () => {
+    useNewTestStore.getState().setLoginMode("account");
+    useNewTestStore.getState().setAccounts([{ username: "a", password: "b" }]);
+    useNewTestStore.getState().setLoginMode("none");
+
+    expect(useNewTestStore.getState().accounts).toEqual([]);
+  });
+
   it("주소나 데모 버전을 바꾸면 이전 탐색 결과를 버린다", () => {
     useNewTestStore.getState().setPlan(plan, 1);
     useNewTestStore.getState().setSiteUrl("https://other.example");

@@ -14,6 +14,31 @@ export function parseStep(value: string | null): StepKey {
   return (STEPS as readonly string[]).includes(value ?? "") ? (value as StepKey) : "site";
 }
 
+/*
+  지금 입력으로 들어갈 수 있는 가장 앞 단계.
+  주소로 바로 들어오거나(새로고침·북마크) 브라우저 뒤로가기로 앞 단계 검증을 건너뛰지 못하게 합니다.
+  페르소나 단계는 입력이 없어 과업·타겟을 통과하면 시작 전 확인까지 갈 수 있습니다.
+*/
+export function furthestAllowedStep(input: {
+  hasPlan: boolean;
+  taskCount: number;
+  targetDescription: string;
+}): StepKey {
+  if (!input.hasPlan) return "site";
+  if (input.taskCount === 0 || !input.targetDescription.trim()) return "task";
+  return "confirm";
+}
+
+/* 요청한 단계와 갈 수 있는 단계 중 앞쪽 */
+export function clampStep(requested: StepKey, allowed: StepKey): StepKey {
+  return STEPS.indexOf(requested) <= STEPS.indexOf(allowed) ? requested : allowed;
+}
+
+/* confirm 400 중 계획 만료 (BE: "탐색 결과가 만료됐습니다. 다시 확인해주세요.") — 그 밖의 400 은 입력 오류 */
+export function isPlanExpiredMessage(message: string) {
+  return message.includes("만료");
+}
+
 /* BE 탐색 계획 보관 시간 (agent/preflight.py 900초) */
 export const PLAN_TTL_MS = 15 * 60 * 1000;
 

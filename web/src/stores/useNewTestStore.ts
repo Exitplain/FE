@@ -69,13 +69,22 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
     set((state) =>
       state.variant === variant ? state : { variant, plan: null, discoveredAt: null },
     ),
-  setLoginMode: (loginMode) => set({ loginMode }),
+  /* 로그인 없이로 돌아가면 입력한 테스트 계정(비밀번호 포함)을 메모리에서도 지웁니다 */
+  setLoginMode: (loginMode) =>
+    set(loginMode === "none" ? { loginMode, accounts: [] } : { loginMode }),
   setAccounts: (accounts) => set({ accounts }),
+  /* 다시 탐색해도 이전에 고른 과업 중 새 결과에 있는 것은 유지하고, 없으면 추천 과업을 고릅니다 */
   setPlan: (plan, discoveredAt = Date.now()) =>
-    set({
-      plan,
-      discoveredAt,
-      taskIds: plan.tasks.filter((task) => task.suggested).map((task) => task.id),
+    set((state) => {
+      const kept = state.taskIds.filter((id) => plan.tasks.some((task) => task.id === id));
+      return {
+        plan,
+        discoveredAt,
+        taskIds:
+          kept.length > 0
+            ? kept
+            : plan.tasks.filter((task) => task.suggested).map((task) => task.id),
+      };
     }),
   clearPlan: () => set({ plan: null, discoveredAt: null }),
   toggleTask: (taskId) =>

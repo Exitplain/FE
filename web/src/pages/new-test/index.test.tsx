@@ -1,8 +1,10 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes, useParams } from "react-router-dom";
+import { http, HttpResponse } from "msw";
+import { Link, Route, Routes, useParams } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { ROUTES } from "@/constants/routes";
 import { personaErrorHandlers } from "@/mocks/handlers/personas";
 import { server } from "@/mocks/node";
@@ -19,12 +21,26 @@ function RunProbe() {
 function renderWizard(step?: string) {
   const query = step ? `?step=${step}` : "";
   return renderWithProviders(
-    <Routes>
-      <Route path={ROUTES.newTest.path} element={<NewTestPage />} />
-      <Route path={ROUTES.testRun.path} element={<RunProbe />} />
-    </Routes>,
+    <>
+      {/* 같은 화면에서 프로젝트만 바뀌는 경우를 확인하려는 링크 */}
+      <Link to="/projects/studio/tests/new">스튜디오 예약 새 테스트</Link>
+      <Routes>
+        <Route path={ROUTES.newTest.path} element={<NewTestPage />} />
+        <Route path={ROUTES.testRun.path} element={<RunProbe />} />
+      </Routes>
+    </>,
     { route: `/projects/banchan/tests/new${query}` },
   );
+}
+
+/* 사이트 확인 → 과업·타겟 입력 → 페르소나 → 시작 전 확인 화면까지 */
+async function goToConfirm(user: ReturnType<typeof userEvent.setup>) {
+  await checkSite(user);
+  await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+  await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+  await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+  await user.click(await screen.findByRole("button", { name: "다음: 시작 전 확인" }));
+  await screen.findByRole("list", { name: "입력 요약" });
 }
 
 async function checkSite(user: ReturnType<typeof userEvent.setup>) {
@@ -40,7 +56,8 @@ describe("P02~P05c 새 테스트", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "새 테스트" })).toBeInTheDocument();
     expect(screen.getByLabelText("제품 URL")).toHaveValue("https://banchanroad.example");
-    expect(screen.getAllByRole("listitem")[0]).toHaveAttribute("aria-current", "step");
+    const steps = within(screen.getByRole("list", { name: "진행 단계" })).getAllByRole("listitem");
+    expect(steps[0]).toHaveAttribute("aria-current", "step");
   });
 
   it("E07 — 주소 모양이 틀리면 확인하지 않고 안내한다", async () => {
@@ -167,5 +184,119 @@ describe("P02~P05c 새 테스트", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText(/테스트 계정 2개 등록/)).toBeInTheDocument();
+  });
+  it("다른 단계 주소로 들어와 사이트를 확인해도 과업·타겟부터 다시 입력한다", async () => {
+    const user = userEvent.setup();
+    renderWizard("confirm");
+
+    await checkSite(user);
+
+    // 계획이 없을 때 주소가 사이트 단계로 바뀌었으므로, 확인 뒤에도 사이트 단계에 머뭅니다
+    expect(screen.queryByRole("list", { name: "입력 요약" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
+  });
+
+  it("사이트를 확인하는 동안에는 주소와 데모 버전을 바꿀 수 없다", async () => {
+    server.use(http.post("*/api/personas/discover", () => new Promise<Response>(() => {})));
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: "사이트 확인" }));
+
+    expect(await screen.findByText(/사이트를 확인하는 중이에요/)).toBeInTheDocument();
+    expect(screen.getByLabelText("제품 URL")).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "개선 버전" })).toBeDisabled();
+  });
+
+  it("다른 실행이 진행 중이면(409) 실행 중이라고 알리고 확인 화면에 머문다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await goToConfirm(user);
+
+    // 다른 곳에서 먼저 시작한 실행 (mock 이 실제로 409 를 돌려줌)
+    const plan = await discoverPersonaPlan({ variant: "problem" });
+    const other = await confirmPersonaRun({
+      plan_id: plan.plan_id,
+      feature_ids: ["shopping"],
+      task_ids: ["order"],
+      ages: ["any"],
+      context: "",
+      additional_request: "",
+    });
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+
+    expect(await screen.findByText("이미 실행 중인 테스트가 있어요")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "입력 요약" })).toBeInTheDocument();
+    // 현재 실행을 다시 받아 그 실행으로 가는 링크를 보여줍니다
+    expect(await screen.findByRole("link", { name: "실행 화면 보기" })).toHaveAttribute(
+      "href",
+      `/projects/banchan/runs/${other.id}`,
+    );
+  });
+
+  it("만료가 아닌 입력 오류(400)는 확인 화면에서 알리고 사이트 단계로 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await goToConfirm(user);
+
+    server.use(
+      http.post("*/api/personas/confirm", () =>
+        HttpResponse.json({ error: "기능·과업·연령을 한 개 이상 선택해주세요." }, { status: 400 }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+
+    expect(await screen.findByText(/기능·과업·연령을 한 개 이상 선택해주세요/)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "입력 요약" })).toBeInTheDocument();
+  });
+
+  it("같은 화면에서 프로젝트가 바뀌면 입력과 안내를 처음으로 돌린다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await checkSite(user);
+
+    await user.click(screen.getByRole("link", { name: "스튜디오 예약 새 테스트" }));
+
+    expect(await screen.findByLabelText("제품 URL")).toHaveValue("https://studio.example");
+    expect(screen.queryByText(/기능 4개 · 과업 6개를 찾았어요/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeDisabled();
+  });
+
+  it("로그인 없이 테스트로 되돌리면 입력한 테스트 계정을 지운다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    act(() => {
+      useNewTestStore.getState().setLoginMode("account");
+      useNewTestStore.getState().setAccounts([{ username: "a@x.example", password: "pw" }]);
+    });
+
+    await user.click(await screen.findByRole("radio", { name: /로그인 없이 테스트/ }));
+
+    expect(useNewTestStore.getState().accounts).toEqual([]);
+  });
+  it("화면을 떠나면 입력한 테스트 계정(비밀번호)을 지운다", () => {
+    const { unmount } = renderWizard();
+    act(() => {
+      useNewTestStore.getState().setLoginMode("account");
+      useNewTestStore.getState().setAccounts([{ username: "a@x.example", password: "pw" }]);
+    });
+
+    unmount();
+
+    expect(useNewTestStore.getState().accounts).toEqual([]);
+  });
+
+  it("다시 확인이 실패하면 이전 결과로 다음 단계에 가지 않는다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await checkSite(user);
+
+    server.use(personaErrorHandlers.discoverUnavailable);
+    await user.click(screen.getByRole("button", { name: "다시 확인" }));
+
+    expect(await screen.findByText(/사이트에 접속하지 못했어요/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeDisabled();
   });
 });

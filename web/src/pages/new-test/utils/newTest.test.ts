@@ -5,6 +5,9 @@ import type { DiscoverResponse } from "@/types/persona.type";
 
 import {
   buildConfirmRequest,
+  clampStep,
+  furthestAllowedStep,
+  isPlanExpiredMessage,
   findDuplicateUsernames,
   isPlanExpired,
   parseAccountsText,
@@ -121,6 +124,35 @@ describe("isPlanExpired — 탐색 계획은 15분", () => {
   it("15분이 지나면 만료", () => {
     expect(isPlanExpired(1_000, 1_000 + PLAN_TTL_MS - 1)).toBe(false);
     expect(isPlanExpired(1_000, 1_000 + PLAN_TTL_MS)).toBe(true);
+  });
+});
+
+describe("furthestAllowedStep · clampStep — 앞 단계를 건너뛰지 않게", () => {
+  it("탐색 결과가 없으면 사이트, 과업·타겟이 비면 과업, 다 있으면 확인까지", () => {
+    expect(furthestAllowedStep({ hasPlan: false, taskCount: 2, targetDescription: "x" })).toBe(
+      "site",
+    );
+    expect(furthestAllowedStep({ hasPlan: true, taskCount: 0, targetDescription: "x" })).toBe(
+      "task",
+    );
+    expect(furthestAllowedStep({ hasPlan: true, taskCount: 1, targetDescription: "  " })).toBe(
+      "task",
+    );
+    expect(furthestAllowedStep({ hasPlan: true, taskCount: 1, targetDescription: "x" })).toBe(
+      "confirm",
+    );
+  });
+
+  it("요청한 단계가 갈 수 있는 단계보다 뒤면 갈 수 있는 단계로", () => {
+    expect(clampStep("confirm", "task")).toBe("task");
+    expect(clampStep("task", "confirm")).toBe("task");
+  });
+});
+
+describe("isPlanExpiredMessage", () => {
+  it("만료 메시지만 만료로 본다", () => {
+    expect(isPlanExpiredMessage("탐색 결과가 만료됐습니다. 다시 확인해주세요.")).toBe(true);
+    expect(isPlanExpiredMessage("기능·과업·연령을 한 개 이상 선택해주세요.")).toBe(false);
   });
 });
 
