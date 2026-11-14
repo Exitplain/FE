@@ -1,0 +1,4 @@
+/* W07 선택 메뉴의 그림자입니다. 글자 높이는 실제 줄 높이를 유지합니다. */
+.project-picker-menu {
+  box-shadow: 0 8px 12px rgb(10 10 10 / 0.1);
+}

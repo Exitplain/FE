@@ -1,3 +1,5 @@
+import { readCreatedProjects } from "@/utils/projectRegistry";
+
 /*
   프로젝트 예시 목록. 프로젝트 API(/api/v1/projects)가 아직 없어 사이드바와 프로젝트 화면이 함께 씁니다.
   API 가 붙으면 조회 결과로 바꾸고 이 파일을 지웁니다.
@@ -9,8 +11,11 @@ export const SAMPLE_PROJECTS = [
   { id: "phone", name: "중고폰 매입", url: "https://phonebuy.example" },
 ] as const;
 
-export type SampleProject = (typeof SAMPLE_PROJECTS)[number];
+export type SampleProject = { id: string; name: string; url: string };
 
 export function findSampleProject(projectId: string | undefined): SampleProject | undefined {
-  return SAMPLE_PROJECTS.find((project) => project.id === projectId);
+  return (
+    SAMPLE_PROJECTS.find((project) => project.id === projectId) ??
+    readCreatedProjects().find((project) => project.id === projectId)
+  );
 }

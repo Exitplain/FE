@@ -35,12 +35,18 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     ["report", buildPath("report", { projectId, runId })],
     ["sessionDetail", buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })],
     ["retest", buildPath("retest", { projectId, runId })],
-    ["projectHistory", buildPath("projectHistory", { projectId })],
-    ["projectIssues", buildPath("projectIssues", { projectId })],
   ] as const)("%s 화면을 %s 에서 연다", (key, path) => {
     renderAt(path);
 
     expectPlaceholder(key);
+  });
+
+  it.each([
+    ["projectHistory", "진단 기록"],
+    ["projectIssues", "발견한 문제"],
+  ] as const)("%s에 프로젝트 전용 화면을 표시한다", async (key, title) => {
+    renderAt(buildPath(key, { projectId }));
+    expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
   });
 
   it("실행 화면(P08~P11)을 /runs/:runId 에서 연다", async () => {
