@@ -6,11 +6,13 @@ export default function IssueTable({
   onSelect,
   ascending,
   onSort,
+  hideProject = false,
 }: {
   issues: WorkspaceIssue[];
   onSelect: (id: string) => void;
   ascending: boolean;
   onSort: () => void;
+  hideProject?: boolean;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -18,7 +20,7 @@ export default function IssueTable({
         <thead>
           <tr>
             <th>문제 (원인 · 단계)</th>
-            <th>프로젝트 · 과업</th>
+            <th>{hideProject ? "과업" : "프로젝트 · 과업"}</th>
             <th aria-sort={ascending ? "ascending" : "descending"}>
               <button type="button" className="whitespace-nowrap text-ink" onClick={onSort}>
                 영향 (가상 세션) {ascending ? "↑" : "↓"}
@@ -41,7 +43,7 @@ export default function IssueTable({
                 </button>
               </td>
               <td className="whitespace-nowrap">
-                {issue.projectName} · {issue.task}
+                {hideProject ? issue.task : `${issue.projectName} · ${issue.task}`}
               </td>
               <td className="whitespace-nowrap">
                 가상 세션{" "}

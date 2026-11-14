@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import plane from "@/assets/workspace/todo-plane.svg";
+import Icon from "@/components/Icon/Icon";
 import { buildPath } from "@/constants/routes";
 import type { WorkspaceSnapshot } from "@/types/workspace.type";
 
@@ -26,7 +27,10 @@ export default function SummaryCards({ data }: { data: WorkspaceSnapshot }) {
           <div className="space-y-2 sm:border-r sm:border-line sm:pr-5">
             <p className="text-xs text-subtle">이번 주 완료 테스트</p>
             <p className="text-3xl font-bold">{data.summary.completedThisWeek}개</p>
-            <p className="text-xs text-subtle">실패 {data.summary.failedThisWeek}</p>
+            <p className="flex items-center gap-1 text-xs text-subtle">
+              <Icon name="status-fail" className="text-danger" />
+              실패 {data.summary.failedThisWeek}
+            </p>
           </div>
           <div className="space-y-2">
             <p className="text-xs text-subtle">실측 비교 가능</p>

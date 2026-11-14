@@ -12,6 +12,7 @@ export default function HistoryTable({
   onToggleAll,
   ascending,
   onSort,
+  hideProject = false,
 }: {
   runs: WorkspaceRun[];
   selected: string[];
@@ -19,6 +20,7 @@ export default function HistoryTable({
   onToggleAll: () => void;
   ascending: boolean;
   onSort: () => void;
+  hideProject?: boolean;
 }) {
   const all = runs.length > 0 && runs.every((run) => selected.includes(run.id));
   const some = runs.some((run) => selected.includes(run.id));
@@ -43,7 +45,7 @@ export default function HistoryTable({
               />
             </th>
             <th>실행</th>
-            <th>프로젝트</th>
+            {!hideProject && <th>프로젝트</th>}
             <th>유형</th>
             <th>상태</th>
             <th>목표 달성률 (예측 · 과업별)</th>
@@ -77,7 +79,7 @@ export default function HistoryTable({
                   {run.title}
                 </Link>
               </td>
-              <td className="whitespace-nowrap">{run.projectName}</td>
+              {!hideProject && <td className="whitespace-nowrap">{run.projectName}</td>}
               <td className="whitespace-nowrap text-subtle">{run.type}</td>
               <td className="whitespace-nowrap">
                 <RunStatus status={run.status} />

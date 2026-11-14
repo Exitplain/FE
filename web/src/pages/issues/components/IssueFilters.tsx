@@ -43,7 +43,7 @@ export default function IssueFilters({
         ))}
       </div>
       <p className="flex items-center gap-2 text-xs text-muted">
-        <Icon name="info" />
+        <Icon name="info" className="text-sky-400" />
         순서는 가상 세션 수 기준 · 판정은 재실행 시에만
       </p>
     </div>

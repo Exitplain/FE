@@ -7,6 +7,7 @@ import type { IconName } from "@/components/Icon/iconNames";
 import { iconButtonVariants } from "@/components/IconButton/iconButtonVariants";
 import { SAMPLE_PROJECTS, type SampleProject } from "@/constants/projects";
 import { buildPath, ROUTES } from "@/constants/routes";
+import { useProjects } from "@/hooks/useProjects";
 import { cn } from "@/utils/cn";
 
 import AccountControls from "./AccountControls";
@@ -308,6 +309,10 @@ function Caption({ children }: { children: ReactNode }) {
 }
 
 export default function Sidebar() {
+  const projects = useProjects();
+  const location = useLocation();
+  const createParams = new URLSearchParams(location.search);
+  createParams.set("create", "1");
   const asideRef = useRef<HTMLElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
   useSidebarIndicator(asideRef, indicatorRef);
@@ -362,11 +367,18 @@ export default function Sidebar() {
         </Link>
       </div>
       <nav aria-label="프로젝트" className="flex flex-col gap-2">
-        {SAMPLE_PROJECTS.map((project) => (
+        {(projects.data ?? SAMPLE_PROJECTS).map((project) => (
           <ProjectNavItem key={project.id} project={project} />
         ))}
-        {/* C03 새 프로젝트 모달은 프로젝트 화면에서 엽니다 */}
-        <Link to={ROUTES.projectList.path} className={cn(itemClass, idleItemClass, "text-subtle")}>
+        {/* C03은 현재 화면·필터를 유지한 채 공통 레이아웃 위에 표시합니다 */}
+        <Link
+          to={{
+            pathname: location.pathname,
+            search: `?${createParams.toString()}`,
+            hash: location.hash,
+          }}
+          className={cn(itemClass, idleItemClass, "text-subtle")}
+        >
           <Icon name="plus" className={NAV_ICON} />새 프로젝트
         </Link>
       </nav>

@@ -81,9 +81,12 @@ export default function ProjectLoops({
                     </button>
                   ) : (
                     <Link
-                      className="whitespace-nowrap hover:underline"
+                      className="inline-flex items-center justify-end gap-1 whitespace-nowrap hover:underline"
                       to={buildPath(project.actionTarget, { projectId: project.id })}
                     >
+                      {project.action === "표본 모으는 중" && (
+                        <Icon name="status-wait" className="text-muted" />
+                      )}
                       {project.action}
                     </Link>
                   )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
@@ -13,14 +13,17 @@ import { comparisonReason, filterRuns, type RunFilters } from "./utils/filterRun
 
 import "@/components/Workspace/workspace.css";
 
-export default function DiagnosisHistoryPage() {
+export default function DiagnosisHistoryPage({
+  projectId,
+  header,
+}: { projectId?: string; header?: ReactNode } = {}) {
   const query = useWorkspaceData();
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const defaults: RunFilters = {
     search: "",
-    project: "all",
+    project: projectId ?? "all",
     status: "all",
     type: "all",
     period: "30",
@@ -29,6 +32,7 @@ export default function DiagnosisHistoryPage() {
   const filters = Object.fromEntries(
     Object.entries(defaults).map(([key, value]) => [key, params.get(key) ?? value]),
   ) as RunFilters;
+  if (projectId) filters.project = projectId;
   const update = (key: keyof RunFilters, value: string) =>
     setParams(
       (previous) => {
@@ -50,18 +54,28 @@ export default function DiagnosisHistoryPage() {
   };
   const runs =
     query.data && !query.isEmpty ? filterRuns(query.data.runs, filters, query.data.asOf) : [];
-  const selectedRuns = query.data?.runs.filter((run) => selected.includes(run.id)) ?? [];
+  const selectedRuns =
+    query.data?.runs.filter(
+      (run) => selected.includes(run.id) && (!projectId || run.projectId === projectId),
+    ) ?? [];
   const reason = comparisonReason(selectedRuns);
   const applied = Object.entries(filters).filter(
     ([key, value]) => value !== defaults[key as keyof RunFilters] && key !== "sort",
   );
   return (
     <div className="space-y-7 text-ink">
-      <WorkspacePageHeader
-        title="진단 기록"
-        description="사전 테스트와 차이 구간 원인 재현 실행을 모두 모았어요"
+      {header ?? (
+        <WorkspacePageHeader
+          title="진단 기록"
+          description="사전 테스트와 차이 구간 원인 재현 실행을 모두 모았어요"
+        />
+      )}
+      <HistoryFilters
+        filters={filters}
+        projects={query.data?.projects ?? []}
+        onChange={update}
+        hideProject={Boolean(projectId)}
       />
-      <HistoryFilters filters={filters} projects={query.data?.projects ?? []} onChange={update} />
       {applied.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-subtle">
           <span>적용된 필터</span>
@@ -115,6 +129,7 @@ export default function DiagnosisHistoryPage() {
       ) : (
         <>
           <HistoryTable
+            hideProject={Boolean(projectId)}
             runs={runs}
             selected={selected}
             onToggle={(id) =>

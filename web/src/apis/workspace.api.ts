@@ -1,11 +1,13 @@
 import { defaultWorkspaceSettings, workspaceFixture } from "@/mocks/fixtures/workspace";
 import type { WorkspaceSettings, WorkspaceSnapshot } from "@/types/workspace.type";
 
+import { getProjects } from "./project.api";
+
 const SETTINGS_KEY = "exitplain-workspace-demo-settings";
 
 /* API 연결 지점. persona API·MSW 핸들러는 변경하지 않습니다. 실제 API 응답은 이 타입으로 변환합니다. */
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  return structuredClone(workspaceFixture);
+  return { ...structuredClone(workspaceFixture), projects: await getProjects() };
 }
 
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {

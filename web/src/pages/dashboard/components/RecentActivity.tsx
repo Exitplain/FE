@@ -21,9 +21,9 @@ export function RecentIssues({ issues }: { issues: WorkspaceIssue[] }) {
           <Link
             key={issue.id}
             to={`${buildPath("issues")}?issue=${issue.id}`}
-            className="flex items-center justify-between gap-4 border-b border-line py-4 last:border-0 hover:bg-gray-50"
+            className="grid grid-cols-6 items-center gap-4 border-b border-line py-4 last:border-0 hover:bg-gray-50 sm:grid-cols-12"
           >
-            <span className="min-w-0">
+            <span className="col-span-6 min-w-0 sm:col-span-7">
               <span className="block text-sm font-medium">
                 {issue.cause} · {issue.stage}
               </span>
@@ -31,8 +31,10 @@ export function RecentIssues({ issues }: { issues: WorkspaceIssue[] }) {
                 {issue.projectName} · {issue.task}
               </span>
             </span>
-            <span className="text-caption">{issue.impact.join("~")}</span>
-            <span className="flex items-center gap-2 text-caption whitespace-nowrap text-subtle">
+            <span className="col-span-2 text-center text-caption tabular-nums">
+              {issue.impact.join("~")}
+            </span>
+            <span className="col-span-4 flex items-center gap-2 text-caption whitespace-nowrap text-subtle sm:col-span-3">
               <Icon name={issue.verdict === "계속 발생" ? "verdict-repeat" : "verdict-before"} />
               {issue.verdict}
             </span>

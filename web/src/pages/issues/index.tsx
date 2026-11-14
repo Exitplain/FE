@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
@@ -13,12 +14,17 @@ import IssueTable from "./components/IssueTable";
 
 import "@/components/Workspace/workspace.css";
 
-export default function IssuesPage() {
+export default function IssuesPage({
+  projectId,
+  header,
+}: { projectId?: string; header?: ReactNode } = {}) {
   const query = useWorkspaceData();
   const [params, setParams] = useSearchParams();
   const cause = params.get("cause") ?? "all";
   const ascending = params.get("sort") === "ascending";
-  const all = query.isEmpty ? [] : (query.data?.issues ?? []);
+  const all = query.isEmpty
+    ? []
+    : (query.data?.issues ?? []).filter((issue) => !projectId || issue.projectId === projectId);
   const issues = all
     .filter((issue) => cause === "all" || issue.cause === cause)
     .sort((a, b) => (b.impact[1] - a.impact[1]) * (ascending ? -1 : 1));
@@ -31,10 +37,12 @@ export default function IssuesPage() {
     });
   return (
     <div className="space-y-7 text-ink">
-      <WorkspacePageHeader
-        title="발견한 문제"
-        description="같은 과업·단계·원인으로 멈춘 가상 세션을 하나로 묶었어요"
-      />
+      {header ?? (
+        <WorkspacePageHeader
+          title="발견한 문제"
+          description="같은 과업·단계·원인으로 멈춘 가상 세션을 하나로 묶었어요"
+        />
+      )}
       {!query.isEmpty && (
         <IssueFilters
           issues={all}
@@ -64,6 +72,7 @@ export default function IssuesPage() {
       ) : issues.length ? (
         <>
           <IssueTable
+            hideProject={Boolean(projectId)}
             issues={issues}
             onSelect={(id) => update("issue", id)}
             ascending={ascending}
@@ -85,7 +94,11 @@ export default function IssuesPage() {
               </Button>
             ) : (
               <Link
-                to={buildPath("diagnosisHistory")}
+                to={
+                  projectId
+                    ? buildPath("projectHistory", { projectId })
+                    : buildPath("diagnosisHistory")
+                }
                 className={buttonVariants({ variant: "secondary" })}
               >
                 진단 기록 보기

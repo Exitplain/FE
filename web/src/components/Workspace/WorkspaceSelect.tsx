@@ -9,6 +9,7 @@ export default function WorkspaceSelect({
   options,
   full = false,
   id,
+  variant = "outline",
 }: {
   label: string;
   value: string;
@@ -16,6 +17,7 @@ export default function WorkspaceSelect({
   options: Option[];
   full?: boolean;
   id?: string;
+  variant?: "outline" | "soft";
 }) {
   return (
     <label
@@ -23,6 +25,7 @@ export default function WorkspaceSelect({
         "relative inline-flex min-h-10 items-center rounded-full border border-gray-300 bg-surface text-sm",
         full && "w-full rounded-lg",
         value !== "all" && value !== "30" && !full && "border-highlight bg-highlight",
+        variant === "soft" && "shrink-0 rounded-lg border-0 bg-gray-50 font-medium",
       )}
     >
       <span className="sr-only">{label}</span>
@@ -35,6 +38,7 @@ export default function WorkspaceSelect({
         className={cn(
           "min-h-10 w-full cursor-pointer appearance-none bg-transparent py-2 pr-9 pl-4 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ink",
           full ? "rounded-lg" : "rounded-full",
+          variant === "soft" && "rounded-lg",
         )}
       >
         {options.map((option) => (

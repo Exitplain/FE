@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import shield from "@/assets/workspace/shield.svg";
 import Button from "@/components/Button/Button";
 import Field from "@/components/Field/Field";
 import Icon from "@/components/Icon/Icon";
 import Modal from "@/components/Modal/Modal";
-import WorkspaceSelect from "@/components/Workspace/WorkspaceSelect";
 import { buildPath } from "@/constants/routes";
 import type { WorkspaceProject } from "@/types/workspace.type";
+
+import ProjectPicker from "./ProjectPicker";
 
 export default function StartTestModal({
   open,
@@ -46,27 +48,16 @@ export default function StartTestModal({
     >
       <Field label="프로젝트" hint="필수">
         {(control) => (
-          <div>
-            <WorkspaceSelect
-              id={control.id}
-              label="테스트할 프로젝트"
-              full
-              value={projectId}
-              onChange={(value) => {
-                if (value === "new") {
-                  onClose();
-                  navigate(buildPath("projectList"));
-                } else setProjectId(value);
-              }}
-              options={[
-                ...projects.map((project) => ({
-                  value: project.id,
-                  label: `${project.name} · ${new URL(project.url).hostname}`,
-                })),
-                { value: "new", label: "+ 새 프로젝트 · 새 사이트 등록" },
-              ]}
-            />
-          </div>
+          <ProjectPicker
+            id={control.id}
+            projects={projects}
+            value={projectId}
+            onChange={setProjectId}
+            onCreate={() => {
+              onClose();
+              navigate(`${buildPath("projectList")}?create=1`);
+            }}
+          />
         )}
       </Field>
       <div className="workspace-start-checks rounded-lg bg-gray-50 p-4">
@@ -82,7 +73,8 @@ export default function StartTestModal({
           </p>
         ))}
       </div>
-      <p className="rounded-lg bg-gray-50 p-3 text-caption text-subtle">
+      <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption text-subtle">
+        <img src={shield} alt="" className="size-5 shrink-0" />
         로그인·가입 제출·파일 업로드·결제는 하지 않아요
       </p>
     </Modal>
