@@ -8,6 +8,7 @@ import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader"
 import Stepper from "@/components/Stepper/Stepper";
 import { findSampleProject, type SampleProject } from "@/constants/projects";
 import { buildPath } from "@/constants/routes";
+import { useCalibrations } from "@/hooks/useCalibrations";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 
@@ -19,17 +20,17 @@ import { useConfirmRun } from "./hooks/useNewTestMutations";
 import {
   buildConfirmRequest,
   clampStep,
+  formatMonthDay,
   furthestAllowedStep,
   isPlanExpired,
   isPlanExpiredMessage,
+  panelSize,
   parseStep,
   STEP_LABELS,
   STEPS,
   type StepKey,
+  sum,
 } from "./utils/newTest";
-
-/* BE agent/persona_dashboard.py PROFILES 개수 */
-const DEFAULT_PROFILE_COUNT = 3;
 
 const EXPIRED_NOTICE = "탐색 결과가 만료됐어요. 사이트를 다시 확인해 주세요";
 
@@ -67,17 +68,16 @@ function NewTestWizard({ project }: { project: SampleProject }) {
   const confirm = useConfirmRun();
   const [notice, setNotice] = useState<string | null>(null);
 
-  const { storeProjectId, plan, taskCount, targetDescription, loginMode, accountCount } =
-    useNewTestStore(
-      useShallow((state) => ({
-        storeProjectId: state.projectId,
-        plan: state.plan,
-        taskCount: state.taskIds.length,
-        targetDescription: state.targetDescription,
-        loginMode: state.loginMode,
-        accountCount: state.accounts.length,
-      })),
-    );
+  const calibrations = useCalibrations(project.id);
+  const { storeProjectId, plan, taskCount, targetDescription, segmentsValid } = useNewTestStore(
+    useShallow((state) => ({
+      storeProjectId: state.projectId,
+      plan: state.plan,
+      taskCount: state.taskIds.length,
+      targetDescription: state.targetDescription,
+      segmentsValid: sum(state.segmentCounts) === panelSize(state.loginMode, state.accounts.length),
+    })),
+  );
 
   /* 화면에 그리기 전에 이 프로젝트의 입력으로 시작하고, 떠날 때 지웁니다 */
   useLayoutEffect(() => {
@@ -86,7 +86,12 @@ function NewTestWizard({ project }: { project: SampleProject }) {
   }, [project.id, project.url]);
 
   const requested = parseStep(searchParams.get("step"));
-  const allowed = furthestAllowedStep({ hasPlan: plan != null, taskCount, targetDescription });
+  const allowed = furthestAllowedStep({
+    hasPlan: plan != null,
+    taskCount,
+    targetDescription,
+    segmentsValid,
+  });
   const step: StepKey = clampStep(requested, allowed);
 
   /* 보여주는 단계와 주소가 다르면 주소를 맞춥니다 (뒤로가기 기록은 남기지 않음) */
@@ -111,9 +116,16 @@ function NewTestWizard({ project }: { project: SampleProject }) {
 
   if (storeProjectId !== project.id) return null;
 
-  /* BE 고정 프로필은 GET /api/personas 응답에 있습니다. 받기 전에는 세션 수 계산에 BE 기본값(3)을 씁니다 */
-  const profiles = currentRun.data?.profiles ?? [];
-  const profileCount = profiles.length || DEFAULT_PROFILE_COUNT;
+  /*
+    가장 최근 보정 적용일 (P05b·P05c). 응답 순서에 기대지 않고 적용 시각으로 고릅니다.
+    불러오는 중이면 undefined(표시 안 함), 이력이 없거나 못 받으면 null(보정 전).
+  */
+  const latestCalibration = [...(calibrations.data ?? [])].sort((a, b) =>
+    b.applied_at.localeCompare(a.applied_at),
+  )[0];
+  const calibratedLabel = calibrations.isPending
+    ? undefined
+    : formatMonthDay(latestCalibration?.applied_at);
 
   const goTo = (next: StepKey) => {
     setSearchParams(next === "site" ? {} : { step: next });
@@ -169,18 +181,11 @@ function NewTestWizard({ project }: { project: SampleProject }) {
         />
       )}
       {step === "task" && plan && (
-        <TaskTargetStep
-          plan={plan}
-          profileCount={profileCount}
-          onPrev={() => goTo("site")}
-          onNext={() => goTo("persona")}
-        />
+        <TaskTargetStep plan={plan} onPrev={() => goTo("site")} onNext={() => goTo("persona")} />
       )}
       {step === "persona" && (
         <PersonaStep
-          profiles={profiles}
-          taskCount={taskCount}
-          accountCount={loginMode === "account" ? accountCount : 0}
+          calibratedLabel={calibratedLabel}
           onPrev={() => goTo("task")}
           onNext={() => goTo("confirm")}
         />
@@ -189,7 +194,7 @@ function NewTestWizard({ project }: { project: SampleProject }) {
         <ConfirmStep
           projectId={project.id}
           plan={plan}
-          profileCount={profileCount}
+          calibratedLabel={calibratedLabel}
           isStarting={confirm.isPending}
           error={confirm.error}
           currentRunId={currentRun.data?.id ?? null}

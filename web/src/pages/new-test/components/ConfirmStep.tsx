@@ -9,14 +9,22 @@ import { useNewTestStore } from "@/stores/useNewTestStore";
 import type { ApiError } from "@/types/api.type";
 import type { DiscoverResponse } from "@/types/persona.type";
 
-import { isPlanExpired, PLAN_TTL_MS, type StepKey, STEPS } from "../utils/newTest";
-import { RUN_CONDITIONS } from "./PersonaStep";
-import StepSection, { StatusRow, StepFooter } from "./StepSection";
+import {
+  ageSummary,
+  isPlanExpired,
+  panelSize,
+  PLAN_TTL_MS,
+  RUN_CONDITIONS,
+  type StepKey,
+  STEPS,
+} from "../utils/newTest";
+import { StatusRow, StepFooter } from "./StepSection";
 
 type ConfirmStepProps = {
   projectId: string;
   plan: DiscoverResponse;
-  profileCount: number;
+  /* 적용된 보정 날짜 ("11월 5일"). 보정 전이면 null, 불러오는 중이면 undefined */
+  calibratedLabel: string | null | undefined;
   isStarting: boolean;
   error: ApiError | null;
   /* 409 일 때 이동할 현재 실행 */
@@ -27,14 +35,14 @@ type ConfirmStepProps = {
 };
 
 /*
-  P05c 시작 전 확인 — 단계별 "변경" 링크, 최종 확인 후에만 실행.
-  BE confirm 은 페르소나 생성과 실행 시작을 나누지 않아 버튼은 "실행 시작" 하나입니다
-  (Figma 의 P06 생성 중 · P07 페르소나 확인 단계 없이 바로 실행 화면으로 갑니다).
+  P05c 시작 전 확인 (Figma Section/CheckAnswers) — 단계별 "변경 · n단계", 마지막에 "페르소나 생성".
+  임시: BE confirm 은 페르소나 생성과 실행 시작을 나누지 않아, 지금은 "페르소나 생성"이 실행까지 시작합니다.
+  P06 생성 중 · P07 페르소나 확인 화면을 붙이면 실행 시작은 P07 로 옮깁니다.
 */
 export default function ConfirmStep({
   projectId,
   plan,
-  profileCount,
+  calibratedLabel,
   isStarting,
   error,
   currentRunId,
@@ -70,21 +78,16 @@ export default function ConfirmStep({
 
   const expired = store.discoveredAt != null && isPlanExpired(store.discoveredAt);
   const tasks = plan.tasks.filter((task) => store.taskIds.includes(task.id));
-  const ageLabels = store.ages.map((age) =>
-    age === "any" ? "전체" : (plan.age_options[age] ?? age),
-  );
+  const panel = panelSize(store.loginMode, store.accounts.length);
+  const stages = Math.max(0, ...tasks.map((task) => task.funnel_stages ?? 0));
 
   const rows: { label: string; value: string; step?: StepKey }[] = [
-    {
-      label: "제품 URL",
-      value: `${store.siteUrl} · ${store.variant === "problem" ? "문제 버전" : "개선 버전"} · 접근 가능`,
-      step: "site",
-    },
+    { label: "제품 URL", value: `${store.siteUrl} · 접근 가능`, step: "site" },
     {
       label: "로그인",
       value:
         store.loginMode === "account" && store.accounts.length > 0
-          ? `테스트 계정 ${store.accounts.length}개 (저장만, 실행에는 쓰지 않음)`
+          ? `테스트 계정 ${store.accounts.length}개 · 에이전트 ${panel}명`
           : "로그인 없이 테스트",
       step: "site",
     },
@@ -95,12 +98,12 @@ export default function ConfirmStep({
     },
     {
       label: "타겟 고객",
-      value: `${store.targetDescription.trim()} · ${ageLabels.join(", ")}(문맥)`,
+      value: `${store.targetDescription.trim()} · ${ageSummary(store.ages, plan.age_options)}(문맥)`,
       step: "task",
     },
     {
       label: "추가 메모",
-      value: store.memo.trim() ? `${store.memo.trim()} (실행 행동에 포함 안 됨)` : "없음",
+      value: store.memo.trim() ? `${store.memo.trim()} (실행에 자동 포함 안 됨)` : "없음",
       step: "task",
     },
     ...(store.customTasks.length > 0
@@ -113,26 +116,37 @@ export default function ConfirmStep({
         ]
       : []),
     {
+      label: "퍼널 단계",
+      /* 사이트 분석으로 정해져 사용자가 바꾸는 값이 아니라 변경 링크가 없습니다 */
+      value: `사이트 분석으로 자동 결정${stages > 0 ? ` · 과업별 ${stages}단계` : ""}`,
+    },
+    {
       label: "페르소나",
-      value: `프로필 ${profileCount}개 × 과업 ${tasks.length}개 = 세션 ${profileCount * tasks.length}개`,
+      value: `에이전트 ${panel}명 · 과업 ${tasks.length}개 · ${calibratedLabel ? `보정 ${calibratedLabel}` : calibratedLabel === null ? "보정 전" : "보정 확인 중"}`,
       step: "persona",
     },
-    { label: "실행 조건", value: RUN_CONDITIONS },
+    { label: "실행 조건", value: RUN_CONDITIONS, step: "persona" },
   ];
 
   return (
     <div className="flex flex-col gap-12">
-      <StepSection title="시작 전 확인" description="실행을 시작하기 전에 입력을 한 번 더 확인해요">
+      <section aria-labelledby="confirm-title" className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 id="confirm-title" className="text-lg font-bold text-ink">
+            시작 전 확인
+          </h2>
+          <p className="text-xs text-muted">페르소나를 만들기 전에 입력을 한 번 더 확인해요</p>
+        </div>
         <ul aria-label="입력 요약" className="flex flex-col">
           {rows.map((row) => (
-            <li key={row.label} className="flex items-start gap-6 border-b border-line py-4">
-              <span className="w-32 shrink-0 text-caption text-muted">{row.label}</span>
-              <span className="flex-1 text-sm text-ink">{row.value}</span>
+            <li key={row.label} className="flex items-start gap-6 border-b border-line py-3.5">
+              <span className="w-24 shrink-0 text-caption text-muted">{row.label}</span>
+              <span className="flex-1 text-caption text-gray-800">{row.value}</span>
               {/* 실행 시작 요청 중에는 단계를 옮기지 못하게 변경 링크를 숨깁니다 */}
               {row.step && !isStarting && (
                 <Link
                   to={{ search: `?step=${row.step}` }}
-                  className="shrink-0 text-caption text-subtle underline underline-offset-4"
+                  className="shrink-0 text-caption font-bold text-ink hover:underline"
                   aria-label={`${row.label} 변경`}
                 >
                   변경 · {STEPS.indexOf(row.step) + 1}단계
@@ -141,7 +155,7 @@ export default function ConfirmStep({
             </li>
           ))}
         </ul>
-      </StepSection>
+      </section>
 
       {expired && (
         <div
@@ -188,7 +202,7 @@ export default function ConfirmStep({
           이전
         </Button>
         <Button disabled={expired || isStarting || tasks.length === 0} onClick={onStart}>
-          {isStarting ? "시작하는 중…" : "실행 시작"}
+          {isStarting ? "만드는 중…" : "페르소나 생성"}
         </Button>
       </StepFooter>
     </div>

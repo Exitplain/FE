@@ -1,85 +1,176 @@
+import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+
 import Button from "@/components/Button/Button";
-import InfoTip from "@/components/InfoTip/InfoTip";
-import type { PersonaProfile } from "@/types/persona.type";
+import Icon from "@/components/Icon/Icon";
+import { useNewTestStore } from "@/stores/useNewTestStore";
+import { cn } from "@/utils/cn";
 
-import StepSection, { StepFooter } from "./StepSection";
-
-/* BE agent/persona_dashboard.py 실행 한도 (코드 상수, 요청으로 바꿀 수 없음) */
-export const RUN_CONDITIONS =
-  "동시 3세션 · 세션당 스텝 35 · 150초 · 결제·본인인증·개인정보 입력은 하지 않아요";
+import { panelSize, RUN_CONDITION_DETAILS, RUN_CONDITIONS, sum } from "../utils/newTest";
+import { StepFooter } from "./StepSection";
 
 type PersonaStepProps = {
-  profiles: PersonaProfile[];
-  taskCount: number;
-  accountCount: number;
+  /* 적용된 보정 날짜 ("11월 5일"). 보정 전이면 null, 아직 불러오는 중이면 undefined */
+  calibratedLabel: string | null | undefined;
   onPrev: () => void;
   onNext: () => void;
 };
 
+/* Figma Stepper — 연회색 pill(너비 136) 안 − 인원 + */
+function SegmentStepper({
+  label,
+  value,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="flex w-34 items-center justify-between rounded-full bg-gray-50 px-4 py-2">
+      <button
+        type="button"
+        aria-label={`${label} 1명 줄이기`}
+        disabled={value <= 0}
+        onClick={() => onChange(value - 1)}
+        className="rounded text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-gray-400"
+      >
+        <Icon name="minus" />
+      </button>
+      <output aria-label={`${label} 인원`} className="text-sm font-medium text-ink">
+        {value}명
+      </output>
+      <button
+        type="button"
+        aria-label={`${label} 1명 늘리기`}
+        disabled={value >= max}
+        onClick={() => onChange(value + 1)}
+        className="rounded text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-gray-400"
+      >
+        <Icon name="plus" />
+      </button>
+    </div>
+  );
+}
+
 /*
-  P05b 페르소나 — 개발 서버 기준 읽기 전용.
-  Figma 는 세그먼트 4개의 인원을 +/- 로 정하지만(P05e 합계 오류, P05h 계정 수만큼),
-  BE 는 프로필 3개 × 과업으로 세션 수가 고정이라 프로필과 세션 수를 보여주기만 합니다.
+  P05b 세그먼트 비율 (+ P05e 합계 오류, P05h 테스트 계정 8개) — Figma Wizard/Body (너비 704)
+  - 에이전트 20명(로그인 테스트는 계정 수만큼)을 세그먼트 4개에 나눕니다. 합계가 맞아야 다음으로 갑니다.
+  - 임시: 개발 서버는 고정 프로필 3개 × 과업으로 실행해 이 인원·실행 조건을 아직 받지 않습니다.
+    서버가 패널을 받으면 요청에 싣습니다 (utils/newTest PANEL_SIZE 설명).
 */
-export default function PersonaStep({
-  profiles,
-  taskCount,
-  accountCount,
-  onPrev,
-  onNext,
-}: PersonaStepProps) {
+export default function PersonaStep({ calibratedLabel, onPrev, onNext }: PersonaStepProps) {
+  const { segmentCounts, loginMode, accountCount, setSegmentCount } = useNewTestStore(
+    useShallow((state) => ({
+      segmentCounts: state.segmentCounts,
+      loginMode: state.loginMode,
+      accountCount: state.accounts.length,
+      setSegmentCount: state.setSegmentCount,
+    })),
+  );
+  const [showDetails, setShowDetails] = useState(false);
+  const panel = panelSize(loginMode, accountCount);
+  const total = sum(segmentCounts);
+  const mismatch = total !== panel;
+  const fromAccounts = loginMode === "account" && accountCount > 0;
+
   return (
     <div className="flex flex-col gap-12">
-      <StepSection
-        title="세그먼트"
-        description={`프로필 ${profiles.length}개가 과업마다 1세션씩 실행해요 · 세그먼트 비율 조정은 서버가 지원하면 열려요`}
+      <section
+        aria-labelledby="segment-title"
+        className="flex w-176 max-w-full flex-col gap-7 pl-2"
       >
-        {profiles.length === 0 && (
-          <p role="status" className="text-sm text-muted">
-            페르소나 프로필을 불러오는 중이에요…
-          </p>
-        )}
-        <ul aria-label="페르소나 프로필" className="flex flex-col">
-          {profiles.map((profile) => (
-            <li
-              key={profile.id}
-              className="flex items-center justify-between gap-6 border-b border-line py-4"
-            >
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-bold text-ink">{profile.name}</p>
-                <p className="text-xs text-muted">{profile.context}</p>
-                <p className="text-xs text-subtle">
-                  허용 입력 칸 {profile.max_required_fields}개 · 화면 너비 {profile.width}px
-                  {profile.width <= 480 ? " (모바일)" : " (데스크톱)"}
-                </p>
-              </div>
-              <p className="shrink-0 text-sm font-bold text-ink">세션 {taskCount}개</p>
-            </li>
-          ))}
-          <li className="flex items-center justify-between py-4">
-            <p className="text-sm font-bold text-ink">합계</p>
-            <p className="text-sm font-bold text-ink">세션 {profiles.length * taskCount}개</p>
-          </li>
-        </ul>
-        {accountCount > 0 && (
-          <p className="text-xs text-subtle">
-            등록한 테스트 계정 {accountCount}개는 아직 실행에 쓰이지 않아요 (서버 미지원)
-          </p>
-        )}
-      </StepSection>
-
-      <StepSection title="실행 조건">
-        <div className="flex items-center gap-2">
-          <p className="text-caption text-subtle">{RUN_CONDITIONS}</p>
-          <InfoTip text="실행 한도는 개발 서버에 고정된 값이에요. 좌절 점수가 프로필의 허용 입력 칸 × 16 을 넘으면 이탈로 기록해요." />
+        <div className="flex flex-col gap-6">
+          <h2 id="segment-title" className="text-lg font-bold text-ink">
+            세그먼트 비율
+          </h2>
+          <div className="flex flex-col gap-5">
+            <p className="text-caption text-subtle">
+              {fromAccounts
+                ? `테스트 계정 ${accountCount}개 → 에이전트 ${panel}명`
+                : `에이전트 ${panel}명 · 로그인 테스트는 계정 수만큼 (최대 20)`}
+            </p>
+            {/* 불러오는 중에는 "보정 전"으로 잘못 보이지 않게 비워 둡니다 */}
+            {calibratedLabel !== undefined && (
+              <p className="flex items-center gap-2 text-xs text-gray-800">
+                <Icon name="status-done" />
+                {calibratedLabel
+                  ? `이 프로젝트 보정값으로 예측해요 · ${calibratedLabel} 적용`
+                  : "아직 보정 전이라 기본 모형으로 예측해요"}
+              </p>
+            )}
+          </div>
         </div>
-      </StepSection>
+
+        <div className="flex flex-col gap-5">
+          <ul aria-label="세그먼트별 인원" className="flex flex-col gap-1">
+            {segmentCounts.map((count, index) => {
+              const label = `세그먼트 ${index + 1}`;
+              return (
+                <li
+                  key={label}
+                  className="flex items-center justify-between border-b border-line pb-1"
+                >
+                  <span className="text-sm text-gray-800">{label}</span>
+                  <SegmentStepper
+                    label={label}
+                    value={count}
+                    max={panel}
+                    onChange={(value) => setSegmentCount(index, value)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex flex-col gap-2">
+            <p className="flex items-center justify-between text-sm">
+              <span className="font-medium text-ink">합계</span>
+              <span className={cn("font-bold", mismatch ? "text-danger" : "text-ink")}>
+                {total}명
+              </span>
+            </p>
+            {mismatch && (
+              <p role="alert" className="text-xs text-danger">
+                합계가 {panel}명이 되도록 맞춰주세요 · 지금 {total}명
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="run-conditions-title" className="flex flex-col gap-5">
+        <h2 id="run-conditions-title" className="pl-2 text-base font-medium text-ink">
+          실행 조건
+        </h2>
+        <div className="flex flex-col gap-3">
+          <p className="pl-2 text-xs text-subtle">{RUN_CONDITIONS}</p>
+          {showDetails && (
+            <ul className="flex flex-col gap-1 pl-2 text-xs text-subtle">
+              {RUN_CONDITION_DETAILS.map((item) => (
+                <li key={item}>· {item}</li>
+              ))}
+            </ul>
+          )}
+          <Button
+            variant="link"
+            aria-expanded={showDetails}
+            onClick={() => setShowDetails((value) => !value)}
+            className="self-start"
+          >
+            {showDetails ? "접기" : `항목 ${RUN_CONDITION_DETAILS.length}개 더 보기`}
+          </Button>
+        </div>
+      </section>
 
       <StepFooter>
         <Button variant="link" onClick={onPrev}>
           이전
         </Button>
-        <Button onClick={onNext}>다음: 시작 전 확인</Button>
+        <Button disabled={mismatch} onClick={onNext}>
+          다음: 시작 전 확인
+        </Button>
       </StepFooter>
     </div>
   );

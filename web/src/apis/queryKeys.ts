@@ -10,6 +10,10 @@ export const queryKeys = {
     reports: () => [...queryKeys.personas.all, "reports"] as const,
     report: (runId: string) => [...queryKeys.personas.all, "report", runId] as const,
   },
+  calibration: {
+    all: ["calibration"] as const,
+    history: (projectId: string) => [...queryKeys.calibration.all, projectId, "history"] as const,
+  },
   workspace: {
     overview: (workspaceId: string) => ["workspace", workspaceId, "overview"] as const,
   },

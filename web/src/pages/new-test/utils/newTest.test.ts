@@ -4,9 +4,14 @@ import { DISCOVER_TASKS, FEATURES } from "@/mocks/fixtures/personas";
 import type { DiscoverResponse } from "@/types/persona.type";
 
 import {
+  ageSummary,
   buildConfirmRequest,
   clampStep,
+  evenSplit,
   furthestAllowedStep,
+  panelSize,
+  toggleAgeChip,
+  sum,
   isPlanExpiredMessage,
   findDuplicateUsernames,
   isPlanExpired,
@@ -34,9 +39,9 @@ describe("validateSiteUrl (E07)", () => {
 
   it.each([
     ["", "제품 URL 을 입력해 주세요"],
-    ["banchanroad", "https:// 로 시작하는 주소를 입력해 주세요"],
-    ["ftp://example.com", "https:// 로 시작하는 주소를 입력해 주세요"],
-    ["https://", "https:// 로 시작하는 주소를 입력해 주세요"],
+    ["banchanroad", "URL 형식이 아니에요 · https://로 시작하는 주소를 넣어주세요"],
+    ["ftp://example.com", "URL 형식이 아니에요 · https://로 시작하는 주소를 넣어주세요"],
+    ["https://", "URL 형식이 아니에요 · https://로 시작하는 주소를 넣어주세요"],
   ])("%j → %s", (url, message) => {
     expect(validateSiteUrl(url)).toBe(message);
   });
@@ -161,5 +166,50 @@ describe("parseStep — ?step= 쿼리", () => {
     expect(parseStep("task")).toBe("task");
     expect(parseStep(null)).toBe("site");
     expect(parseStep("unknown")).toBe("site");
+  });
+});
+
+describe("패널 (P05b·P05h)", () => {
+  it("로그인 테스트는 계정 수만큼(최대 20), 아니면 20명", () => {
+    expect(panelSize("none", 8)).toBe(20);
+    expect(panelSize("account", 8)).toBe(8);
+    expect(panelSize("account", 0)).toBe(20);
+    expect(panelSize("account", 30)).toBe(20);
+  });
+
+  it("인원을 세그먼트 4개에 고르게 나눈다", () => {
+    expect(evenSplit(20)).toEqual([5, 5, 5, 5]);
+    expect(evenSplit(7)).toEqual([2, 2, 2, 1]);
+    expect(sum(evenSplit(19))).toBe(19);
+  });
+
+  it("세그먼트 합계가 틀리면 시작 전 확인으로 가지 못한다", () => {
+    expect(
+      furthestAllowedStep({
+        hasPlan: true,
+        taskCount: 1,
+        targetDescription: "첫 방문",
+        segmentsValid: false,
+      }),
+    ).toBe("persona");
+  });
+
+  it("연령은 Figma 표기로 요약한다 (50대·60대 이상 → 50대 이상)", () => {
+    expect(ageSummary(["any"], {})).toBe("전체");
+    expect(ageSummary(["30s", "50s", "60plus"], { "30s": "30대", "50s": "50대" })).toBe(
+      "30대, 50대 이상",
+    );
+  });
+});
+
+describe("toggleAgeChip (Figma 연령 칩)", () => {
+  it("50대 이상은 50s·60plus 를 함께 켜고 끈다", () => {
+    expect(toggleAgeChip(["any"], ["50s", "60plus"])).toEqual(["50s", "60plus"]);
+    expect(toggleAgeChip(["20s", "50s", "60plus"], ["50s", "60plus"])).toEqual(["20s"]);
+    expect(toggleAgeChip(["50s", "60plus"], ["50s", "60plus"])).toEqual(["any"]);
+  });
+
+  it("전체는 단독으로만 고른다", () => {
+    expect(toggleAgeChip(["30s"], ["any"])).toEqual(["any"]);
   });
 });

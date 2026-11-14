@@ -32,6 +32,8 @@ export type DiscoverTask = {
   feature_id: string;
   /* 기본으로 선택해 두는 과업 */
   suggested: boolean;
+  /* 임시: 이 과업 퍼널의 단계 수 (P05c "과업별 7단계"). 명세에 없음 */
+  funnel_stages?: number;
 };
 
 export type DiscoverResponse = {
@@ -43,6 +45,9 @@ export type DiscoverResponse = {
   tasks: DiscoverTask[];
   age_options: Partial<Record<AgeOption, string>>;
   note: string;
+  /* 임시: 사이트 응답 시간(ms)·읽은 화면 수 (P03 "응답 0.8초 · 화면 12개 읽음"). 명세에 없음 */
+  response_ms?: number;
+  screens_read?: number;
 };
 
 /* ─── 확인 후 실행 (POST /api/personas/confirm) ───────────────────────────── */

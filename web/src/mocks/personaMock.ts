@@ -124,9 +124,15 @@ export function discover(body: unknown): DiscoverResponse {
     plan_id: planId,
     variant,
     features: structuredClone(FEATURES),
-    tasks: structuredClone(DISCOVER_TASKS),
+    tasks: DISCOVER_TASKS.map((task) => ({
+      ...structuredClone(task),
+      funnel_stages: TASK_PATHS[task.id]?.length,
+    })),
     age_options: { ...AGE_LABELS },
     note: "공개 시작 화면의 링크를 읽었습니다. 기능의 정상 작동을 판정한 것은 아닙니다.",
+    /* 임시 필드 예시값 (명세에 없음) */
+    response_ms: 800,
+    screens_read: 12,
   };
 }
 
