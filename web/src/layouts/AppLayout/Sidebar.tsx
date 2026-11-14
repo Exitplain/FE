@@ -9,13 +9,13 @@ import { SAMPLE_PROJECTS, type SampleProject } from "@/constants/projects";
 import { buildPath, ROUTES } from "@/constants/routes";
 import { cn } from "@/utils/cn";
 
+import AccountControls from "./AccountControls";
+
 /*
   로그인 후 화면 공통 사이드바 (Figma W01 `Sidebar`, 256px).
-  템플릿 단계라 프로젝트 목록과 계정 정보는 정적 예시 값입니다.
-  API 가 붙으면 SAMPLE_PROJECTS·SAMPLE_ACCOUNT 를 조회 결과로 바꿉니다.
+  프로젝트 목록은 정적 예시 값이며 계정 영역은 AccountControls의 데모 세션을 사용합니다.
+  API 가 붙으면 SAMPLE_PROJECTS와 데모 세션을 실제 조회 결과로 바꿉니다.
 */
-
-const SAMPLE_ACCOUNT = { name: "메이커", email: "maker@example.com" } as const;
 
 /*
   치수는 Figma `Sidebar` 컴포넌트(현재=대시보드) 좌표 기준입니다.
@@ -372,31 +372,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto pt-8">
-        {/*
-          Figma 에는 없는 임시 링크입니다. Figma 에서는 계정 메뉴(계정 → 설정 / 시작 가이드 / 로그아웃)로
-          들어가며, 메뉴를 만들 때 이 줄을 지웁니다. 지금은 경로만 닿도록 둡니다.
-        */}
-        <nav aria-label="계정" className="mb-2 flex gap-4 pl-6 text-xs text-muted">
-          <Link to={ROUTES.settings.path} className="hover:text-ink">
-            {ROUTES.settings.title}
-          </Link>
-          <Link to={ROUTES.guide.path} className="hover:text-ink">
-            {ROUTES.guide.title}
-          </Link>
-        </nav>
-        {/*
-          AccountRow: x=12, 폭 220, 높이 48, 아래 여백 24.
-          아바타 32(#999, "메" 13px Bold)와 이름(14px Medium)은 행 위에서 8px, 이메일(12px #737373)은 이름 아래 2px
-        */}
-        <div className="mr-6 flex h-12 items-start gap-3 px-3 pt-2">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-avatar text-caption font-bold text-ink">
-            {SAMPLE_ACCOUNT.name.slice(0, 1)}
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm leading-5 font-medium">{SAMPLE_ACCOUNT.name}</p>
-            <p className="mt-0.5 truncate text-xs leading-4 text-muted">{SAMPLE_ACCOUNT.email}</p>
-          </div>
-        </div>
+        <AccountControls />
       </div>
     </aside>
   );

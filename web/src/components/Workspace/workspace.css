@@ -1,0 +1,55 @@
+/* 워크스페이스 전용 Figma 스타일. 기존 공통 토큰은 변경하지 않습니다. */
+.workspace-running-heading {
+  background: #131e50;
+  color: white;
+}
+.workspace-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+  text-align: left;
+  font-size: 13px;
+}
+.workspace-table th {
+  padding: 12px 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 400;
+  border-bottom: 1px solid var(--color-line);
+}
+.workspace-table td {
+  padding: 16px 8px;
+  border-bottom: 1px solid var(--color-line);
+}
+.workspace-table tbody tr:last-child td {
+  border-bottom-color: transparent;
+}
+.workspace-table tbody tr:focus-within,
+.workspace-table tbody tr:hover {
+  background: var(--color-gray-50);
+}
+.workspace-table tr[data-selected="true"] {
+  background: var(--color-gray-100);
+}
+.workspace-table td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.workspace-table td:last-child {
+  border-radius: 0 8px 8px 0;
+}
+.workspace-modal {
+  width: 560px;
+  max-width: 100%;
+}
+
+/* W07만 560px 규격으로 맞추고 다른 담당자가 쓰는 Modal은 유지합니다. */
+[role="dialog"]:has(.workspace-start-checks) {
+  width: 560px;
+  max-width: 100%;
+  padding: 24px;
+  gap: 24px;
+  border-radius: 12px;
+}
+[role="dialog"]:has(.workspace-start-checks) > div:first-child {
+  padding-top: 0;
+}
