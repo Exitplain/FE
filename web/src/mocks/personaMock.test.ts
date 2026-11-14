@@ -260,15 +260,16 @@ describe("페르소나 mock — 리포트", () => {
     const report = await getPersonaReport(run.id!);
     const funnel = report.tasks[0].funnel!;
 
+    /* 빠른 구매는 가입 화면에서 떠나 장바구니까지만 넘어온 것으로 셉니다 (가입 행의 이탈) */
     expect(funnel.map((stage) => stage.reached)).toEqual([
       [3, 3],
       [3, 3],
       [3, 3],
-      [3, 3],
+      [2, 2],
       [2, 2],
       [2, 2],
     ]);
-    expect(funnel.find((stage) => stage.stage === "signup")?.dropout).toEqual([1, 1]);
+    expect(funnel.map((stage) => stage.dropout[0])).toEqual([0, 0, 0, 1, 0, 0]);
     expect(report.findings).toEqual([
       expect.objectContaining({
         stage: "signup",
@@ -320,6 +321,30 @@ describe("페르소나 mock — 리포트", () => {
       metrics: { outcome: { matched: 0, total: 0 } },
       status: "unverified",
     });
+  });
+
+  it("세그먼트별 이탈 합계는 퍼널 이탈과 같고, 실측 비교·조건은 과업마다 채운다 (임시 필드)", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const run = await runToCompletion();
+
+    const report = await getPersonaReport(run.id!);
+
+    for (const task of report.tasks) {
+      const funnel = task.funnel!;
+      /* 구간 i → i+1 의 세그먼트 합 = 퍼널 i+1 단계 이탈 */
+      funnel.slice(1).forEach((stage, index) => {
+        const sum = task.segments!.reduce(
+          (total, segment) => total + segment.dropouts[index][0],
+          0,
+        );
+        expect(sum).toBe(stage.dropout[0]);
+      });
+      expect(task.actual).toMatchObject({ status: "comparable" });
+    }
+    const order = report.tasks.find((task) => task.id === "order")!;
+    expect(order.actual).toMatchObject({ max_drop: { predicted: ["cart", "signup"] } });
+    expect(order.median_duration).toEqual([180, 180]);
+    expect(report.conditions).toEqual({ panel_size: 3, seeds: 1, calibrated_at: null });
   });
 
   it("Markdown 과 PDF 로 내보낼 수 있다", async () => {

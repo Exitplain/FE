@@ -22,6 +22,8 @@ type ProjectPageHeaderProps = {
   description?: ReactNode;
   /* 제목 오른쪽 (버튼, 상태 배지) */
   actions?: ReactNode;
+  /* 설명과 탭 사이 줄 (P12 실행 선택·과업 칩) */
+  toolbar?: ReactNode;
   activeTab: ProjectTab;
 };
 
@@ -35,6 +37,7 @@ export default function ProjectPageHeader({
   title,
   description,
   actions,
+  toolbar,
   activeTab,
 }: ProjectPageHeaderProps) {
   return (
@@ -45,6 +48,7 @@ export default function ProjectPageHeader({
         {actions != null && <div className="flex items-center gap-2">{actions}</div>}
       </div>
       {description != null && <p className="text-sm text-subtle">{description}</p>}
+      {toolbar}
       <nav aria-label="프로젝트 메뉴" className="flex gap-6 border-b border-line">
         {TABS.map((tab) => {
           const active = tab.key === activeTab;

@@ -12,9 +12,22 @@ type ModalProps = {
   children: ReactNode;
   /* 오른쪽 아래 버튼 영역 */
   footer?: ReactNode;
-  /* md: 720 (P04 테스트 계정) · lg: 960 (P04 원격 브라우저) */
-  size?: "md" | "lg";
+  /*
+    md: 720 (P04 테스트 계정) · lg: 960 (P04 원격 브라우저)
+    sm: 560 (P20 공유 링크) · xl: 960 (P12b 목업 비교) — Figma Dialog 여백 24 · 간격 24 · 모서리 12
+  */
+  size?: "sm" | "md" | "lg" | "xl";
 };
+
+const PANEL_SIZE = {
+  sm: "max-w-140 gap-6 rounded-xl p-6",
+  md: "max-w-3xl gap-8 rounded-2xl pt-5 pr-8 pb-8 pl-6",
+  lg: "max-w-5xl gap-8 rounded-2xl pt-5 pr-8 pb-8 pl-6",
+  xl: "max-w-240 gap-6 rounded-xl p-6",
+} as const;
+
+/* 좁은 여백(sm·xl)에서는 제목 줄과 닫기 버튼 위치를 맞춥니다 */
+const COMPACT = { sm: true, md: false, lg: false, xl: true } as const;
 
 const FOCUSABLE = [
   "a[href]",
@@ -25,9 +38,15 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(", ");
 
-/* 열릴 때 처음 초점을 줄 입력 요소. 버튼보다 입력칸이 먼저입니다 */
-const FIRST_FIELD =
-  'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled])';
+/*
+  열릴 때 처음 초점을 줄 입력 요소. 버튼보다 입력칸이 먼저입니다.
+  읽기 전용 칸(P20 공유 링크)은 입력하는 곳이 아니라 건너뜁니다.
+*/
+const FIRST_FIELD = [
+  'input:not([disabled]):not([readonly]):not([type="hidden"])',
+  "textarea:not([disabled]):not([readonly])",
+  "select:not([disabled])",
+].join(", ");
 
 /*
   뒤 화면 잠금은 열린 모달 수로 관리합니다.
@@ -152,11 +171,16 @@ export default function Modal({
         onKeyDown={onKeyDown}
         className={cn(
           /* my-auto: 화면보다 긴 모달도 위쪽이 잘리지 않고 스크롤되도록 (items-center 대신) */
-          "relative my-auto flex w-full flex-col gap-8 rounded-2xl bg-surface pt-5 pr-8 pb-8 pl-6 shadow-dialog outline-none",
-          size === "md" ? "max-w-3xl" : "max-w-5xl",
+          "relative my-auto flex w-full flex-col bg-surface shadow-dialog outline-none",
+          PANEL_SIZE[size],
         )}
       >
-        <div className="flex flex-col gap-3 pt-3 pr-12">
+        <div
+          className={cn(
+            "flex flex-col gap-3 pr-12",
+            COMPACT[size] ? "min-h-10 justify-center" : "pt-3",
+          )}
+        >
           <h2 id={titleId} className="text-lg font-bold text-ink">
             {title}
           </h2>
@@ -174,7 +198,7 @@ export default function Modal({
           label="닫기"
           size="lg"
           onClick={onClose}
-          className="absolute top-5 right-8"
+          className={cn("absolute", COMPACT[size] ? "top-6 right-6" : "top-5 right-8")}
         />
       </div>
     </div>,

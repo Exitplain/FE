@@ -20,9 +20,9 @@ export default function ToastViewport() {
       {toasts.map((toast) => (
         <p
           key={toast.id}
-          className="flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-caption font-medium text-ink shadow-tooltip"
+          className="flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-caption font-medium text-ink"
         >
-          <Icon name={toast.icon} />
+          <Icon name={toast.icon} className="size-5" />
           {toast.message}
         </p>
       ))}

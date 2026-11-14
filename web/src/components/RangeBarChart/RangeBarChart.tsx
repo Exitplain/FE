@@ -26,16 +26,19 @@ type RangeBarChartProps = {
   barSize?: number;
   labelWidth?: number;
   valueWidth?: number;
+  /* 오른쪽 수치 글자: default(13px 보통) · strong(13px 굵게 검정, P12 이탈 원인 비율) */
+  valueTone?: "default" | "strong";
   className?: string;
 };
 
 type Row = RangeBarDatum & { base: number; extra: number };
 
-/* 막대 색: 진한 부분 = 범위 하한(또는 단일값), 연한 부분 = 범위 폭 */
-const BASE_CLASS = "fill-gray-700";
+/* Figma 범위 막대: 바탕 #e5e5e5 · 하한 #737373 · 범위 폭 #d4d4d4 · 두께 8 · 모서리 4 */
+const BASE_CLASS = "fill-muted";
 const EXTRA_CLASS = "fill-gray-300";
 const MUTED_CLASS = "fill-gray-300";
-const TRACK_CLASS = "fill-gray-100";
+const TRACK_CLASS = "fill-gray-200";
+const RADIUS = 4;
 
 type TickProps = { x?: number | string; y?: number | string; payload?: { value: string } };
 
@@ -57,6 +60,7 @@ export default function RangeBarChart({
   barSize = 8,
   labelWidth = 96,
   valueWidth = 160,
+  valueTone = "default",
   className,
 }: RangeBarChartProps) {
   const rows: Row[] = data.map((datum) => {
@@ -67,14 +71,18 @@ export default function RangeBarChart({
   /* 두 축 모두 겹치지 않는 key 로 행을 찾습니다 (같은 이름의 단계가 있어도 행이 합쳐지지 않게) */
   const rowOf = (tick: TickProps) => rows.find((row) => row.key === tick.payload?.value);
 
-  /* 왼쪽 이름은 칸의 왼쪽 끝, 오른쪽 수치는 칸의 오른쪽 끝에 맞춥니다 */
+  /*
+    왼쪽 이름은 칸의 왼쪽 끝, 오른쪽 수치는 칸의 오른쪽 끝에 맞춥니다.
+    두 축 모두 tickSize·tickMargin 을 0 으로 둬야 tick.x 가 막대 쪽 칸 경계와 같아집니다
+    (기본값이면 그만큼 밀려 글자 끝이 잘립니다).
+  */
   const renderLabel = (tick: TickProps) => (
     <text
       x={Number(tick.x ?? 0) - labelWidth}
       y={tick.y}
       dy={4}
       textAnchor="start"
-      className="fill-gray-800 text-caption"
+      className="fill-gray-800 text-caption font-medium"
     >
       {rowOf(tick)?.label}
     </text>
@@ -85,7 +93,10 @@ export default function RangeBarChart({
       y={tick.y}
       dy={4}
       textAnchor="end"
-      className="fill-subtle text-xs"
+      className={cn(
+        "text-caption",
+        valueTone === "strong" ? "fill-ink font-medium" : "fill-gray-800",
+      )}
     >
       {rowOf(tick)?.valueLabel}
     </text>
@@ -109,6 +120,8 @@ export default function RangeBarChart({
               width={labelWidth}
               axisLine={false}
               tickLine={false}
+              tickSize={0}
+              tickMargin={0}
               tick={renderLabel}
               interval={0}
             />
@@ -120,6 +133,8 @@ export default function RangeBarChart({
               width={valueWidth}
               axisLine={false}
               tickLine={false}
+              tickSize={0}
+              tickMargin={0}
               tick={renderValue}
               interval={0}
             />
@@ -129,10 +144,11 @@ export default function RangeBarChart({
               stackId="range"
               barSize={barSize}
               isAnimationActive={false}
-              background={{ className: TRACK_CLASS }}
+              background={{ className: TRACK_CLASS, radius: RADIUS }}
               shape={(props) => (
                 <Rectangle
                   {...props}
+                  radius={RADIUS}
                   className={(props.payload as Row).muted ? MUTED_CLASS : BASE_CLASS}
                 />
               )}

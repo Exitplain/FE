@@ -311,12 +311,15 @@ export type ReportSummary = {
   missing_evidence: number;
 };
 
-/* 과업별 퍼널 한 단계 (임시: 명세에 없음) */
+/*
+  과업별 퍼널 한 단계 (임시: 명세에 없음). Figma P12 "탐색 17~19명 · 이탈 1~3" 과 같은 의미입니다.
+  - reached: 이 단계로 넘어온 인원. 첫 단계는 시작한 인원 전체(기술 실패 제외)
+  - dropout: 직전 단계에서 이 단계로 넘어오지 못한 인원 (첫 단계는 0)
+    → 가입 화면에서 떠난 세션은 가입 행의 이탈이고, 구간 이름은 "장바구니 → 가입"
+*/
 export type ReportFunnelStage = {
   stage: Stage;
-  /* 이 단계에 도달한 인원 범위 */
   reached: Range;
-  /* 이 단계에서 이탈한 인원 범위 */
   dropout: Range;
 };
 
@@ -329,7 +332,45 @@ export type ReportTask = {
   technical: number;
   /* 임시: 명세에 없음. 없으면 화면에서 예측 퍼널을 숨깁니다 */
   funnel?: ReportFunnelStage[];
+  /* 임시: 완료 세션의 중앙 소요 시간(초) 범위 (P12 요약 "완료자 중앙 소요 시간") */
+  median_duration?: Range;
+  /*
+    임시: 세그먼트 × 이탈 구간 (P12 히트맵). dropouts[i] 는 funnel 의 (i) → (i+1) 구간 이탈 인원,
+    길이는 funnel 길이 - 1 입니다.
+  */
+  segments?: ReportSegment[];
+  /* 임시: 이 과업 퍼널의 실측 비교 (실측 퍼널은 과업마다 따로라 과업에 둡니다) */
+  actual?: ReportActual;
 };
+
+export type ReportSegment = { id: string; name: string; dropouts: Range[] };
+
+/* 임시: 실행 조건 (P12 설명 줄 "20명 × 시드 3회 · 보정 11월 5일") */
+export type ReportConditions = {
+  /* 과업별 패널 인원 */
+  panel_size: number;
+  seeds: number;
+  /* 적용된 보정 시각. 보정 전이면 null */
+  calibrated_at: string | null;
+};
+
+/*
+  임시: 실측 비교 (P12 실측 비교 요약 · P14 상태). 원래는 실측 분석(R08) 비교 API 의 결과입니다.
+  - unconnected: 스크립트 미설치 · collecting: 표본 모으는 중 · stale: 수집 중단 · comparable: 비교 가능
+*/
+export type ReportActual =
+  | { status: "unconnected" }
+  | { status: "collecting"; stages_ready: number; stages_total: number }
+  | { status: "stale"; last_event_at: string }
+  | {
+      status: "comparable";
+      /* 단계별 오차 절댓값 평균 (%p) */
+      mean_error_pp: number;
+      /* 실측이 예측 범위를 벗어난 단계 */
+      gap_stages: Stage[];
+      /* 최대 이탈 구간 [직전 단계, 이탈 단계]. 예측에 이탈이 없으면 predicted 는 null */
+      max_drop: { predicted: [Stage, Stage] | null; actual: [Stage, Stage] };
+    };
 
 export type ReportEvidence = {
   session_id: string;
@@ -401,4 +442,6 @@ export type PersonaReport = {
   alignment: ReportAlignment;
   /* 화면에 그대로 보여줄 결과 해석의 한계 */
   limitations: string[];
+  /* 임시: 명세에 없음 (위 타입 설명 참고) */
+  conditions?: ReportConditions;
 };

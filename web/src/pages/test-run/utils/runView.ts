@@ -113,21 +113,8 @@ export function taskOptions(sessions: PersonaSession[]) {
   return [...seen].map(([id, name]) => ({ id, name }));
 }
 
-/* BE 화면 단계 이름 (agent/frustration.py STAGES 경로 기준) */
-export const STAGE_LABELS: Record<Stage, string> = {
-  landing: "첫 화면",
-  product: "상품",
-  cart: "장바구니",
-  signup: "가입",
-  checkout: "결제 정보",
-  complete: "완료 화면",
-  delivery: "배송 지역",
-  benefits: "혜택",
-  coupon: "쿠폰",
-  account: "내 정보",
-  subscription: "구독",
-  other: "기타",
-};
+/* 리포트·세션 상세도 쓰게 돼 constants 로 옮겼습니다. 실행 화면 import 는 그대로 둡니다 */
+export { STAGE_LABELS } from "@/constants/persona";
 
 /* "지금 가장 많은 단계: 장바구니 · 4세션" */
 export function busiestStage(sessions: PersonaSession[]): { stage: Stage; count: number } | null {

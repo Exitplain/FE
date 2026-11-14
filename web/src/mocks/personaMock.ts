@@ -11,10 +11,13 @@ import type {
   PersonaReportSummary,
   PersonaRun,
   PersonaSession,
+  Range,
+  ReportActual,
   ReportAlignment,
   ReportEvidence,
   ReportFinding,
   ReportFunnelStage,
+  ReportSegment,
   ReportTask,
   SessionStatus,
   Stage,
@@ -426,19 +429,29 @@ function findRun(requested: string | null): PersonaRun {
   throw new MockApiError(404, "저장된 실행을 찾을 수 없습니다.");
 }
 
-/* 세션이 경로에서 어디까지 갔는지 (완료는 끝까지, 이탈은 멈춘 단계까지) */
-function reachedIndex(session: PersonaSession, path: Stage[]) {
+/*
+  세션이 퍼널에서 몇 번째 단계까지 넘어갔는지 (types ReportFunnelStage 의 정의).
+  - 완료: 끝까지
+  - 이탈: 멈춘 화면 직전 단계까지 (가입 화면에서 떠났으면 "장바구니 → 가입" 구간 이탈)
+  - 첫 화면은 모두 들어온 것으로 셉니다 (경로 밖에서 멈춘 세션도 분모에 남게)
+*/
+function passedIndex(session: PersonaSession, path: Stage[]) {
   if (session.status === "success") return path.length - 1;
-  return session.terminal_stage ? path.indexOf(session.terminal_stage) : -1;
+  const stopped = session.terminal_stage ? path.indexOf(session.terminal_stage) : -1;
+  return Math.max(0, stopped - 1);
 }
 
 function buildFunnel(counted: PersonaSession[], path: Stage[]): ReportFunnelStage[] {
+  const reached = path.map(
+    (_, index) => counted.filter((s) => passedIndex(s, path) >= index).length,
+  );
   return path.map((stage, index) => {
-    const reached = counted.filter((s) => reachedIndex(s, path) >= index).length;
-    const dropout = counted.filter(
-      (s) => s.status === "simulated_dropout" && s.terminal_stage === stage,
-    ).length;
-    return { stage, reached: [reached, reached], dropout: [dropout, dropout] };
+    const dropout = index === 0 ? 0 : reached[index - 1] - reached[index];
+    return {
+      stage,
+      reached: [reached[index], reached[index]],
+      dropout: [dropout, dropout],
+    };
   });
 }
 
@@ -457,6 +470,66 @@ function buildTask(run: PersonaRun, taskId: string): ReportTask {
     dropout: sessions.filter((s) => s.status === "simulated_dropout").length,
     technical: sessions.length - counted.length,
     funnel: path ? buildFunnel(counted, path) : undefined,
+    median_duration: medianDuration(counted),
+    segments: path ? buildSegments(counted, path) : undefined,
+    actual: path ? mockActual(buildFunnel(counted, path)) : undefined,
+  };
+}
+
+/*
+  mock 세션에는 시간 기록이 없어 스텝 수 × 15초를 소요 시간으로 둡니다 (예시값).
+  완료 세션이 없으면 없음.
+*/
+const MOCK_SECONDS_PER_STEP = 15;
+
+function medianDuration(counted: PersonaSession[]): Range | undefined {
+  const seconds = counted
+    .filter((s) => s.status === "success")
+    .map((s) => s.steps * MOCK_SECONDS_PER_STEP)
+    .sort((a, b) => a - b);
+  if (seconds.length === 0) return undefined;
+  const median = seconds[Math.floor(seconds.length / 2)];
+  return [median, median];
+}
+
+/* 세그먼트(프로필)별로 퍼널 구간마다 몇 명이 떠났는지 — 퍼널과 같은 규칙(passedIndex)으로 셉니다 */
+function buildSegments(counted: PersonaSession[], path: Stage[]): ReportSegment[] {
+  const profiles = [...new Map(counted.map((s) => [s.profile_id, s.name])).entries()];
+  return profiles.map(([id, name]) => {
+    const sessions = counted.filter((s) => s.profile_id === id);
+    const dropouts = path.slice(1).map((_, index): Range => {
+      const lost = sessions.filter(
+        (s) => s.status === "simulated_dropout" && passedIndex(s, path) === index,
+      ).length;
+      return [lost, lost];
+    });
+    return { id, name, dropouts };
+  });
+}
+
+/*
+  실측 비교 예시값. 실측 분석(R) API 가 없어 화면 확인용으로 "비교 가능" 상태를 돌려줍니다.
+  예측 최대 이탈 구간은 첫 과업 퍼널에서 계산하고, 실측 쪽 수치는 고정 예시입니다.
+*/
+function mockActual(funnel: ReportFunnelStage[]): ReportActual {
+  /* 화면의 "최대 이탈 구간"과 같은 규칙: 이탈 상한이 가장 큰 단계, 이탈이 없으면 null */
+  let worst = -1;
+  funnel.forEach((stage, index) => {
+    if (
+      index > 0 &&
+      stage.dropout[1] > 0 &&
+      (worst < 0 || stage.dropout[1] > funnel[worst].dropout[1])
+    ) {
+      worst = index;
+    }
+  });
+  const predicted: [Stage, Stage] | null =
+    worst > 0 ? [funnel[worst - 1].stage, funnel[worst].stage] : null;
+  return {
+    status: "comparable",
+    mean_error_pp: 4.5,
+    gap_stages: ["cart"],
+    max_drop: { predicted, actual: ["product", "cart"] },
   };
 }
 
@@ -532,6 +605,7 @@ export function report(runId: string | null): PersonaReport {
   const evidence = findings.flatMap((finding) => finding.evidence);
   const count = (status: SessionStatus[]) =>
     run.sessions.filter((s) => status.includes(s.status)).length;
+  const tasks = [...new Set(run.sessions.map((s) => s.task_id))].map((id) => buildTask(run, id));
 
   return structuredClone({
     schema_version: "mock-1",
@@ -550,7 +624,7 @@ export function report(runId: string | null): PersonaReport {
       findings: findings.length,
       missing_evidence: evidence.filter((e) => e.evidence_status === "missing").length,
     },
-    tasks: [...new Set(run.sessions.map((s) => s.task_id))].map((id) => buildTask(run, id)),
+    tasks,
     findings,
     evidence,
     technical_failures: run.sessions
@@ -567,6 +641,12 @@ export function report(runId: string | null): PersonaReport {
       "모의 실행(mock) 결과입니다. 실제 사용자 이탈률이 아닙니다.",
       "연령은 설명 문맥으로만 쓰고 행동 보정은 검증 전입니다.",
     ],
+    /* mock 은 시드 반복과 보정이 없습니다 */
+    conditions: {
+      panel_size: Math.max(0, ...tasks.map((task) => task.total)),
+      seeds: 1,
+      calibrated_at: null,
+    },
   });
 }
 

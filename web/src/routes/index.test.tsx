@@ -31,8 +31,16 @@ const projectId = "banchan";
 const runId = "run-1";
 
 describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
+  it("리포트(P12)를 /runs/:runId/report 에서 연다", async () => {
+    renderAt(buildPath("report", { projectId, runId }));
+
+    // 저장된 실행이 아닌 runId 라 실행 기록 없음(E18)이 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "실행 기록을 찾을 수 없어요" }),
+    ).toBeInTheDocument();
+  });
+
   it.each([
-    ["report", buildPath("report", { projectId, runId })],
     ["sessionDetail", buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })],
     ["retest", buildPath("retest", { projectId, runId })],
   ] as const)("%s 화면을 %s 에서 연다", (key, path) => {
