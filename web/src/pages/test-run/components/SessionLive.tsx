@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { artifactUrl } from "@/apis/persona.api";
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
@@ -69,7 +70,7 @@ export default function SessionLive({
               />
             ) : session.artifact_id ? (
               <img
-                src={`/api/artifacts/${encodeURIComponent(session.artifact_id)}`}
+                src={artifactUrl(session.artifact_id)}
                 alt={`${session.name} 세션의 마지막 화면`}
                 className="size-full object-contain"
               />

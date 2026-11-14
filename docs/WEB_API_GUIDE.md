@@ -97,9 +97,10 @@ export const projectHandlers = [
 
 ### 페르소나 실행 mock (`/api/personas*`)
 
-- `src/mocks/personaMock.ts`가 BE 개발 API를 메모리 상태로 흉내 냅니다. 탐색 → 확인(BE와 같은 검증 규칙) → 실행 진행 → 완료 → 목록·질문까지 이어집니다.
+- `src/mocks/personaMock.ts`가 BE 개발 API를 메모리 상태로 흉내 냅니다. 탐색 → 확인(BE와 같은 검증 규칙) → 실행 진행 → 완료 → 목록·질문 → 리포트·내보내기·사람 관측까지 이어집니다.
+- 리포트(`/api/personas/report`)는 완료된 mock 실행 기록에서 계산합니다. 시드 반복이 없어 예측 범위는 `[n, n]`이고, 화면 캡처가 없어 근거는 모두 `evidence_status: "missing"`입니다. 리포트 안쪽 필드 모양(퍼널·alignment 등)은 명세에 없어 `types/persona.type.ts`에 **임시**로 정의했습니다. BE 명세가 나오면 타입부터 고칩니다.
 - `GET /api/personas`를 부를 때마다 한 단계씩 진행합니다(동시 3세션, 과업 × 프로필 3개). 세션 결과는 정해 둔 예시입니다(빠른 구매=이탈, 여유 있는 탐색의 배송 지역 확인=실행 오류, 나머지=완료).
-- 오류 화면은 `personaErrorHandlers`(`handlers/personas.ts`)로 재현합니다: `discoverUnavailable`(503), `confirmExpired`(400), `confirmRunning`(409), `personasNetworkError`, `reportsEmpty`.
+- 오류 화면은 `personaErrorHandlers`(`handlers/personas.ts`)로 재현합니다: `discoverUnavailable`(503), `confirmExpired`(400), `confirmRunning`(409), `personasNetworkError`, `reportsEmpty`, `reportNotFound`(404), `reportNetworkError`, `pdfBusy`(429), `pdfFailed`(503).
   - 테스트: `server.use(personaErrorHandlers.confirmExpired)`
 - 테스트에서는 `src/test/setup.ts`가 테스트마다 mock 상태를 처음으로 돌립니다.
 - 주의

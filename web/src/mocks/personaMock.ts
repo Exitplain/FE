@@ -1,11 +1,21 @@
 import type {
   AgeOption,
+  AlignmentMetric,
   ConfirmRequest,
   DiscoverResponse,
+  DropCause,
   ExplainAnswer,
+  HumanObservation,
+  HumanStage,
+  PersonaReport,
   PersonaReportSummary,
   PersonaRun,
   PersonaSession,
+  ReportAlignment,
+  ReportEvidence,
+  ReportFinding,
+  ReportFunnelStage,
+  ReportTask,
   SessionStatus,
   Stage,
   Variant,
@@ -369,9 +379,357 @@ export function explain(body: unknown): ExplainAnswer {
   };
 
   session.answers = [...(session.answers ?? []), answer].slice(-MAX_ANSWERS);
-  /* 완료된 실행은 목록(history)에도 같은 답이 남도록 맞춥니다 */
-  const saved = state.history.find((run) => run.id === state.run.id);
-  if (saved) saved.sessions = structuredClone(state.run.sessions);
+  syncHistory();
 
   return structuredClone(answer);
+}
+
+/* 완료된 현재 실행을 바꾼 뒤(질문·사람 관측) 목록(history)에도 같은 내용이 남도록 맞춥니다 */
+function syncHistory() {
+  const index = state.history.findIndex((run) => run.id === state.run.id);
+  if (index >= 0) state.history[index] = structuredClone(state.run);
+}
+
+/* ─── 리포트 ─── */
+/*
+  BE 는 리포트를 요청할 때 계산합니다. mock 도 완료된 실행 기록(history)에서 그때그때 만듭니다.
+  - 가상 이탈과 기술 실패(실행 오류·한도 도달)를 나눠 세고, 퍼널 분모에서 기술 실패를 뺍니다.
+  - mock 은 시드 반복이 없어 예측 범위가 [n, n] 입니다. 범위를 지어내지 않습니다.
+  - mock 에는 화면 캡처가 없어 근거는 모두 evidence_status "missing" 입니다.
+*/
+
+const TECHNICAL: SessionStatus[] = ["agent_failure", "budget_exceeded"];
+
+const CAUSE_TEXT: Partial<Record<DropCause, { title: string; recommendation: string }>> = {
+  input_burden: {
+    title: "필수 입력 칸이 허용치를 넘었어요",
+    recommendation: "필수 입력 칸을 줄이거나 나중에 받도록 미뤄 보세요.",
+  },
+  navigation: {
+    title: "다음 단계로 가는 길을 찾지 못했어요",
+    recommendation: "다음 행동 버튼을 핵심 정보 가까이에 두세요.",
+  },
+  cost: {
+    title: "예상 밖 비용을 늦게 알게 됐어요",
+    recommendation: "배송비 같은 추가 비용을 앞 단계에서 미리 보여주세요.",
+  },
+};
+
+/* run_id 를 생략하면 현재 실행을 씁니다. 현재 실행이 미완료이면 과거 결과로 대체하지 않습니다 */
+function findRun(requested: string | null): PersonaRun {
+  const runId = requested ?? state.run.id;
+  const saved = state.history.find((run) => run.id === runId);
+  if (saved) return saved;
+  if (state.run.id === runId && state.run.status === "running") {
+    throw new MockApiError(409, "아직 끝나지 않은 실행입니다.");
+  }
+  throw new MockApiError(404, "저장된 실행을 찾을 수 없습니다.");
+}
+
+/* 세션이 경로에서 어디까지 갔는지 (완료는 끝까지, 이탈은 멈춘 단계까지) */
+function reachedIndex(session: PersonaSession, path: Stage[]) {
+  if (session.status === "success") return path.length - 1;
+  return session.terminal_stage ? path.indexOf(session.terminal_stage) : -1;
+}
+
+function buildFunnel(counted: PersonaSession[], path: Stage[]): ReportFunnelStage[] {
+  return path.map((stage, index) => {
+    const reached = counted.filter((s) => reachedIndex(s, path) >= index).length;
+    const dropout = counted.filter(
+      (s) => s.status === "simulated_dropout" && s.terminal_stage === stage,
+    ).length;
+    return { stage, reached: [reached, reached], dropout: [dropout, dropout] };
+  });
+}
+
+function buildTask(run: PersonaRun, taskId: string): ReportTask {
+  const sessions = run.sessions.filter((s) => s.task_id === taskId);
+  const counted = sessions.filter((s) => !TECHNICAL.includes(s.status));
+  /* 경로를 모르는 과업은 퍼널을 비워 두지 않고 아예 빼서 화면이 퍼널을 숨기게 합니다 */
+  const path = TASK_PATHS[taskId];
+  const task = run.tasks.find((t) => t.id === taskId) ?? TASKS.find((t) => t.id === taskId);
+
+  return {
+    id: taskId,
+    name: task?.name ?? sessions[0]?.task_name ?? taskId,
+    total: sessions.length,
+    success: sessions.filter((s) => s.status === "success").length,
+    dropout: sessions.filter((s) => s.status === "simulated_dropout").length,
+    technical: sessions.length - counted.length,
+    funnel: path ? buildFunnel(counted, path) : undefined,
+  };
+}
+
+/* mock 세션 issue 의 관측값(입력 칸 수)은 입력 부담일 때만 문제 설명이 됩니다 */
+function inputBurden(session: PersonaSession) {
+  return session.issue?.category === "input_burden" ? session.issue : null;
+}
+
+function buildEvidence(session: PersonaSession): ReportEvidence {
+  const last = session.trace.at(-1);
+  const burden = inputBurden(session);
+  return {
+    session_id: session.id,
+    artifact_id: last?.artifact_id ?? null,
+    evidence_status: last?.artifact_id ? "captured" : "missing",
+    path: session.url ?? "",
+    annotation: burden
+      ? `필수 입력 ${burden.observed_fields}칸 · 허용 ${burden.configured_limit}칸 초과`
+      : null,
+    observations: [session.reason],
+    steps_before: session.steps,
+    score: last?.score ?? 0,
+    threshold: last?.threshold ?? session.max_required_fields * 16,
+  };
+}
+
+/* 이탈 세션을 과업 × 단계 × 원인으로 묶어 발견한 문제를 만듭니다 */
+function buildFindings(run: PersonaRun): ReportFinding[] {
+  type Group = { taskId: string; stage: Stage; cause: DropCause; sessions: PersonaSession[] };
+  const groups = new Map<string, Group>();
+  for (const session of run.sessions) {
+    if (session.status !== "simulated_dropout" || !session.terminal_stage) continue;
+    const cause: DropCause = session.issue?.category ?? "unknown";
+    const key = JSON.stringify([session.task_id, session.terminal_stage, cause]);
+    const group = groups.get(key) ?? {
+      taskId: session.task_id,
+      stage: session.terminal_stage,
+      cause,
+      sessions: [],
+    };
+    group.sessions.push(session);
+    groups.set(key, group);
+  }
+
+  return [...groups.values()]
+    .map(({ taskId, stage, cause, sessions }, index): ReportFinding => {
+      const text = CAUSE_TEXT[cause];
+      const issue = inputBurden(sessions[0]);
+      return {
+        id: `finding-${index + 1}`,
+        task_id: taskId,
+        stage,
+        category: cause,
+        title: text?.title ?? "이탈 원인을 특정하지 못했어요",
+        affected_sessions: sessions.length,
+        task_sessions: run.sessions.filter(
+          (s) => s.task_id === taskId && !TECHNICAL.includes(s.status),
+        ).length,
+        evidence: sessions.map(buildEvidence),
+        interpretation: issue
+          ? `입력 칸 ${issue.observed_fields}개가 허용치 ${issue.configured_limit}개를 넘어 좌절 점수가 임계치를 넘었습니다.`
+          : sessions[0].reason,
+        recommendation: text?.recommendation ?? "세션 기록을 직접 확인해 보세요.",
+        mockup: null,
+      };
+    })
+    .sort((a, b) => b.affected_sessions - a.affected_sessions);
+}
+
+export function report(runId: string | null): PersonaReport {
+  const run = findRun(runId);
+  const findings = buildFindings(run);
+  const evidence = findings.flatMap((finding) => finding.evidence);
+  const count = (status: SessionStatus[]) =>
+    run.sessions.filter((s) => status.includes(s.status)).length;
+
+  return structuredClone({
+    schema_version: "mock-1",
+    run_id: run.id!,
+    created_at: run.created_at ?? new Date().toISOString(),
+    target: run.target,
+    variant: run.variant ?? "fixed",
+    audience: run.audience ?? {},
+    policy: run.policy,
+    model_calls: run.model_calls,
+    summary: {
+      sessions: run.sessions.length,
+      success: count(["success"]),
+      simulated_dropout: count(["simulated_dropout"]),
+      technical: count(TECHNICAL),
+      findings: findings.length,
+      missing_evidence: evidence.filter((e) => e.evidence_status === "missing").length,
+    },
+    tasks: [...new Set(run.sessions.map((s) => s.task_id))].map((id) => buildTask(run, id)),
+    findings,
+    evidence,
+    technical_failures: run.sessions
+      .filter((s) => TECHNICAL.includes(s.status))
+      .map((s) => ({
+        session_id: s.id,
+        persona_name: s.name,
+        task_name: s.task_name,
+        status: s.status,
+        reason: s.reason,
+      })),
+    alignment: buildAlignment(run, run.human_observations ?? []),
+    limitations: [
+      "모의 실행(mock) 결과입니다. 실제 사용자 이탈률이 아닙니다.",
+      "연령은 설명 문맥으로만 쓰고 행동 보정은 검증 전입니다.",
+    ],
+  });
+}
+
+export function reportMarkdown(runId: string | null): string {
+  const data = report(runId);
+  const lines = [
+    `# 사전 테스트 리포트 (${data.run_id})`,
+    "",
+    `- 세션 ${data.summary.sessions}개 · 완료 ${data.summary.success} · 가상 이탈 ${data.summary.simulated_dropout} · 기술 실패 ${data.summary.technical}`,
+    "",
+    "## 발견한 문제",
+    ...data.findings.map(
+      (f) => `- ${f.title} (${f.stage}, ${f.affected_sessions}/${f.task_sessions}명)`,
+    ),
+    "",
+    "## 해석의 한계",
+    ...data.limitations.map((text) => `- ${text}`),
+  ];
+  return lines.join("\n");
+}
+
+/* ─── 사람 관측 ─── */
+
+const HUMAN_KEYS = [
+  "run_id",
+  "persona_id",
+  "participant_id",
+  "outcome",
+  "stage",
+  "cause",
+  "source",
+];
+const HUMAN_STAGES: HumanStage[] = [
+  "landing",
+  "product",
+  "cart",
+  "signup",
+  "checkout",
+  "complete",
+  "delivery",
+  "benefits",
+  "coupon",
+  "account",
+  "subscription",
+];
+const CAUSES: DropCause[] = [
+  "input_burden",
+  "navigation",
+  "cost",
+  "value",
+  "trust",
+  "technical",
+  "accessibility",
+  "unknown",
+  "none",
+];
+
+function metric(observations: HumanObservation[], matches: (o: HumanObservation) => boolean) {
+  return {
+    matched: observations.filter(matches).length,
+    total: observations.length,
+  } satisfies AlignmentMetric;
+}
+
+/*
+  사람 관측과 예측 비교. 기술 실패 세션(실행 오류·한도 도달)은 예측 결과가 없으므로 비교에서 뺍니다.
+  (가상 이탈로 셈하면 사람이 이탈을 기록했을 때 일치로 잡혀 일치율이 부풀려집니다)
+  관측이 없거나 비교할 관측이 없으면 unverified 입니다.
+*/
+function buildAlignment(run: PersonaRun, saved: HumanObservation[]): ReportAlignment {
+  const sessionOf = (o: HumanObservation) => run.sessions.find((s) => s.id === o.persona_id);
+  const observations = saved.filter((o) => {
+    const session = sessionOf(o);
+    return session !== undefined && !TECHNICAL.includes(session.status);
+  });
+  const predictedOutcome = (o: HumanObservation) =>
+    sessionOf(o)?.status === "success" ? "success" : "dropout";
+  const predictedStage = (o: HumanObservation) => {
+    const session = sessionOf(o);
+    return session?.status === "success" ? "complete" : session?.terminal_stage;
+  };
+  const predictedCause = (o: HumanObservation) => {
+    const session = sessionOf(o);
+    return session?.status === "success" ? "none" : (session?.issue?.category ?? "unknown");
+  };
+
+  const metrics = {
+    outcome: metric(observations, (o) => predictedOutcome(o) === o.outcome),
+    stage: metric(observations, (o) => predictedStage(o) === o.stage),
+    cause: metric(observations, (o) => predictedCause(o) === o.cause),
+  };
+  const all = Object.values(metrics);
+  return {
+    participants: new Set(saved.map((o) => o.participant_id)).size,
+    observations: saved.length,
+    metrics,
+    status:
+      observations.length === 0
+        ? "unverified"
+        : all.every((m) => m.matched === m.total)
+          ? "verified"
+          : "partial",
+  };
+}
+
+/*
+  BE 명세 5.2 와 같은 검증. 같은 참여자 × 과업 × 세션은 갱신하고,
+  같은 참여자 × 과업을 다른 세션에 대응하면 400 입니다.
+*/
+export function human(body: unknown): PersonaRun {
+  const record = (body ?? {}) as Record<string, unknown>;
+  const keys = Object.keys(record);
+  const source = typeof record.source === "string" ? record.source.trim() : "";
+  const run = state.run;
+  const session = run.sessions.find((s) => s.id === record.persona_id);
+
+  if (keys.length !== HUMAN_KEYS.length || !HUMAN_KEYS.every((key) => keys.includes(key))) {
+    throw new MockApiError(400, "관측 항목을 모두 입력해주세요.");
+  }
+  if (run.status !== "completed" || record.run_id !== run.id) {
+    throw new MockApiError(400, "완료된 현재 실행에만 관측을 저장할 수 있습니다.");
+  }
+  if (!session) throw new MockApiError(400, "비교할 세션을 찾을 수 없습니다.");
+  if (
+    typeof record.participant_id !== "string" ||
+    !/^[A-Za-z0-9_-]{1,40}$/.test(record.participant_id)
+  ) {
+    throw new MockApiError(400, "참여자 코드는 영문·숫자·밑줄·하이픈 1~40자로 입력해주세요.");
+  }
+  if (source.length < 3 || source.length > 300) {
+    throw new MockApiError(400, "관측 근거는 3~300자로 입력해주세요.");
+  }
+  if (
+    (record.outcome !== "success" && record.outcome !== "dropout") ||
+    !HUMAN_STAGES.includes(record.stage as HumanStage) ||
+    !CAUSES.includes(record.cause as DropCause) ||
+    (record.outcome === "success" && (record.stage !== "complete" || record.cause !== "none"))
+  ) {
+    throw new MockApiError(400, "결과·단계·원인을 확인해주세요.");
+  }
+
+  const observation: HumanObservation = {
+    persona_id: session.id,
+    participant_id: record.participant_id,
+    outcome: record.outcome,
+    stage: record.stage as HumanStage,
+    cause: record.cause as DropCause,
+    source,
+    recorded_at: new Date().toISOString(),
+  };
+  const taskOf = (o: HumanObservation) => run.sessions.find((s) => s.id === o.persona_id)?.task_id;
+  const existing = run.human_observations ?? [];
+  const sameTask = existing.filter(
+    (o) => o.participant_id === observation.participant_id && taskOf(o) === session.task_id,
+  );
+  if (sameTask.some((o) => o.persona_id !== session.id)) {
+    throw new MockApiError(400, "이 참여자의 같은 과업 관측이 다른 세션에 이미 있습니다.");
+  }
+
+  const observations = [...existing.filter((o) => !sameTask.includes(o)), observation];
+  run.human_observations = observations;
+  run.alignment = buildAlignment(run, observations);
+  syncHistory();
+
+  return structuredClone(run);
 }

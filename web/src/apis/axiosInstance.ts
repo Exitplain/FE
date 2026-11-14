@@ -36,10 +36,28 @@ function toApiError(error: unknown): ApiError {
   return new ApiError({ status, message: `요청에 실패했습니다. (${status})` });
 }
 
+/*
+  responseType 이 blob(PDF)·text(Markdown)인 요청은 오류 본문도 Blob·문자열 그대로 옵니다.
+  JSON 오류 본문이면 풀어서 다른 요청과 같은 메시지를 쓰게 합니다.
+*/
+async function parseErrorBody(error: unknown) {
+  if (!isAxiosError(error) || !error.response) return;
+  const { data } = error.response;
+  if (!(data instanceof Blob) && typeof data !== "string") return;
+  try {
+    error.response.data = JSON.parse(data instanceof Blob ? await data.text() : data);
+  } catch {
+    /* JSON 이 아니면 상태 코드 기본 문구를 씁니다 */
+  }
+}
+
 /* 화면에서는 항상 ApiError 만 받도록 오류 형태를 여기 한 곳에서 맞춥니다 */
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(toApiError(error)),
+  async (error) => {
+    await parseErrorBody(error);
+    return Promise.reject(toApiError(error));
+  },
 );
 
 export default axiosInstance;

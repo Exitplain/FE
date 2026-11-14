@@ -1,24 +1,52 @@
 import { http, HttpResponse } from "msw";
 
-import { confirm, discover, explain, MockApiError, reports, snapshot } from "../personaMock";
+import {
+  confirm,
+  discover,
+  explain,
+  human,
+  MockApiError,
+  report,
+  reportMarkdown,
+  reports,
+  snapshot,
+} from "../personaMock";
+
+/* 개발 API 오류 형태 { error: string } */
+function errorResponse(error: unknown) {
+  if (error instanceof MockApiError) {
+    return HttpResponse.json({ error: error.message }, { status: error.status });
+  }
+  if (error instanceof SyntaxError) {
+    return HttpResponse.json({ error: "요청 형식을 확인해주세요." }, { status: 400 });
+  }
+  throw error;
+}
 
 /*
-  개발 API 오류 형태 { error: string } 로 돌려줍니다.
-  본문 JSON 이 깨진 경우도 BE 처럼 400 으로 답합니다 (MSW 기본 500 대신).
+  JSON 응답. 본문 JSON 이 깨진 경우도 BE 처럼 400 으로 답합니다 (MSW 기본 500 대신).
 */
 async function handle<T>(run: () => T | Promise<T>, status = 200) {
   try {
     return HttpResponse.json((await run()) as object, { status });
   } catch (error) {
-    if (error instanceof MockApiError) {
-      return HttpResponse.json({ error: error.message }, { status: error.status });
-    }
-    if (error instanceof SyntaxError) {
-      return HttpResponse.json({ error: "요청 형식을 확인해주세요." }, { status: 400 });
-    }
-    throw error;
+    return errorResponse(error);
   }
 }
+
+/* JSON 이 아닌 응답(Markdown·PDF). 오류는 같은 { error } 형태로 답합니다 */
+function handleRaw(run: () => Response) {
+  try {
+    return run();
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+const runIdOf = (request: Request) => new URL(request.url).searchParams.get("run_id");
+
+/* 화면 확인용 빈 PDF (실제 내용 없음) */
+const MOCK_PDF = new TextEncoder().encode("%PDF-1.4\n% mock report\n%%EOF\n");
 
 export const personaHandlers = [
   http.get("*/api/personas", () => handle(snapshot)),
@@ -31,6 +59,28 @@ export const personaHandlers = [
   http.get("*/api/personas/reports", () => handle(() => ({ reports: reports() }))),
   http.post("*/api/personas/explain", ({ request }) =>
     handle(async () => explain(await request.json())),
+  ),
+  http.post("*/api/personas/human", ({ request }) =>
+    handle(async () => human(await request.json())),
+  ),
+  http.get("*/api/personas/report", ({ request }) => handle(() => report(runIdOf(request)))),
+  http.get("*/api/personas/report.md", ({ request }) =>
+    handleRaw(() => HttpResponse.text(reportMarkdown(runIdOf(request)))),
+  ),
+  http.get("*/api/personas/report.pdf", ({ request }) =>
+    handleRaw(() => {
+      const runId = report(runIdOf(request)).run_id;
+      return new HttpResponse(MOCK_PDF, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="dropspot-report-${runId}.pdf"`,
+        },
+      });
+    }),
+  ),
+  /* mock 실행은 화면을 캡처하지 않아 모든 근거 이미지가 없습니다 */
+  http.get("*/api/artifacts/:artifactId", () =>
+    HttpResponse.json({ error: "화면 근거를 찾을 수 없습니다." }, { status: 404 }),
   ),
 ];
 
@@ -54,4 +104,21 @@ export const personaErrorHandlers = {
   personasNetworkError: http.get("*/api/personas", () => HttpResponse.error()),
   /* 완료된 실행이 없음 → E02 */
   reportsEmpty: http.get("*/api/personas/reports", () => HttpResponse.json({ reports: [] })),
+  /* 저장된 실행 없음 → E18 */
+  reportNotFound: http.get("*/api/personas/report", () =>
+    HttpResponse.json({ error: "저장된 실행을 찾을 수 없습니다." }, { status: 404 }),
+  ),
+  /* 리포트를 불러오지 못함 → E20 */
+  reportNetworkError: http.get("*/api/personas/report", () => HttpResponse.error()),
+  /* 다른 PDF 를 만드는 중 → 버튼 복구·재시도 안내 */
+  pdfBusy: http.get("*/api/personas/report.pdf", () =>
+    HttpResponse.json(
+      { error: "PDF를 만드는 중입니다. 잠시 뒤 다시 시도해주세요." },
+      { status: 429 },
+    ),
+  ),
+  /* PDF 생성 실패 → E19 */
+  pdfFailed: http.get("*/api/personas/report.pdf", () =>
+    HttpResponse.json({ error: "PDF를 만들지 못했습니다." }, { status: 503 }),
+  ),
 };

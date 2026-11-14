@@ -4,11 +4,15 @@ import {
   confirmPersonaRun,
   discoverPersonaPlan,
   explainPersonaSession,
+  getPersonaReport,
+  getPersonaReportMarkdown,
+  getPersonaReportPdf,
   getPersonaReports,
   getPersonaRun,
+  saveHumanObservation,
 } from "@/apis/persona.api";
 import { server } from "@/mocks/node";
-import type { ConfirmRequest } from "@/types/persona.type";
+import type { ConfirmRequest, HumanObservationRequest } from "@/types/persona.type";
 
 import { personaErrorHandlers } from "./handlers/personas";
 
@@ -212,6 +216,229 @@ describe("페르소나 mock — 실패 응답", () => {
     await expect(confirmPersonaRun(await confirmBody())).rejects.toMatchObject({
       status: 400,
       message: "탐색 결과가 만료됐습니다. 다시 확인해주세요.",
+    });
+  });
+
+  it("PDF 생성 중(429)·실패(503)는 blob 응답이어도 서버 메시지를 읽는다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const run = await runToCompletion();
+
+    server.use(personaErrorHandlers.pdfBusy);
+    await expect(getPersonaReportPdf(run.id!)).rejects.toMatchObject({
+      status: 429,
+      message: "PDF를 만드는 중입니다. 잠시 뒤 다시 시도해주세요.",
+    });
+
+    server.use(personaErrorHandlers.pdfFailed);
+    await expect(getPersonaReportPdf(run.id!)).rejects.toMatchObject({ status: 503 });
+  });
+});
+
+describe("페르소나 mock — 리포트", () => {
+  it("완료된 실행의 결과를 가상 이탈·기술 실패로 나눠 센다", async () => {
+    await confirmPersonaRun(
+      await confirmBody({ feature_ids: ["shopping", "delivery"], task_ids: ["order", "delivery"] }),
+    );
+    const run = await runToCompletion();
+
+    const report = await getPersonaReport(run.id!);
+
+    expect(report.summary).toMatchObject({ sessions: 6, simulated_dropout: 2, technical: 1 });
+    expect(report.technical_failures).toEqual([
+      expect.objectContaining({ session_id: "patient_delivery", status: "agent_failure" }),
+    ]);
+    /* 기술 실패는 퍼널 분모에서 빠집니다 */
+    const delivery = report.tasks.find((task) => task.id === "delivery");
+    expect(delivery).toMatchObject({ total: 3, technical: 1 });
+    expect(delivery?.funnel?.[0]).toMatchObject({ stage: "landing", reached: [2, 2] });
+  });
+
+  it("과업 퍼널은 단계별 도달·이탈 인원을 범위로 주고, 이탈은 문제로 묶는다", async () => {
+    await confirmPersonaRun(await confirmBody({ feature_ids: ["shopping"], task_ids: ["order"] }));
+    const run = await runToCompletion();
+
+    const report = await getPersonaReport(run.id!);
+    const funnel = report.tasks[0].funnel!;
+
+    expect(funnel.map((stage) => stage.reached)).toEqual([
+      [3, 3],
+      [3, 3],
+      [3, 3],
+      [3, 3],
+      [2, 2],
+      [2, 2],
+    ]);
+    expect(funnel.find((stage) => stage.stage === "signup")?.dropout).toEqual([1, 1]);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        stage: "signup",
+        category: "input_burden",
+        affected_sessions: 1,
+        task_sessions: 3,
+      }),
+    ]);
+    /* mock 은 화면을 캡처하지 않아 근거 이미지를 만들어 채우지 않습니다 */
+    expect(report.findings[0].evidence[0]).toMatchObject({
+      session_id: "quick_order",
+      artifact_id: null,
+      evidence_status: "missing",
+    });
+    expect(report.summary.missing_evidence).toBe(1);
+  });
+
+  it("run_id 를 생략하면 현재 실행의 리포트를 준다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const run = await runToCompletion();
+
+    const response = await fetch("http://localhost/api/personas/report");
+
+    expect((await response.json()).run_id).toBe(run.id);
+  });
+
+  it("실행 중이면 409, 없는 실행이면 404", async () => {
+    const running = await confirmPersonaRun(await confirmBody());
+
+    await expect(getPersonaReport(running.id!)).rejects.toMatchObject({ status: 409 });
+    await expect(getPersonaReport("mock-run-없음")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("Markdown 오류는 text 응답이어도 서버 메시지를 읽는다", async () => {
+    await expect(getPersonaReportMarkdown("mock-run-없음")).rejects.toMatchObject({
+      status: 404,
+      message: "저장된 실행을 찾을 수 없습니다.",
+    });
+  });
+
+  it("사람 관측이 없으면 일치 요약은 unverified 다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const run = await runToCompletion();
+
+    const report = await getPersonaReport(run.id!);
+
+    expect(report.alignment).toMatchObject({
+      observations: 0,
+      metrics: { outcome: { matched: 0, total: 0 } },
+      status: "unverified",
+    });
+  });
+
+  it("Markdown 과 PDF 로 내보낼 수 있다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const run = await runToCompletion();
+
+    expect(await getPersonaReportMarkdown(run.id!)).toContain(`# 사전 테스트 리포트 (${run.id})`);
+    const pdf = await getPersonaReportPdf(run.id!);
+    expect(pdf).toBeInstanceOf(Blob);
+    expect(pdf.type).toBe("application/pdf");
+  });
+});
+
+describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
+  async function completedRun() {
+    await confirmPersonaRun(await confirmBody({ feature_ids: ["shopping"], task_ids: ["order"] }));
+    return runToCompletion();
+  }
+
+  function observation(
+    runId: string,
+    overrides: Partial<HumanObservationRequest> = {},
+  ): HumanObservationRequest {
+    return {
+      run_id: runId,
+      persona_id: "quick_order",
+      participant_id: "H-001",
+      outcome: "dropout",
+      stage: "signup",
+      cause: "input_burden",
+      source: "참여자 01 관측 기록",
+      ...overrides,
+    };
+  }
+
+  it("저장하면 관측이 쌓이고 예측과의 일치 요약이 리포트에 나온다", async () => {
+    const run = await completedRun();
+
+    await saveHumanObservation(observation(run.id!));
+    const saved = await saveHumanObservation(
+      observation(run.id!, {
+        persona_id: "careful_order",
+        participant_id: "H-002",
+        stage: "cart",
+        cause: "cost",
+      }),
+    );
+
+    expect(saved.human_observations).toHaveLength(2);
+    const report = await getPersonaReport(run.id!);
+    expect(report.alignment).toMatchObject({
+      participants: 2,
+      observations: 2,
+      /* careful_order 는 예측상 완료 → 결과·단계·원인 모두 다름 */
+      metrics: {
+        outcome: { matched: 1, total: 2 },
+        stage: { matched: 1, total: 2 },
+        cause: { matched: 1, total: 2 },
+      },
+      status: "partial",
+    });
+  });
+
+  it("기술 실패 세션에 대응한 관측은 예측 비교에서 뺀다 (이탈 일치로 세지 않음)", async () => {
+    await confirmPersonaRun(
+      await confirmBody({ feature_ids: ["delivery"], task_ids: ["delivery"] }),
+    );
+    const run = await runToCompletion();
+
+    await saveHumanObservation(
+      observation(run.id!, {
+        persona_id: "patient_delivery",
+        stage: "delivery",
+        cause: "unknown",
+      }),
+    );
+    const report = await getPersonaReport(run.id!);
+
+    expect(report.alignment).toMatchObject({
+      observations: 1,
+      metrics: { outcome: { matched: 0, total: 0 } },
+      status: "unverified",
+    });
+  });
+
+  it("같은 참여자 × 과업 × 세션은 갱신하고, 다른 세션에 대응하면 400", async () => {
+    const run = await completedRun();
+    await saveHumanObservation(observation(run.id!));
+
+    const updated = await saveHumanObservation(
+      observation(run.id!, { source: "다시 확인한 기록" }),
+    );
+    expect(updated.human_observations).toEqual([
+      expect.objectContaining({ participant_id: "H-001", source: "다시 확인한 기록" }),
+    ]);
+
+    await expect(
+      saveHumanObservation(observation(run.id!, { persona_id: "careful_order" })),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it.each([
+    ["참여자 코드 형식", { participant_id: "참여자 1" }],
+    ["근거 3자 미만", { source: "  짧 " }],
+    ["other 단계", { stage: "other" as never }],
+    ["완료인데 이탈 원인", { outcome: "success" as const, stage: "complete" as const }],
+  ])("%s 이면 400", async (_, overrides) => {
+    const run = await completedRun();
+
+    await expect(saveHumanObservation(observation(run.id!, overrides))).rejects.toMatchObject({
+      status: 400,
+    });
+  });
+
+  it("실행이 끝나기 전에는 저장할 수 없다", async () => {
+    const running = await confirmPersonaRun(await confirmBody());
+
+    await expect(saveHumanObservation(observation(running.id!))).rejects.toMatchObject({
+      status: 400,
     });
   });
 });

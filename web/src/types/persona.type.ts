@@ -207,10 +207,10 @@ export type PersonaRun = {
   task_selection?: string;
   audience?: Audience;
   frustration_model?: FrustrationModel;
-  /* 사람 관측(K04) 기록. 화면에서 쓸 때 필드를 이어서 채웁니다 */
-  human_observations?: unknown[];
-  /* 사람 관측과 예측의 일치 요약 (K04). 화면에서 쓸 때 필드를 이어서 채웁니다 */
-  alignment?: Record<string, unknown>;
+  /* 사람 관측(K04) 기록 */
+  human_observations?: HumanObservation[];
+  /* 사람 관측과 예측의 일치 요약 (K04) */
+  alignment?: ReportAlignment;
 };
 
 /* ─── 실행 목록 (GET /api/personas/reports) ─────────────────────────────── */
@@ -253,4 +253,152 @@ export type ExplainAnswer = {
   recorded_at: string;
   method: "record_based_rules";
   model_calls: number;
+};
+
+/* ─── 사람 관측 (POST /api/personas/human) — 명세 5.2 ─────────────────────── */
+
+/* 이탈 원인 7종 + 모름·없음. success 는 cause=none 이어야 합니다 */
+export type DropCause =
+  | "input_burden"
+  | "navigation"
+  | "cost"
+  | "value"
+  | "trust"
+  | "technical"
+  | "accessibility"
+  | "unknown"
+  | "none";
+
+/* 사람 관측의 멈춘 단계. Stage 와 달리 "other" 가 없습니다 */
+export type HumanStage = Exclude<Stage, "other">;
+
+/*
+  - persona_id 는 프로필 ID 가 아니라 비교할 세션 ID 입니다 (예: "quick_order")
+  - participant_id: 영문·숫자·밑줄·하이픈 1~40자, source: 공백 제거 후 3~300자
+  - success 는 stage=complete, cause=none
+  - 현재 실행이 완료된 뒤에만 저장됩니다. 응답은 갱신된 실행 상태(PersonaRun)
+*/
+export type HumanObservationRequest = {
+  run_id: string;
+  persona_id: string;
+  participant_id: string;
+  outcome: "success" | "dropout";
+  stage: HumanStage;
+  cause: DropCause;
+  source: string;
+};
+
+/* 저장된 관측. 명세에 모양이 없어 요청 필드 + 저장 시각으로 둡니다 (임시) */
+export type HumanObservation = Omit<HumanObservationRequest, "run_id"> & { recorded_at: string };
+
+/* ─── 리포트 (GET /api/personas/report?run_id=) — 명세 6.1 ──────────────── */
+/*
+  명세에는 필드 이름만 있고 안쪽 모양은 아직 없습니다.
+  아래 모양은 화면을 만들기 위한 임시 정의이며, BE 명세가 나오면 이 절부터 고칩니다.
+  예측 값(인원·비율)은 시드 반복 결과의 [최소, 최대] 범위로 받습니다.
+*/
+
+export type Range = [min: number, max: number];
+
+export type ReportSummary = {
+  sessions: number;
+  success: number;
+  /* 가상 이탈. 기술 실패(technical)는 여기에 넣지 않습니다 */
+  simulated_dropout: number;
+  technical: number;
+  findings: number;
+  /* 근거 화면이 없는 결과 수. 이미지를 만들어 채우지 않습니다 */
+  missing_evidence: number;
+};
+
+/* 과업별 퍼널 한 단계 (임시: 명세에 없음) */
+export type ReportFunnelStage = {
+  stage: Stage;
+  /* 이 단계에 도달한 인원 범위 */
+  reached: Range;
+  /* 이 단계에서 이탈한 인원 범위 */
+  dropout: Range;
+};
+
+export type ReportTask = {
+  id: string;
+  name: string;
+  total: number;
+  success: number;
+  dropout: number;
+  technical: number;
+  /* 임시: 명세에 없음. 없으면 화면에서 예측 퍼널을 숨깁니다 */
+  funnel?: ReportFunnelStage[];
+};
+
+export type ReportEvidence = {
+  session_id: string;
+  /* GET /api/artifacts/{id}. 근거 화면이 없으면 null */
+  artifact_id: string | null;
+  evidence_status: "captured" | "missing";
+  /* 화면 경로 (예: "/signup") */
+  path: string;
+  /* 문제 요소 설명 */
+  annotation: string | null;
+  observations: string[];
+  /* 이 근거 화면까지 지나온 스텝 수 */
+  steps_before: number;
+  score: number;
+  threshold: number;
+};
+
+export type ReportFinding = {
+  id: string;
+  task_id: string;
+  stage: Stage;
+  category: DropCause;
+  title: string;
+  /* 이 문제를 겪은 세션 수 / 이 과업의 세션 수 */
+  affected_sessions: number;
+  task_sessions: number;
+  evidence: ReportEvidence[];
+  interpretation: string;
+  recommendation: string;
+  /* 개선 목업 (AI 생성 예시, 근거 아님). 없으면 null */
+  mockup: { artifact_id: string | null; note: string } | null;
+};
+
+export type TechnicalFailure = {
+  session_id: string;
+  persona_name: string;
+  task_name: string;
+  status: SessionStatus;
+  reason: string;
+};
+
+export type AlignmentMetric = { matched: number; total: number };
+
+/*
+  사람 관측과 예측 비교 (임시 모양). 관측이 없어도 객체로 오고 status 가 unverified 입니다.
+  metrics 는 기술 실패 세션에 대응한 관측을 뺀 비교 결과입니다.
+*/
+export type ReportAlignment = {
+  participants: number;
+  observations: number;
+  metrics: { outcome: AlignmentMetric; stage: AlignmentMetric; cause: AlignmentMetric };
+  status: "unverified" | "partial" | "verified";
+};
+
+export type PersonaReport = {
+  schema_version: string;
+  run_id: string;
+  created_at: string;
+  target: string;
+  variant: Variant;
+  audience: Audience;
+  policy: string;
+  model_calls: number;
+  summary: ReportSummary;
+  tasks: ReportTask[];
+  findings: ReportFinding[];
+  evidence: ReportEvidence[];
+  technical_failures: TechnicalFailure[];
+  alignment: ReportAlignment;
+  /* 화면에 그대로 보여줄 결과 해석의 한계 */
+  limitations: string[];
 };
