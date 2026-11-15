@@ -15,6 +15,7 @@
 | 서버 상태 | TanStack Query 5 + axios | 실행 상태 polling, 캐시, 로딩·오류 처리 |
 | 클라이언트 상태 | zustand 5 | 새 테스트 단계별 입력처럼 화면 사이에서 유지할 값만 |
 | API mock | MSW 2 | 미구현 `/api/v1`을 핸들러만 지우면 실제 API로 전환 |
+| 차트 | recharts 3 | 퍼널·비교 막대 (`components/RangeBarChart`). 색은 SVG에도 토큰 클래스(`fill-*`)를 씁니다 |
 | 코드 품질 | ESLint 10 + Prettier 3 + `prettier-plugin-tailwindcss` | 클래스 순서까지 자동 정렬해 diff 충돌 감소 |
 | 테스트 | Vitest 5 + Testing Library + jsdom | Vite 설정·alias를 그대로 쓰고, MSW 핸들러를 `msw/node`로 재사용 |
 

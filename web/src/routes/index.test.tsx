@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import { buildPath, ROUTES, type RouteKey } from "@/constants/routes";
+import { buildPath } from "@/constants/routes";
 import { createTestQueryClient } from "@/test/renderWithProviders";
 
 import { routes } from "./index";
@@ -18,27 +18,35 @@ function renderAt(path: string) {
   );
 }
 
-/*
-  아직 화면이 없는 라우트는 PagePlaceholder 가 제목과 경로 패턴을 보여줍니다.
-  화면을 구현해 PagePlaceholder 를 지우면 해당 케이스의 확인 대상(제목 등)도 같이 바꿉니다.
-*/
-function expectPlaceholder(key: RouteKey) {
-  expect(screen.getByRole("heading", { level: 1, name: ROUTES[key].title })).toBeInTheDocument();
-  expect(screen.getByText(ROUTES[key].path)).toBeInTheDocument();
-}
-
 const projectId = "banchan";
 const runId = "run-1";
 
 describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
-  it.each([
-    ["report", buildPath("report", { projectId, runId })],
-    ["sessionDetail", buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })],
-    ["retest", buildPath("retest", { projectId, runId })],
-  ] as const)("%s 화면을 %s 에서 연다", (key, path) => {
-    renderAt(path);
+  it("리포트(P12)를 /runs/:runId/report 에서 연다", async () => {
+    renderAt(buildPath("report", { projectId, runId }));
 
-    expectPlaceholder(key);
+    // 저장된 실행이 아닌 runId 라 실행 기록 없음(E18)이 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "실행 기록을 찾을 수 없어요" }),
+    ).toBeInTheDocument();
+  });
+
+  it("세션 상세(P15·P16)를 /runs/:runId/sessions/:sessionId 에서 연다", async () => {
+    renderAt(buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" }));
+
+    // 저장된 실행이 아닌 runId 라 세션 없음 안내가 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "세션을 찾을 수 없어요" }),
+    ).toBeInTheDocument();
+  });
+
+  it("재테스트 전후 비교(P18)를 /runs/:runId/retest 에서 연다", async () => {
+    renderAt(buildPath("retest", { projectId, runId }));
+
+    // 끝난 실행 목록에 없는 runId 라 비교할 실행 없음 안내가 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "비교할 실행을 찾을 수 없어요" }),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -65,8 +73,9 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
   it("목록(/tests)은 새 테스트가 아니라 테스트 목록(P01)을 연다", async () => {
     renderAt(buildPath("testList", { projectId }));
 
+    // 실행 기록이 없어 빈 상태(E02)가 열립니다
     expect(
-      await screen.findByRole("heading", { level: 2, name: "사전 테스트" }),
+      await screen.findByRole("heading", { level: 2, name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
   });
 
@@ -82,9 +91,14 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     expect(screen.getByRole("heading", { name: "페이지를 찾을 수 없습니다" })).toBeInTheDocument();
   });
 
-  it("공유 리포트는 프로젝트 밖 경로를 유지한다", () => {
+  it("공유 리포트(P21)는 프로젝트 밖 경로에서 사이드바 없이 연다", async () => {
     renderAt(buildPath("sharedReport", { shareId: "abc" }));
 
-    expectPlaceholder("sharedReport");
+    // 저장된 실행이 아닌 shareId 라 만료 안내(E17)가 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "공유 링크가 만료됐거나 해제됐어요" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("읽기 전용")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "대시보드" })).not.toBeInTheDocument();
   });
 });

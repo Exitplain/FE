@@ -3,11 +3,12 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/persona.api";
+import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { personaErrorHandlers } from "@/mocks/handlers/personas";
 import { server } from "@/mocks/node";
+import { finishPersonaMock } from "@/mocks/personaMock";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
 import TestListPage from "./index";
@@ -35,12 +36,9 @@ async function startRun() {
   });
 }
 
-/* mock 은 조회할 때마다 진행하므로 끝날 때까지 부릅니다 */
-async function completeRun() {
-  for (let i = 0; i < 20; i += 1) {
-    if ((await getPersonaRun()).status === "completed") return;
-  }
-  throw new Error("mock 실행이 끝나지 않았습니다");
+/* mock 은 조회할 때마다 진행하므로 테스트에서는 끝까지 바로 돌립니다 */
+function completeRun() {
+  finishPersonaMock();
 }
 
 describe("P01 사전 테스트 목록", () => {
@@ -54,17 +52,21 @@ describe("P01 사전 테스트 목록", () => {
     );
   });
 
-  it("실행 기록이 없으면 빈 상태(E02)를 보여준다", async () => {
+  it("실행 기록이 없으면 빈 상태(E02)만 보여주고 머리말 버튼은 숨긴다", async () => {
     renderPage();
 
     expect(
-      await screen.findByRole("heading", { name: "아직 사전 테스트가 없어요" }),
+      await screen.findByRole("heading", { name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("AI 고객 20명이 어디서 왜 떠나는지 알려줘요")).toBeInTheDocument();
+    /* 새 테스트 링크는 빈 상태 안의 하나뿐입니다 */
+    expect(screen.getAllByRole("link", { name: "새 테스트 시작하기" })).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "사전 테스트" })).not.toBeInTheDocument();
   });
 
   it("진행 중인 실행은 실행 화면으로, 완료된 실행은 리포트로 연결한다", async () => {
     await startRun();
-    await completeRun();
+    completeRun();
     await startRun();
 
     renderPage();
@@ -76,7 +78,8 @@ describe("P01 사전 테스트 목록", () => {
       "href",
       expect.stringMatching(/^\/projects\/banchan\/runs\/mock-run-\d+$/),
     );
-    expect(within(rows[0]).getByText("실행 중")).toBeInTheDocument();
+    /* 막 시작한 실행은 브라우저 준비 단계 (모든 세션 대기) */
+    expect(within(rows[0]).getByText("준비 중")).toBeInTheDocument();
     expect(within(rows[1]).getByRole("link")).toHaveAttribute(
       "href",
       expect.stringMatching(/^\/projects\/banchan\/runs\/mock-run-\d+\/report$/),
@@ -94,7 +97,7 @@ describe("P01 사전 테스트 목록", () => {
     await user.click(retry);
 
     expect(
-      await screen.findByRole("heading", { name: "아직 사전 테스트가 없어요" }),
+      await screen.findByRole("heading", { name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
   });
 
@@ -103,10 +106,10 @@ describe("P01 사전 테스트 목록", () => {
     renderPage();
 
     const table = await screen.findByRole("table", { name: "사전 테스트" });
-    expect(await within(table).findByText("실행 중")).toBeInTheDocument();
+    expect(await within(table).findByText("준비 중")).toBeInTheDocument();
 
     // 화면의 polling 대신 직접 끝까지 진행시키고 현재 실행을 다시 받게 합니다
-    await completeRun();
+    completeRun();
     await queryClientRef.current!.invalidateQueries({ queryKey: queryKeys.personas.current() });
 
     expect(await within(table).findByText("완료")).toBeInTheDocument();

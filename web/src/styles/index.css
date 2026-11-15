@@ -53,6 +53,8 @@
   /* 글자 크기 (Tailwind 기본에 없는 Figma 값) */
   --text-caption: 13px; /* 아바타 글자 (페이지 부제에도 쓸 예정) */
   --text-caption--line-height: 18px;
+  --text-display: 40px; /* 리포트 핵심 숫자 (P12 목표 달성률) */
+  --text-display--line-height: 48px;
 
   /* 레이아웃 */
   --spacing-sidebar: 256px;

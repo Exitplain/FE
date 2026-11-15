@@ -10,6 +10,9 @@ export const STEP_LABELS: Record<StepKey, string> = {
   confirm: "시작 전 확인",
 };
 
+/* 시작 전 확인 다음의 P06 생성 중 · P07 페르소나 확인 (Stepper 에 없는 단계) */
+export const REVIEW_STEP = "personas";
+
 export function parseStep(value: string | null): StepKey {
   return (STEPS as readonly string[]).includes(value ?? "") ? (value as StepKey) : "site";
 }
@@ -17,15 +20,17 @@ export function parseStep(value: string | null): StepKey {
 /*
   지금 입력으로 들어갈 수 있는 가장 앞 단계.
   주소로 바로 들어오거나(새로고침·북마크) 브라우저 뒤로가기로 앞 단계 검증을 건너뛰지 못하게 합니다.
-  페르소나 단계는 입력이 없어 과업·타겟을 통과하면 시작 전 확인까지 갈 수 있습니다.
+  세그먼트 인원 합계가 패널과 맞지 않으면(P05e) 페르소나 단계에 머뭅니다.
 */
 export function furthestAllowedStep(input: {
   hasPlan: boolean;
   taskCount: number;
   targetDescription: string;
+  segmentsValid?: boolean;
 }): StepKey {
   if (!input.hasPlan) return "site";
   if (input.taskCount === 0 || !input.targetDescription.trim()) return "task";
+  if (input.segmentsValid === false) return "persona";
   return "confirm";
 }
 
@@ -52,6 +57,67 @@ export const TEXT_MAX = 500;
 /* 테스트 계정 최대 개수 (Figma P04 "최대 20개") */
 export const ACCOUNT_MAX = 20;
 
+/*
+  ─── 패널 (P05b 세그먼트 비율) — 임시: Figma 값 ───
+  개발 서버는 고정 프로필 3개 × 과업으로 세션 수가 정해지고 패널·시드를 받지 않습니다.
+  화면은 Figma 대로 에이전트 20명 · 세그먼트 4개 · 시드 3회로 그리고, 서버가 패널을 받으면 이 값을 요청에 싣습니다.
+*/
+export const PANEL_SIZE = 20;
+export const SEGMENT_COUNT = 4;
+export const SEEDS = 3;
+export const RUN_CONDITIONS = `모바일 390 · 동시 5세션 · 시드 ${SEEDS}회 · 스텝 40`;
+/* "항목 6개 더 보기"로 펼치는 실행 조건 */
+export const RUN_CONDITION_DETAILS = [
+  "세션당 시간 상한 5분",
+  "세션당 비용 상한 $0.10",
+  "결제·본인인증은 하지 않아요",
+  "개인정보는 입력하지 않아요",
+  "좌절 점수가 임계치를 넘으면 이탈로 기록해요",
+  "같은 시드는 같은 행동 순서로 다시 실행해요",
+];
+
+/* 로그인 테스트는 계정 1개 = 에이전트 1명이라 계정 수만큼(최대 20), 아니면 20명 (Figma P05h) */
+export function panelSize(loginMode: "none" | "account", accountCount: number) {
+  return loginMode === "account" && accountCount > 0
+    ? Math.min(accountCount, PANEL_SIZE)
+    : PANEL_SIZE;
+}
+
+/* 인원을 세그먼트에 고르게 나눕니다 (나머지는 앞 세그먼트부터 1명씩) — 20 → [5, 5, 5, 5] */
+export function evenSplit(total: number, parts = SEGMENT_COUNT): number[] {
+  return Array.from(
+    { length: parts },
+    (_, index) => Math.floor(total / parts) + (index < total % parts ? 1 : 0),
+  );
+}
+
+export function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+/* 보정 적용일 "11월 5일" (서울 시간) */
+const monthDay = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "long",
+  day: "numeric",
+});
+
+export function formatMonthDay(iso: string | null | undefined) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : monthDay.format(date);
+}
+
+/* Figma 연령 표기: 전체 · 20대 … 50대 이상 (50s·60plus 를 함께 고르면 "50대 이상" 하나로) */
+export function ageSummary(ages: AgeOption[], labels: Partial<Record<AgeOption, string>>) {
+  if (ages.includes("any")) return "전체";
+  const merged = ages.includes("50s") && ages.includes("60plus");
+  return ages
+    .filter((age) => !(merged && age === "60plus"))
+    .map((age) => (merged && age === "50s" ? "50대 이상" : (labels[age] ?? age)))
+    .join(", ");
+}
+
 /* E07 잘못된 URL — 주소 모양만 확인합니다 (접속 가능 여부는 서버 탐색 결과로) */
 export function validateSiteUrl(value: string): string | null {
   const trimmed = value.trim();
@@ -62,7 +128,7 @@ export function validateSiteUrl(value: string): string | null {
   } catch {
     /* 아래 공통 안내 */
   }
-  return "https:// 로 시작하는 주소를 입력해 주세요";
+  return "URL 형식이 아니에요 · https://로 시작하는 주소를 넣어주세요";
 }
 
 /*
@@ -77,6 +143,19 @@ export function toggleAge(ages: AgeOption[], age: AgeOption): AgeOption[] {
     ? withoutAny.filter((item) => item !== age)
     : [...withoutAny, age];
   return next.length > 0 ? next : ["any"];
+}
+
+/*
+  Figma 연령 칩 하나가 BE 연령 여러 개일 수 있습니다 ("50대 이상" = 50s + 60plus).
+  칩이 켜져 있으면(모두 포함) 끄고, 아니면 빠진 연령만 켭니다. 전체(any)는 단독입니다.
+*/
+export function toggleAgeChip(current: AgeOption[], chip: AgeOption[]): AgeOption[] {
+  if (chip.includes("any")) return ["any"];
+  const on = chip.every((age) => current.includes(age));
+  return chip.reduce(
+    (ages, age) => (on === ages.includes(age) ? toggleAge(ages, age) : ages),
+    current,
+  );
 }
 
 export type TaskTargetInput = {

@@ -1,3 +1,4 @@
+import { calibrationHandlers } from "./calibration";
 import { personaHandlers } from "./personas";
 
 /*
@@ -8,4 +9,4 @@ import { personaHandlers } from "./personas";
     BE 가 구현하면 해당 핸들러만 지웁니다.
   - 도메인마다 handlers/<도메인>.ts 로 나누고 이 배열에 합칩니다.
 */
-export const handlers = [...personaHandlers];
+export const handlers = [...personaHandlers, ...calibrationHandlers];

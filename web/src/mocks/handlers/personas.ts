@@ -1,24 +1,57 @@
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 
-import { confirm, discover, explain, MockApiError, reports, snapshot } from "../personaMock";
+import {
+  confirm,
+  discover,
+  explain,
+  generatePanel,
+  human,
+  MockApiError,
+  report,
+  reportMarkdown,
+  reports,
+  session,
+  snapshot,
+} from "../personaMock";
+
+/* 개발 API 오류 형태 { error: string } */
+function errorResponse(error: unknown) {
+  if (error instanceof MockApiError) {
+    return HttpResponse.json({ error: error.message }, { status: error.status });
+  }
+  if (error instanceof SyntaxError) {
+    return HttpResponse.json({ error: "요청 형식을 확인해주세요." }, { status: 400 });
+  }
+  throw error;
+}
 
 /*
-  개발 API 오류 형태 { error: string } 로 돌려줍니다.
-  본문 JSON 이 깨진 경우도 BE 처럼 400 으로 답합니다 (MSW 기본 500 대신).
+  JSON 응답. 본문 JSON 이 깨진 경우도 BE 처럼 400 으로 답합니다 (MSW 기본 500 대신).
 */
 async function handle<T>(run: () => T | Promise<T>, status = 200) {
   try {
     return HttpResponse.json((await run()) as object, { status });
   } catch (error) {
-    if (error instanceof MockApiError) {
-      return HttpResponse.json({ error: error.message }, { status: error.status });
-    }
-    if (error instanceof SyntaxError) {
-      return HttpResponse.json({ error: "요청 형식을 확인해주세요." }, { status: 400 });
-    }
-    throw error;
+    return errorResponse(error);
   }
 }
+
+/* JSON 이 아닌 응답(Markdown·PDF). 오류는 같은 { error } 형태로 답합니다 */
+function handleRaw(run: () => Response) {
+  try {
+    return run();
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+const runIdOf = (request: Request) => new URL(request.url).searchParams.get("run_id");
+
+/* P06 생성 중 화면이 브라우저에서 잠깐 보이도록 늦춥니다 (테스트는 바로 응답) */
+const PANEL_DELAY_MS = import.meta.env.MODE === "test" ? 0 : 1500;
+
+/* 화면 확인용 빈 PDF (실제 내용 없음) */
+const MOCK_PDF = new TextEncoder().encode("%PDF-1.4\n% mock report\n%%EOF\n");
 
 export const personaHandlers = [
   http.get("*/api/personas", () => handle(snapshot)),
@@ -29,8 +62,40 @@ export const personaHandlers = [
     handle(async () => confirm(await request.json()), 202),
   ),
   http.get("*/api/personas/reports", () => handle(() => ({ reports: reports() }))),
+  /* 임시: 세션 상세(P15·P16) 단건 조회. BE 명세가 나오면 경로·모양을 맞춥니다 */
+  http.get("*/api/personas/session", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    return handle(() => session(params.get("run_id"), params.get("session_id")));
+  }),
   http.post("*/api/personas/explain", ({ request }) =>
     handle(async () => explain(await request.json())),
+  ),
+  /* 임시 v1: 페르소나 패널 생성 (P06·P07). BE 가 구현하면 이 핸들러만 지웁니다 */
+  http.post("*/api/v1/persona-panels", async ({ request }) => {
+    await delay(PANEL_DELAY_MS);
+    return handle(async () => generatePanel(await request.json()), 201);
+  }),
+  http.post("*/api/personas/human", ({ request }) =>
+    handle(async () => human(await request.json())),
+  ),
+  http.get("*/api/personas/report", ({ request }) => handle(() => report(runIdOf(request)))),
+  http.get("*/api/personas/report.md", ({ request }) =>
+    handleRaw(() => HttpResponse.text(reportMarkdown(runIdOf(request)))),
+  ),
+  http.get("*/api/personas/report.pdf", ({ request }) =>
+    handleRaw(() => {
+      const runId = report(runIdOf(request)).run_id;
+      return new HttpResponse(MOCK_PDF, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="dropspot-report-${runId}.pdf"`,
+        },
+      });
+    }),
+  ),
+  /* mock 실행은 화면을 캡처하지 않아 모든 근거 이미지가 없습니다 */
+  http.get("*/api/artifacts/:artifactId", () =>
+    HttpResponse.json({ error: "화면 근거를 찾을 수 없습니다." }, { status: 404 }),
   ),
 ];
 
@@ -54,4 +119,21 @@ export const personaErrorHandlers = {
   personasNetworkError: http.get("*/api/personas", () => HttpResponse.error()),
   /* 완료된 실행이 없음 → E02 */
   reportsEmpty: http.get("*/api/personas/reports", () => HttpResponse.json({ reports: [] })),
+  /* 저장된 실행 없음 → E18 */
+  reportNotFound: http.get("*/api/personas/report", () =>
+    HttpResponse.json({ error: "저장된 실행을 찾을 수 없습니다." }, { status: 404 }),
+  ),
+  /* 리포트를 불러오지 못함 → E20 */
+  reportNetworkError: http.get("*/api/personas/report", () => HttpResponse.error()),
+  /* 다른 PDF 를 만드는 중 → 버튼 복구·재시도 안내 */
+  pdfBusy: http.get("*/api/personas/report.pdf", () =>
+    HttpResponse.json(
+      { error: "PDF를 만드는 중입니다. 잠시 뒤 다시 시도해주세요." },
+      { status: 429 },
+    ),
+  ),
+  /* PDF 생성 실패 → E19 */
+  pdfFailed: http.get("*/api/personas/report.pdf", () =>
+    HttpResponse.json({ error: "PDF를 만들지 못했습니다." }, { status: 503 }),
+  ),
 };

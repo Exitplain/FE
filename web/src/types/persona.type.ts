@@ -32,6 +32,8 @@ export type DiscoverTask = {
   feature_id: string;
   /* 기본으로 선택해 두는 과업 */
   suggested: boolean;
+  /* 임시: 이 과업 퍼널의 단계 수 (P05c "과업별 7단계"). 명세에 없음 */
+  funnel_stages?: number;
 };
 
 export type DiscoverResponse = {
@@ -43,6 +45,9 @@ export type DiscoverResponse = {
   tasks: DiscoverTask[];
   age_options: Partial<Record<AgeOption, string>>;
   note: string;
+  /* 임시: 사이트 응답 시간(ms)·읽은 화면 수 (P03 "응답 0.8초 · 화면 12개 읽음"). 명세에 없음 */
+  response_ms?: number;
+  screens_read?: number;
 };
 
 /* ─── 확인 후 실행 (POST /api/personas/confirm) ───────────────────────────── */
@@ -54,6 +59,10 @@ export type DiscoverResponse = {
   - ages: "any" 는 단독으로만
   - context·additional_request: 500자 이하 (빈 문자열 가능)
   응답은 202 + 실행 상태(PersonaRun). 호출 즉시 실행이 시작됩니다.
+*/
+/*
+  임시: P07 에서 만든 패널(POST /api/v1/persona-panels)을 가리키는 필드가 아직 없습니다.
+  mock 은 마지막으로 만든 패널을 기억해 쓰므로, 서버 명세가 나오면 panel_id 같은 연결 필드를 맞춥니다.
 */
 export type ConfirmRequest = {
   plan_id: string;
@@ -158,6 +167,67 @@ export type PersonaSession = PersonaProfile & {
   answers?: ExplainAnswer[];
   /* 브라우저 정리에 실패했을 때만 */
   cleanup_warning?: string;
+  /*
+    ─── 임시: Figma 실행 화면(P08~P11)에 필요한 필드. 명세에 없음 ───
+    P 코드("P-001"), 세그먼트, 시드, Think-aloud 발화, 경과·토큰·비용
+  */
+  code?: string;
+  segment_id?: string;
+  segment_name?: string;
+  seed?: number;
+  utterances?: ThinkAloud[];
+  elapsed_ms?: number;
+  tokens?: number;
+  cost_usd?: number;
+};
+
+/* Think-aloud 발화 한 줄 (임시: 명세에 없음) */
+export type ThinkAloud = {
+  step: number;
+  stage: Stage;
+  text: string;
+  at: string;
+};
+
+/*
+  ─── 임시: 페르소나 패널 (P06 생성 · P07 확인). 명세 8절 P05b "segments" 를 화면에 맞게 구체화 ───
+  POST /api/v1/persona-panels { context, segments: [인원…] } → { segments: PanelSegment[] }
+*/
+export type PanelTraits = {
+  /* 행동 변수 0~100 */
+  patience: number;
+  digital: number;
+  price: number;
+  trust: number;
+};
+
+export type PanelSegment = {
+  id: string;
+  name: string;
+  count: number;
+  /* 이 세그먼트에 붙은 P 코드 범위 [처음, 끝] */
+  codes: [string, string];
+  representative: string;
+  traits: PanelTraits;
+};
+
+export type PersonaPanelRequest = { context: string; segments: number[] };
+export type PersonaPanel = { segments: PanelSegment[] };
+
+/*
+  임시: 실행 단계 (P08 준비 → P09 실행 → P10 분석 → 완료). BE 실행 상태(status)에는 준비·분석 단계가 없습니다.
+  - prepare: 브라우저 준비 개수 · seeds: 지금 시드 / 전체 · analysis: 분석 단계(1~3)
+  - stopped: 비용 상한 등으로 시드 중간에 멈춘 실행 (E12)
+*/
+export type RunStage = "preparing" | "running" | "analyzing" | "completed";
+
+export type RunStopped = {
+  reason: "budget";
+  seed: number;
+  finished: number;
+  total: number;
+  cost_ratio: number;
+  tokens: number;
 };
 
 /*
@@ -207,10 +277,17 @@ export type PersonaRun = {
   task_selection?: string;
   audience?: Audience;
   frustration_model?: FrustrationModel;
-  /* 사람 관측(K04) 기록. 화면에서 쓸 때 필드를 이어서 채웁니다 */
-  human_observations?: unknown[];
-  /* 사람 관측과 예측의 일치 요약 (K04). 화면에서 쓸 때 필드를 이어서 채웁니다 */
-  alignment?: Record<string, unknown>;
+  /* 사람 관측(K04) 기록 */
+  human_observations?: HumanObservation[];
+  /* 사람 관측과 예측의 일치 요약 (K04) */
+  alignment?: ReportAlignment;
+  /* 임시: 실행 단계·시드·패널 (위 RunStage 설명). 명세에 없음 */
+  stage?: RunStage;
+  prepare?: { browsers_ready: number; browsers_total: number };
+  seeds?: { current: number; total: number };
+  analysis?: { step: 1 | 2 | 3 };
+  panel?: PanelSegment[];
+  stopped?: RunStopped;
 };
 
 /* ─── 실행 목록 (GET /api/personas/reports) ─────────────────────────────── */
@@ -222,6 +299,14 @@ export type PersonaReportSummary = {
   variant: Variant | null;
   /* 세션 개수 */
   sessions: number;
+  /*
+    임시 (Figma P01): 목록 API 에 없는 값. 서버가 정하면 맞춥니다.
+    tasks: 고른 과업 이름 (테스트 이름 "첫 주문 외 1개") · outcome: 실패(E05)·비용 상한(E12) 구분
+    completion: 과업별 예측 목표 달성률 범위(%) — 실패 실행은 비어 있음
+  */
+  tasks?: string[];
+  outcome?: "completed" | "failed" | "stopped";
+  completion?: Range[];
 };
 
 export type PersonaReportsResponse = { reports: PersonaReportSummary[] };
@@ -253,4 +338,195 @@ export type ExplainAnswer = {
   recorded_at: string;
   method: "record_based_rules";
   model_calls: number;
+};
+
+/* ─── 사람 관측 (POST /api/personas/human) — 명세 5.2 ─────────────────────── */
+
+/* 이탈 원인 7종 + 모름·없음. success 는 cause=none 이어야 합니다 */
+export type DropCause =
+  | "input_burden"
+  | "navigation"
+  | "cost"
+  | "value"
+  | "trust"
+  | "technical"
+  | "accessibility"
+  | "unknown"
+  | "none";
+
+/* 사람 관측의 멈춘 단계. Stage 와 달리 "other" 가 없습니다 */
+export type HumanStage = Exclude<Stage, "other">;
+
+/*
+  - persona_id 는 프로필 ID 가 아니라 비교할 세션 ID 입니다 (예: "quick_order")
+  - participant_id: 영문·숫자·밑줄·하이픈 1~40자, source: 공백 제거 후 3~300자
+  - success 는 stage=complete, cause=none
+  - 현재 실행이 완료된 뒤에만 저장됩니다. 응답은 갱신된 실행 상태(PersonaRun)
+*/
+export type HumanObservationRequest = {
+  run_id: string;
+  persona_id: string;
+  participant_id: string;
+  outcome: "success" | "dropout";
+  stage: HumanStage;
+  cause: DropCause;
+  source: string;
+};
+
+/* 저장된 관측. 명세에 모양이 없어 요청 필드 + 저장 시각으로 둡니다 (임시) */
+export type HumanObservation = Omit<HumanObservationRequest, "run_id"> & { recorded_at: string };
+
+/* ─── 리포트 (GET /api/personas/report?run_id=) — 명세 6.1 ──────────────── */
+/*
+  명세에는 필드 이름만 있고 안쪽 모양은 아직 없습니다.
+  아래 모양은 화면을 만들기 위한 임시 정의이며, BE 명세가 나오면 이 절부터 고칩니다.
+  예측 값(인원·비율)은 시드 반복 결과의 [최소, 최대] 범위로 받습니다.
+*/
+
+export type Range = [min: number, max: number];
+
+export type ReportSummary = {
+  sessions: number;
+  success: number;
+  /* 가상 이탈. 기술 실패(technical)는 여기에 넣지 않습니다 */
+  simulated_dropout: number;
+  technical: number;
+  findings: number;
+  /* 근거 화면이 없는 결과 수. 이미지를 만들어 채우지 않습니다 */
+  missing_evidence: number;
+};
+
+/*
+  과업별 퍼널 한 단계 (임시: 명세에 없음). Figma P12 "탐색 17~19명 · 이탈 1~3" 과 같은 의미입니다.
+  - reached: 이 단계로 넘어온 인원. 첫 단계는 시작한 인원 전체(기술 실패 제외)
+  - dropout: 직전 단계에서 이 단계로 넘어오지 못한 인원 (첫 단계는 0)
+    → 가입 화면에서 떠난 세션은 가입 행의 이탈이고, 구간 이름은 "장바구니 → 가입"
+*/
+export type ReportFunnelStage = {
+  stage: Stage;
+  reached: Range;
+  dropout: Range;
+};
+
+export type ReportTask = {
+  id: string;
+  name: string;
+  total: number;
+  success: number;
+  dropout: number;
+  technical: number;
+  /* 임시: 명세에 없음. 없으면 화면에서 예측 퍼널을 숨깁니다 */
+  funnel?: ReportFunnelStage[];
+  /* 임시: 완료 세션의 중앙 소요 시간(초) 범위 (P12 요약 "완료자 중앙 소요 시간") */
+  median_duration?: Range;
+  /*
+    임시: 세그먼트 × 이탈 구간 (P12 히트맵). dropouts[i] 는 funnel 의 (i) → (i+1) 구간 이탈 인원,
+    길이는 funnel 길이 - 1 입니다.
+  */
+  segments?: ReportSegment[];
+  /* 임시: 이 과업 퍼널의 실측 비교 (실측 퍼널은 과업마다 따로라 과업에 둡니다) */
+  actual?: ReportActual;
+};
+
+export type ReportSegment = { id: string; name: string; dropouts: Range[] };
+
+/* 임시: 실행 조건 (P12 설명 줄 "20명 × 시드 3회 · 보정 11월 5일") */
+export type ReportConditions = {
+  /* 과업별 패널 인원 */
+  panel_size: number;
+  seeds: number;
+  /* 적용된 보정 시각. 보정 전이면 null */
+  calibrated_at: string | null;
+};
+
+/*
+  임시: 실측 비교 (P12 실측 비교 요약 · P14 상태). 원래는 실측 분석(R08) 비교 API 의 결과입니다.
+  - unconnected: 스크립트 미설치 · collecting: 표본 모으는 중 · stale: 수집 중단 · comparable: 비교 가능
+*/
+export type ReportActual =
+  | { status: "unconnected" }
+  | { status: "collecting"; stages_ready: number; stages_total: number }
+  | { status: "stale"; last_event_at: string }
+  | {
+      status: "comparable";
+      /* 단계별 오차 절댓값 평균 (%p) */
+      mean_error_pp: number;
+      /* 실측이 예측 범위를 벗어난 단계 */
+      gap_stages: Stage[];
+      /* 최대 이탈 구간 [직전 단계, 이탈 단계]. 예측에 이탈이 없으면 predicted 는 null */
+      max_drop: { predicted: [Stage, Stage] | null; actual: [Stage, Stage] };
+    };
+
+export type ReportEvidence = {
+  session_id: string;
+  /* GET /api/artifacts/{id}. 근거 화면이 없으면 null */
+  artifact_id: string | null;
+  evidence_status: "captured" | "missing";
+  /* 화면 경로 (예: "/signup") */
+  path: string;
+  /* 문제 요소 설명 */
+  annotation: string | null;
+  observations: string[];
+  /* 이 근거 화면까지 지나온 스텝 수 */
+  steps_before: number;
+  score: number;
+  threshold: number;
+};
+
+export type ReportFinding = {
+  id: string;
+  task_id: string;
+  stage: Stage;
+  category: DropCause;
+  title: string;
+  /* 이 문제를 겪은 세션 수 / 이 과업의 세션 수 */
+  affected_sessions: number;
+  task_sessions: number;
+  evidence: ReportEvidence[];
+  interpretation: string;
+  recommendation: string;
+  /* 개선 목업 (AI 생성 예시, 근거 아님). 없으면 null */
+  mockup: { artifact_id: string | null; note: string } | null;
+};
+
+export type TechnicalFailure = {
+  session_id: string;
+  persona_name: string;
+  task_name: string;
+  status: SessionStatus;
+  reason: string;
+};
+
+export type AlignmentMetric = { matched: number; total: number };
+
+/*
+  사람 관측과 예측 비교 (임시 모양). 관측이 없어도 객체로 오고 status 가 unverified 입니다.
+  metrics 는 기술 실패 세션에 대응한 관측을 뺀 비교 결과입니다.
+*/
+export type ReportAlignment = {
+  participants: number;
+  observations: number;
+  metrics: { outcome: AlignmentMetric; stage: AlignmentMetric; cause: AlignmentMetric };
+  status: "unverified" | "partial" | "verified";
+};
+
+export type PersonaReport = {
+  schema_version: string;
+  run_id: string;
+  created_at: string;
+  target: string;
+  variant: Variant;
+  audience: Audience;
+  policy: string;
+  model_calls: number;
+  summary: ReportSummary;
+  tasks: ReportTask[];
+  findings: ReportFinding[];
+  evidence: ReportEvidence[];
+  technical_failures: TechnicalFailure[];
+  alignment: ReportAlignment;
+  /* 화면에 그대로 보여줄 결과 해석의 한계 */
+  limitations: string[];
+  /* 임시: 명세에 없음 (위 타입 설명 참고) */
+  conditions?: ReportConditions;
 };

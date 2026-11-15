@@ -8,10 +8,12 @@ import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader"
 import Stepper from "@/components/Stepper/Stepper";
 import { findSampleProject, type SampleProject } from "@/constants/projects";
 import { buildPath } from "@/constants/routes";
+import { useCalibrations } from "@/hooks/useCalibrations";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 
 import ConfirmStep from "./components/ConfirmStep";
+import PersonaReviewStep from "./components/PersonaReviewStep";
 import PersonaStep from "./components/PersonaStep";
 import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
@@ -19,22 +21,25 @@ import { useConfirmRun } from "./hooks/useNewTestMutations";
 import {
   buildConfirmRequest,
   clampStep,
+  formatMonthDay,
   furthestAllowedStep,
   isPlanExpired,
   isPlanExpiredMessage,
+  panelSize,
   parseStep,
+  REVIEW_STEP,
+  RUN_CONDITIONS,
   STEP_LABELS,
+  SEEDS,
   STEPS,
   type StepKey,
+  sum,
 } from "./utils/newTest";
-
-/* BE agent/persona_dashboard.py PROFILES 개수 */
-const DEFAULT_PROFILE_COUNT = 3;
 
 const EXPIRED_NOTICE = "탐색 결과가 만료됐어요. 사이트를 다시 확인해 주세요";
 
 /*
-  P02~P05c 새 테스트 (단계: ?step=site|task|persona|confirm)
+  P02~P07 새 테스트 (단계: ?step=site|task|persona|confirm, 시작 전 확인 뒤 ?step=personas 는 P06·P07)
   프로젝트가 바뀌면 key 로 위저드를 새로 그려 입력·안내·요청 상태를 모두 처음으로 돌립니다.
 */
 export default function NewTestPage() {
@@ -67,15 +72,18 @@ function NewTestWizard({ project }: { project: SampleProject }) {
   const confirm = useConfirmRun();
   const [notice, setNotice] = useState<string | null>(null);
 
-  const { storeProjectId, plan, taskCount, targetDescription, loginMode, accountCount } =
+  const calibrations = useCalibrations(project.id);
+  const { storeProjectId, plan, taskIds, taskCount, targetDescription, segmentsValid, panel } =
     useNewTestStore(
       useShallow((state) => ({
         storeProjectId: state.projectId,
         plan: state.plan,
+        taskIds: state.taskIds,
         taskCount: state.taskIds.length,
+        panel: panelSize(state.loginMode, state.accounts.length),
         targetDescription: state.targetDescription,
-        loginMode: state.loginMode,
-        accountCount: state.accounts.length,
+        segmentsValid:
+          sum(state.segmentCounts) === panelSize(state.loginMode, state.accounts.length),
       })),
     );
 
@@ -85,15 +93,27 @@ function NewTestWizard({ project }: { project: SampleProject }) {
     return () => useNewTestStore.getState().reset("", "");
   }, [project.id, project.url]);
 
-  const requested = parseStep(searchParams.get("step"));
-  const allowed = furthestAllowedStep({ hasPlan: plan != null, taskCount, targetDescription });
+  /*
+    P06·P07 은 Stepper 밖의 화면이라 단계 목록에 넣지 않고, 시작 전 확인까지 갈 수 있을 때만 보여줍니다.
+    갈 수 없으면 시작 전 확인을 요청한 것처럼 갈 수 있는 단계로 돌려보냅니다.
+  */
+  const reviewRequested = searchParams.get("step") === REVIEW_STEP;
+  const requested: StepKey = reviewRequested ? "confirm" : parseStep(searchParams.get("step"));
+  const allowed = furthestAllowedStep({
+    hasPlan: plan != null,
+    taskCount,
+    targetDescription,
+    segmentsValid,
+  });
   const step: StepKey = clampStep(requested, allowed);
+  const reviewing = reviewRequested && step === "confirm";
 
   /* 보여주는 단계와 주소가 다르면 주소를 맞춥니다 (뒤로가기 기록은 남기지 않음) */
   useEffect(() => {
+    if (reviewing) return;
     if (step === requested && (step !== "site" || !searchParams.has("step"))) return;
     setSearchParams(step === "site" ? {} : { step }, { replace: true });
-  }, [step, requested, searchParams, setSearchParams]);
+  }, [reviewing, step, requested, searchParams, setSearchParams]);
 
   /*
     단계가 바뀌면 지난 실행 시작 오류는 지웁니다.
@@ -107,15 +127,22 @@ function NewTestWizard({ project }: { project: SampleProject }) {
   });
   useEffect(() => {
     if (!confirmPending.current) resetConfirm();
-  }, [step, resetConfirm]);
+  }, [step, reviewing, resetConfirm]);
 
   if (storeProjectId !== project.id) return null;
 
-  /* BE 고정 프로필은 GET /api/personas 응답에 있습니다. 받기 전에는 세션 수 계산에 BE 기본값(3)을 씁니다 */
-  const profiles = currentRun.data?.profiles ?? [];
-  const profileCount = profiles.length || DEFAULT_PROFILE_COUNT;
+  /*
+    가장 최근 보정 적용일 (P05b·P05c). 응답 순서에 기대지 않고 적용 시각으로 고릅니다.
+    불러오는 중이면 undefined(표시 안 함), 이력이 없거나 못 받으면 null(보정 전).
+  */
+  const latestCalibration = [...(calibrations.data ?? [])].sort((a, b) =>
+    b.applied_at.localeCompare(a.applied_at),
+  )[0];
+  const calibratedLabel = calibrations.isPending
+    ? undefined
+    : formatMonthDay(latestCalibration?.applied_at);
 
-  const goTo = (next: StepKey) => {
+  const goTo = (next: StepKey | typeof REVIEW_STEP) => {
     setSearchParams(next === "site" ? {} : { step: next });
     window.scrollTo({ top: 0 });
   };
@@ -149,6 +176,33 @@ function NewTestWizard({ project }: { project: SampleProject }) {
     });
   };
 
+  if (reviewing && plan) {
+    const tasks = plan.tasks.filter((task) => taskIds.includes(task.id));
+    const taskSummary =
+      tasks.length > 1 ? `${tasks[0].name} 외 ${tasks.length - 1}개` : (tasks[0]?.name ?? "");
+    const device = RUN_CONDITIONS.split(" · ")[0];
+    return (
+      <div className="flex flex-col gap-12">
+        {/* Figma P06·P07: Stepper 없이 제목 "페르소나 확인" (P07 은 실행 조건 한 줄을 덧붙임) */}
+        <ProjectPageHeader
+          projectId={project.id}
+          breadcrumb={`${project.name} / 사전 테스트 / 새 테스트 · 테스트`}
+          title="페르소나 확인"
+          description={`${taskSummary} · ${device} · ${panel}명 × 시드 ${SEEDS}회 (1/${SEEDS})`}
+          activeTab="tests"
+        />
+        <PersonaReviewStep
+          projectId={project.id}
+          isStarting={confirm.isPending}
+          error={confirm.error}
+          currentRunId={currentRun.data?.id ?? null}
+          onPrev={() => goTo("confirm")}
+          onStart={start}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-12">
       <ProjectPageHeader
@@ -169,32 +223,21 @@ function NewTestWizard({ project }: { project: SampleProject }) {
         />
       )}
       {step === "task" && plan && (
-        <TaskTargetStep
-          plan={plan}
-          profileCount={profileCount}
-          onPrev={() => goTo("site")}
-          onNext={() => goTo("persona")}
-        />
+        <TaskTargetStep plan={plan} onPrev={() => goTo("site")} onNext={() => goTo("persona")} />
       )}
       {step === "persona" && (
         <PersonaStep
-          profiles={profiles}
-          taskCount={taskCount}
-          accountCount={loginMode === "account" ? accountCount : 0}
+          calibratedLabel={calibratedLabel}
           onPrev={() => goTo("task")}
           onNext={() => goTo("confirm")}
         />
       )}
       {step === "confirm" && plan && (
         <ConfirmStep
-          projectId={project.id}
           plan={plan}
-          profileCount={profileCount}
-          isStarting={confirm.isPending}
-          error={confirm.error}
-          currentRunId={currentRun.data?.id ?? null}
+          calibratedLabel={calibratedLabel}
           onPrev={() => goTo("persona")}
-          onStart={start}
+          onNext={() => goTo(REVIEW_STEP)}
           onExpired={() => backToSite(EXPIRED_NOTICE)}
         />
       )}

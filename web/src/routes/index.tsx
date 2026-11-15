@@ -31,11 +31,10 @@ import TestRunPage from "@/pages/test-run";
 export const routes: RouteObject[] = [
   {
     element: <AuthLayout />,
-    children: [
-      { path: ROUTES.login.path, element: <LoginPage /> },
-      { path: ROUTES.sharedReport.path, element: <SharedReportPage /> },
-    ],
+    children: [{ path: ROUTES.login.path, element: <LoginPage /> }],
   },
+  /* P21 공유 리포트는 로그인 없이 보는 화면이라 사이드바·가운데 정렬 레이아웃 없이 자체 상단 바를 씁니다 */
+  { path: ROUTES.sharedReport.path, element: <SharedReportPage /> },
   {
     element: <AppLayout />,
     children: [

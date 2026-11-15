@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
+import { useRetestStore } from "@/stores/useRetestStore";
 
 /*
   jsdom 에는 ResizeObserver 가 없습니다. 사이드바(AppLayout)처럼 크기 변화를 지켜보는
@@ -17,6 +18,23 @@ class NoopResizeObserver {
   disconnect() {}
 }
 vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+
+/*
+  jsdom 의 Blob 에는 stream() 이 없습니다. Node 22(CI) 의 fetch(undici)는 Blob 응답 본문을 만들 때
+  stream() 을 불러, PDF 내려받기(responseType: "blob") 테스트가 "object.stream is not a function" 으로 멈춥니다.
+  arrayBuffer() 로 읽어 한 번에 내보내는 스트림으로 채웁니다. (Node 26 은 다른 경로라 영향 없음)
+*/
+if (typeof Blob !== "undefined" && typeof Blob.prototype.stream !== "function") {
+  Blob.prototype.stream = function stream(this: Blob) {
+    const read = () => this.arrayBuffer();
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(new Uint8Array(await read()));
+        controller.close();
+      },
+    });
+  } as Blob["stream"];
+}
 
 /* jsdom 의 window.scrollTo 는 "Not implemented" 를 출력만 하므로 조용한 빈 함수로 바꿉니다 */
 vi.stubGlobal("scrollTo", () => {});
@@ -34,6 +52,9 @@ afterEach(() => {
   server.resetHandlers();
   // 페르소나 mock 은 실행 상태를 메모리에 들고 있어 테스트마다 처음으로 돌립니다
   resetPersonaMock();
+  // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
+  useRetestStore.setState({ byRunId: {} });
+  sessionStorage.clear();
 });
 
 afterAll(() => server.close());

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
 import { buttonVariants } from "@/components/Button/buttonVariants";
-import EmptyState from "@/components/EmptyState/EmptyState";
+import smile from "@/assets/characters/character-smile.svg";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import { findSampleProject, type SampleProject } from "@/constants/projects";
@@ -51,6 +51,8 @@ function TestList({ project }: { project: SampleProject }) {
     (currentRun.isError && currentRun.data === undefined);
   const isRetrying = reports.isFetching || currentRun.isFetching;
   const rows = toTestRows({ reports: reports.data ?? [], currentRun: currentRun.data });
+  /* Figma E02: 빈 상태는 머리말 버튼·"사전 테스트" 제목 없이 가운데 캐릭터와 버튼 하나만 둡니다 */
+  const isEmpty = !isLoading && !isError && rows.length === 0;
 
   return (
     <div className="flex flex-col gap-12">
@@ -61,71 +63,76 @@ function TestList({ project }: { project: SampleProject }) {
         description={project.url}
         activeTab="tests"
         actions={
-          <Link to={newTestPath} className={buttonVariants()}>
-            <Icon name="plus" />새 테스트 시작하기
-          </Link>
+          !isEmpty && (
+            <Link to={newTestPath} className={buttonVariants()}>
+              <Icon name="plus" />새 테스트 시작하기
+            </Link>
+          )
         }
       />
 
-      <section className="flex flex-col gap-4">
-        <h2 id={titleId} className="text-lg font-bold text-ink">
-          사전 테스트
-        </h2>
-        {project.id !== "banchan" && (
-          <p className="text-caption text-subtle">
-            지금 개발 서버는 반찬로드 모의 쇼핑몰만 실행해요 · 아래 기록도 반찬로드 기준이에요
-          </p>
-        )}
-
-        {isLoading && (
-          <p role="status" className="py-8 text-sm text-muted">
-            사전 테스트를 불러오는 중이에요…
-          </p>
-        )}
-
-        {!isLoading && isError && (
-          <div
-            role="alert"
-            className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-4"
-          >
-            <p className="text-sm text-ink">
-              사전 테스트를 불러오지 못했어요. 서버 연결을 확인해 주세요.
+      {isEmpty ? (
+        <section
+          aria-labelledby={titleId}
+          className="flex min-h-120 flex-col items-center justify-center gap-12 text-center"
+        >
+          <img src={smile} alt="" className="max-w-full" />
+          <div className="flex flex-col items-center gap-8">
+            <div className="flex flex-col gap-4">
+              <h2 id={titleId} className="text-lg font-bold text-ink">
+                아직 진행 중인 테스트가 없어요
+              </h2>
+              <p className="text-caption text-subtle">AI 고객 20명이 어디서 왜 떠나는지 알려줘요</p>
+            </div>
+            <Link to={newTestPath} className={buttonVariants({ variant: "outline" })}>
+              <Icon name="plus" />새 테스트 시작하기
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <section className="flex flex-col gap-4">
+          <h2 id={titleId} className="text-lg font-bold text-ink">
+            사전 테스트
+          </h2>
+          {project.id !== "banchan" && (
+            <p className="text-caption text-subtle">
+              지금 개발 서버는 반찬로드 모의 쇼핑몰만 실행해요 · 아래 기록도 반찬로드 기준이에요
             </p>
-            <Button
-              variant="secondary"
-              icon="retry"
-              disabled={isRetrying}
-              onClick={() => {
-                void reports.refetch();
-                void currentRun.refetch();
-              }}
+          )}
+
+          {isLoading && (
+            <p role="status" className="py-8 text-sm text-muted">
+              사전 테스트를 불러오는 중이에요…
+            </p>
+          )}
+
+          {!isLoading && isError && (
+            <div
+              role="alert"
+              className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-4"
             >
-              다시 시도
-            </Button>
-          </div>
-        )}
+              <p className="text-sm text-ink">
+                사전 테스트를 불러오지 못했어요. 서버 연결을 확인해 주세요.
+              </p>
+              <Button
+                variant="secondary"
+                icon="retry"
+                disabled={isRetrying}
+                onClick={() => {
+                  void reports.refetch();
+                  void currentRun.refetch();
+                }}
+              >
+                다시 시도
+              </Button>
+            </div>
+          )}
 
-        {!isLoading && !isError && rows.length === 0 && (
-          /* Figma E02 — 메쉬 띠 위 흰 카드 */
-          <div className="rounded-2xl bg-canvas p-6">
-            <EmptyState
-              icon="play"
-              headingLevel={3}
-              title="아직 사전 테스트가 없어요"
-              description="AI 고객이 어디서 왜 떠나는지 알려줘요"
-              action={
-                <Link to={newTestPath} className={buttonVariants()}>
-                  새 테스트 시작하기
-                </Link>
-              }
-            />
-          </div>
-        )}
-
-        {!isLoading && !isError && rows.length > 0 && (
-          <TestListTable projectId={project.id} rows={rows} labelledBy={titleId} />
-        )}
-      </section>
+          {!isLoading && !isError && rows.length > 0 && (
+            <TestListTable projectId={project.id} rows={rows} labelledBy={titleId} />
+          )}
+        </section>
+      )}
     </div>
   );
 }
