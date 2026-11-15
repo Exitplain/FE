@@ -1,28 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import type { PersonaReportSummary, PersonaRun } from "@/types/persona.type";
+import type { RunItem, RunStatus } from "@/types/run.type";
 
-import { formatRunDate, toTestRows } from "./testRows";
+import { formatGoalRates, formatRunDate, toTestRows } from "./testRows";
 
 const NOW = new Date("2026-11-13T15:00:00+09:00");
 
-const reports: PersonaReportSummary[] = [
-  { run_id: "r2", created_at: "2026-11-07T05:00:00Z", variant: "problem", sessions: 6 },
-  { run_id: "r1", created_at: "2026-11-03T05:00:00Z", variant: "fixed", sessions: 3 },
-];
-
-function run(overrides: Partial<PersonaRun>): PersonaRun {
+function item(overrides: Partial<RunItem> = {}): RunItem {
   return {
-    status: "running",
-    id: "r3",
-    policy: "scripted_fixture",
-    model_calls: 0,
-    target: "반찬로드 모의 쇼핑몰",
-    profiles: [],
-    tasks: [],
-    sessions: [],
-    created_at: "2026-11-13T05:40:00Z",
-    variant: "problem",
+    id: "run-1",
+    sequence_no: 1,
+    name: "1차·첫 주문 완료",
+    kind: "pretest",
+    status: "completed",
+    change_note: "",
+    parent_run_id: null,
+    created_at: "2026-11-07T05:00:00+00:00",
+    started_at: null,
+    finished_at: null,
+    report: {
+      id: "report-1",
+      status: "final",
+      revision: 1,
+      goal_rates: [{ task_id: "order", name: "첫 주문 완료", achievement_rate: 0.25 }],
+    },
     ...overrides,
   };
 }
@@ -32,109 +33,82 @@ describe("formatRunDate", () => {
     expect(formatRunDate("2026-11-13T05:40:00Z", NOW)).toBe("14:40");
     expect(formatRunDate("2026-11-07T05:00:00Z", NOW)).toBe("11월 7일");
     expect(formatRunDate(null, NOW)).toBe("—");
+    expect(formatRunDate("not-a-date", NOW)).toBe("—");
+  });
+});
+
+describe("formatGoalRates", () => {
+  it("과업별 0~1 비율을 정수 %로 잇는다", () => {
+    expect(
+      formatGoalRates([
+        { task_id: "order", name: "첫 주문", achievement_rate: 0.2549 },
+        { task_id: "cart", name: "장바구니", achievement_rate: 1 },
+      ]),
+    ).toBe("25% · 100%");
+  });
+
+  it("비율이 없는 과업은 — 로, 리포트가 없거나 과업이 없으면 — 하나로 보여준다", () => {
+    expect(
+      formatGoalRates([
+        { task_id: "order", name: "첫 주문", achievement_rate: null },
+        { task_id: "cart", name: "장바구니", achievement_rate: 0.4 },
+      ]),
+    ).toBe("— · 40%");
+    expect(formatGoalRates([])).toBe("—");
+    expect(formatGoalRates(undefined)).toBe("—");
   });
 });
 
 describe("toTestRows", () => {
-  it("완료된 실행을 최신순 차수로 이름 붙인다", () => {
-    const rows = toTestRows({ reports, currentRun: undefined, now: NOW });
-
-    expect(rows.map((row) => [row.name, row.status])).toEqual([
-      ["2차 · 문제 버전 · 세션 6개", "done"],
-      ["1차 · 개선 버전 · 세션 3개", "done"],
+  it("BE 가 만든 이름·날짜·달성률을 그대로 쓴다", () => {
+    expect(toTestRows([item()], NOW)).toEqual([
+      {
+        key: "run-1",
+        name: "1차·첫 주문 완료",
+        status: "done",
+        link: "report",
+        completion: "25%",
+        date: "11월 7일",
+      },
     ]);
-    expect(rows[0].date).toBe("11월 7일");
   });
 
-  it("진행 중인 실행을 맨 위에 다음 차수로 넣는다 (모두 대기면 준비 중)", () => {
-    const preparing = run({
-      sessions: [{ status: "queued" }, { status: "queued" }] as PersonaRun["sessions"],
-    });
-    const running = run({
-      sessions: [{ status: "running" }, { status: "queued" }] as PersonaRun["sessions"],
-    });
-
-    expect(toTestRows({ reports, currentRun: preparing, now: NOW })[0]).toMatchObject({
-      key: "r3",
-      name: "3차 · 문제 버전 · 세션 2개",
-      status: "preparing",
-      date: "14:40",
-    });
-    expect(toTestRows({ reports, currentRun: running, now: NOW })[0].status).toBe("running");
+  it("이름이 비어 있으면 차수로 이름 붙인다", () => {
+    expect(toTestRows([item({ name: "", sequence_no: 4 })], NOW)[0].name).toBe("4차");
   });
 
-  it("현재 실행이 이미 완료돼 목록에 있으면 한 번만 보여준다", () => {
-    const completed = run({ id: "r2", status: "completed" });
-
-    expect(toTestRows({ reports, currentRun: completed, now: NOW })).toHaveLength(2);
+  it.each<[RunStatus, string]>([
+    ["queued", "preparing"],
+    ["running", "running"],
+    ["finalizing", "running"],
+    ["completed", "done"],
+    ["partially_completed", "done"],
+    ["failed", "failed"],
+    ["cancelled", "cancelled"],
+  ])("실행 상태 %s 는 %s 행이다", (status, expected) => {
+    expect(toTestRows([item({ status })], NOW)[0].status).toBe(expected);
   });
 
-  it("방금 끝나 목록에 아직 없는 현재 실행은 완료 행으로 보여준다", () => {
-    const justCompleted = run({ id: "r3", status: "completed", sessions: [] });
-
-    expect(toTestRows({ reports, currentRun: justCompleted, now: NOW })[0]).toMatchObject({
-      key: "r3",
-      name: "3차 · 문제 버전 · 세션 0개",
-      status: "done",
-    });
-  });
-
-  it("날짜를 읽을 수 없으면 — 로 보여준다", () => {
-    expect(formatRunDate("not-a-date", NOW)).toBe("—");
-  });
-
-  it("idle 은 목록에 넣지 않는다", () => {
-    const idle = run({ id: null, status: "idle" });
-
-    expect(toTestRows({ reports: [], currentRun: idle, now: NOW })).toEqual([]);
-  });
-
-  it("임시 목록 필드: 과업 이름으로 이름을 짓고, 실패·달성률 범위를 보여준다", () => {
-    const rows = toTestRows({
-      reports: [
-        {
-          run_id: "r2",
-          created_at: null,
-          variant: "problem",
-          sessions: 40,
-          tasks: ["첫 주문", "쿠폰으로 주문"],
-          outcome: "completed",
-          completion: [
-            [20, 30],
-            [25, 25],
-          ],
-        },
-        {
-          run_id: "r1",
-          created_at: null,
-          variant: "problem",
-          sessions: 20,
-          tasks: ["배송 지역 확인"],
-          outcome: "failed",
-          completion: [],
-        },
+  it("진행 중이면 실행 화면, 리포트가 있으면 리포트, 끝났는데 리포트가 없으면 링크가 없다", () => {
+    const rows = toTestRows(
+      [
+        item({ id: "a", status: "queued", report: null }),
+        item({ id: "b", status: "finalizing", report: null }),
+        item({ id: "c", status: "failed" }),
+        item({ id: "d", status: "cancelled", report: null }),
       ],
-      currentRun: undefined,
-      now: NOW,
-    });
+      NOW,
+    );
 
-    expect(rows.map((row) => [row.name, row.status, row.completion])).toEqual([
-      ["2차 · 첫 주문 외 1개", "done", "20~30% · 25%"],
-      ["1차 · 배송 지역 확인", "failed", "—"],
+    expect(rows.map((row) => [row.key, row.link])).toEqual([
+      ["a", "testRun"],
+      ["b", "testRun"],
+      ["c", "report"],
+      ["d", null],
     ]);
   });
 
-  it("방금 끝난 현재 실행이 모두 기술 실패면 실패로, stage 가 있으면 stage 로 준비 중을 가린다", () => {
-    const failed = run({
-      status: "completed",
-      sessions: [{ status: "agent_failure" }] as PersonaRun["sessions"],
-    });
-    const preparing = run({
-      stage: "preparing",
-      sessions: [{ status: "running" }] as PersonaRun["sessions"],
-    });
-
-    expect(toTestRows({ reports, currentRun: failed, now: NOW })[0].status).toBe("failed");
-    expect(toTestRows({ reports, currentRun: preparing, now: NOW })[0].status).toBe("preparing");
+  it("리포트가 없으면 달성률은 — 이다", () => {
+    expect(toTestRows([item({ status: "running", report: null })], NOW)[0].completion).toBe("—");
   });
 });

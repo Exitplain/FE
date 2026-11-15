@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { getPersonaRun } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
 
-const POLLING_INTERVAL_MS = 2000;
+/* 실행 상태를 다시 받는 간격. 제품 API 실행 목록(useRunList)도 같은 값을 씁니다 */
+export const POLLING_INTERVAL_MS = 2000;
 
 /*
   현재 페르소나 실행 상태. 실행 중(running)일 때만 주기 조회합니다. BE 에 SSE·WebSocket 은 없습니다.
@@ -26,6 +27,7 @@ export function usePersonaRun({ enabled = true }: { enabled?: boolean } = {}) {
     const status = query.data?.status;
     if (previousStatus.current === "running" && status === "completed") {
       void queryClient.invalidateQueries({ queryKey: queryKeys.personas.reports() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
     }
     previousStatus.current = status;
   }, [query.data?.status, queryClient]);

@@ -12,6 +12,16 @@ export const queryKeys = {
     session: (runId: string, sessionId: string) =>
       [...queryKeys.personas.all, "session", runId, sessionId] as const,
   },
+  /* 제품 API 프로젝트 (숫자 id) */
+  projectsV1: {
+    all: ["projectsV1"] as const,
+    sample: () => [...queryKeys.projectsV1.all, "sample"] as const,
+  },
+  /* 제품 API 실행. 실행을 만들거나 끝난 뒤에는 runs.all 로 한꺼번에 무효화합니다 */
+  runs: {
+    all: ["runs"] as const,
+    list: (projectId: number) => [...queryKeys.runs.all, projectId, "list"] as const,
+  },
   calibration: {
     all: ["calibration"] as const,
     history: (projectId: string) => [...queryKeys.calibration.all, projectId, "history"] as const,
