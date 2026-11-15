@@ -61,7 +61,21 @@ BE 오류 응답은 두 가지 형태입니다.
 | 개발 API `/api/*` | `{ "error": "사용자에게 표시할 메시지" }` |
 | 제품 API `/api/v1/*` | `{ "error": { "code", "message", "fields" }, "request_id" }` |
 
-`apis/axiosInstance.ts`의 응답 인터셉터가 둘 다 `ApiError`(`types/api.type.ts`) 하나로 바꿉니다. 화면에서는 `ApiError`의 `status`, `message`, `code`, `fields`만 봅니다. 서버에 연결하지 못하면 `status`가 0입니다.
+`apis/axiosInstance.ts`의 응답 인터셉터가 둘 다 `ApiError`(`types/api.type.ts`) 하나로 바꿉니다. 화면에서는 `ApiError`의 `status`, `message`, `code`, `fields`만 봅니다. 서버에 연결하지 못하면 `status`가 0입니다. 제품 API 오류의 `request_id`는 `ApiError.requestId`에 남습니다. BE에 문의할 때 함께 전달합니다.
+
+- 제품 API는 `code`로 분기합니다. `message` 문구는 바뀔 수 있으므로 문자열 비교에 쓰지 않습니다.
+- `fields`는 입력별 메시지뿐 아니라 계획 확정 차단 사유(`fields.blocking` 배열) 같은 값도 담으므로 `Record<string, unknown>`입니다.
+
+### CSRF (제품 API)
+
+제품 API는 Django 세션과 CSRF를 씁니다. `axiosInstance`가 처리하므로 `*.api.ts`에서 따로 할 일은 없습니다.
+
+- `/api/v1/*`로 가는 POST·PUT·PATCH·DELETE에 `X-CSRFToken` 헤더를 붙입니다. 토큰은 처음 한 번 `GET /api/v1/auth/csrf`로 받아 같이 씁니다.
+- 토큰이 없거나 틀리면 Django가 JSON이 아닌 HTML 403을 돌려줍니다. 이때는 토큰을 새로 받아 한 번만 다시 보내고, 그래도 실패하면 `code`가 `CSRF_FAILED`인 `ApiError`가 됩니다. BE의 JSON 403(`FORBIDDEN`)은 권한 오류라 다시 보내지 않습니다.
+- 로그인·로그아웃 뒤에는 `resetCsrfToken()`을 불러 토큰을 비웁니다.
+- 토큰 발급은 테스트(`mocks/node.ts`)에서만 mock합니다. 브라우저 mock에 넣으면 Vercel 배포본이 가짜 토큰으로 실서버에 POST해 403이 됩니다.
+- 개발 API(`/api/personas` 등)에는 붙이지 않습니다.
+- 같은 origin이 전제입니다. `VITE_API_BASE_URL`은 비워 두고 dev 프록시나 Vercel rewrite로 부릅니다. 절대 주소(`http://43.200.218.110` 등)를 넣으면 cross-origin이 되어 세션·CSRF 쿠키가 실리지 않고, 제품 API POST가 모두 `CSRF_FAILED`가 됩니다.
 
 ### 상태 코드별 화면 처리
 
@@ -74,7 +88,8 @@ BE 오류 응답은 두 가지 형태입니다.
 | PDF 생성 실패 | 503 | E19 화면 |
 | 로그인 만료 (v1) | 401 `AUTH_REQUIRED` | 원래 목적지를 보존하고 로그인 화면으로 |
 | 입력 오류 (v1) | 422 `VALIDATION_ERROR` | `fields`의 메시지를 해당 입력 아래에 표시 |
-| 공유 링크 만료 (v1) | 410 `SHARE_EXPIRED` | E17 화면 |
+| 공유 링크 만료 (v1) | 410 `SHARE_LINK_EXPIRED` | E17 화면 |
+| CSRF 실패 (v1) | 403 `CSRF_FAILED` (FE가 붙인 코드) | 새로고침 안내 |
 
 ## 5. 실행 상태 polling
 

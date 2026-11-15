@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
+import { resetCsrfToken } from "@/apis/axiosInstance";
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
 import { useRetestStore } from "@/stores/useRetestStore";
@@ -50,6 +51,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  // 받아 둔 CSRF 토큰이 다음 테스트로 넘어가지 않게 비웁니다
+  resetCsrfToken();
   // 페르소나 mock 은 실행 상태를 메모리에 들고 있어 테스트마다 처음으로 돌립니다
   resetPersonaMock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
