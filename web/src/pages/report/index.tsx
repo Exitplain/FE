@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
-import { buttonVariants } from "@/components/Button/buttonVariants";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import RangeBarChart from "@/components/RangeBarChart/RangeBarChart";
 import WorkspaceState from "@/components/Workspace/WorkspaceState";
 import { CAUSE_LABELS, VARIANT_LABELS } from "@/constants/persona";
 import { findSampleProject, type SampleProject } from "@/constants/projects";
-import { buildPath } from "@/constants/routes";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
 import { ApiError } from "@/types/api.type";
@@ -19,6 +17,7 @@ import AlignmentSummary from "./components/AlignmentSummary";
 import ExportMenu from "./components/ExportMenu";
 import KpiRow from "./components/KpiRow";
 import ReportSection from "./components/ReportSection";
+import RetestModal from "./components/RetestModal";
 import {
   ReportError,
   ReportLoading,
@@ -84,6 +83,8 @@ function Report({ project, runId }: { project: SampleProject; runId: string }) {
   const currentRun = usePersonaRun();
   const [params, setParams] = useSearchParams();
   const [shareOpen, setShareOpen] = useState(false);
+  /* P17 — E15(비교할 테스트 부족)에서 ?retest=1 로 들어오면 바로 엽니다 */
+  const [retestOpen, setRetestOpen] = useState(() => params.get("retest") === "1");
 
   const order = runOrder(reports.data ?? [], runId);
   const tasks = report.data?.tasks ?? [];
@@ -143,12 +144,7 @@ function Report({ project, runId }: { project: SampleProject; runId: string }) {
               <Button variant="secondary" icon="link" onClick={() => setShareOpen(true)}>
                 공유 링크 복사
               </Button>
-              <Link
-                to={buildPath("retest", { projectId: project.id, runId })}
-                className={buttonVariants()}
-              >
-                수정 후 재테스트
-              </Link>
+              <Button onClick={() => setRetestOpen(true)}>수정 후 재테스트</Button>
             </>
           )
         }
@@ -170,6 +166,34 @@ function Report({ project, runId }: { project: SampleProject; runId: string }) {
         ))}
       {report.data && <ReportFooter report={report.data} />}
       <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} runId={runId} />
+      {report.data && retestOpen && (
+        <RetestModal
+          open
+          onClose={() => {
+            setRetestOpen(false);
+            /* 다시 열리지 않게 ?retest=1 을 지웁니다 */
+            if (params.has("retest")) {
+              setParams(
+                (previous) => {
+                  const next = new URLSearchParams(previous);
+                  next.delete("retest");
+                  return next;
+                },
+                { replace: true },
+              );
+            }
+          }}
+          projectId={project.id}
+          report={report.data}
+          order={order}
+          nextOrder={(reports.data?.length ?? 0) + 1}
+          taskName={
+            tasks.length > 1
+              ? `${tasks[0].name} 외 ${tasks.length - 1}개`
+              : (tasks[0]?.name ?? "사전 테스트")
+          }
+        />
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader"
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import { findSampleProject, type SampleProject } from "@/constants/projects";
 import { buildPath } from "@/constants/routes";
+import { useRetestStore } from "@/stores/useRetestStore";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
 import type { PersonaRun } from "@/types/persona.type";
@@ -176,13 +177,27 @@ function RunDashboard({
     phase === "preparing" || phase === "running" || phase === "analyzing",
   );
 
-  /* P10: 분석 화면을 보던 중 끝나면 리포트로 자동 이동합니다 (이미 끝난 실행을 연 경우는 요약만) */
+  /*
+    P10: 분석 화면을 보던 중 끝나면 리포트로 자동 이동합니다 (이미 끝난 실행을 연 경우는 요약만).
+    P17 에서 "끝나면 자동으로 비교하기"를 고른 재테스트는 리포트 대신 P18 전후 비교로 갑니다.
+  */
   const sawAnalyzing = useRef(false);
   useEffect(() => {
     if (phase === "analyzing") sawAnalyzing.current = true;
-    if (phase === "completed" && sawAnalyzing.current && run.id) {
-      navigate(buildPath("report", { projectId: project.id, runId: run.id }), { replace: true });
+    if (phase !== "completed" || !sawAnalyzing.current || !run.id) return;
+    const retest = useRetestStore.getState().byRunId[run.id];
+    if (retest?.autoCompare) {
+      useRetestStore.getState().consumeAutoCompare(run.id);
+      navigate(
+        {
+          pathname: buildPath("retest", { projectId: project.id, runId: retest.baseRunId }),
+          search: `?b=${encodeURIComponent(run.id)}`,
+        },
+        { replace: true },
+      );
+      return;
     }
+    navigate(buildPath("report", { projectId: project.id, runId: run.id }), { replace: true });
   }, [phase, run.id, project.id, navigate]);
 
   const panelSize =

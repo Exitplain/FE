@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
+import { useRetestStore } from "@/stores/useRetestStore";
 
 /*
   jsdom 에는 ResizeObserver 가 없습니다. 사이드바(AppLayout)처럼 크기 변화를 지켜보는
@@ -34,6 +35,9 @@ afterEach(() => {
   server.resetHandlers();
   // 페르소나 mock 은 실행 상태를 메모리에 들고 있어 테스트마다 처음으로 돌립니다
   resetPersonaMock();
+  // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
+  useRetestStore.setState({ byRunId: {} });
+  sessionStorage.clear();
 });
 
 afterAll(() => server.close());

@@ -49,14 +49,14 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     ).toBeInTheDocument();
   });
 
-  it.each([["retest", buildPath("retest", { projectId, runId })]] as const)(
-    "%s 화면을 %s 에서 연다",
-    (key, path) => {
-      renderAt(path);
+  it("재테스트 전후 비교(P18)를 /runs/:runId/retest 에서 연다", async () => {
+    renderAt(buildPath("retest", { projectId, runId }));
 
-      expectPlaceholder(key);
-    },
-  );
+    // 끝난 실행 목록에 없는 runId 라 비교할 실행 없음 안내가 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "비교할 실행을 찾을 수 없어요" }),
+    ).toBeInTheDocument();
+  });
 
   it.each([
     ["projectHistory", "진단 기록"],

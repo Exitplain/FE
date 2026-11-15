@@ -587,3 +587,22 @@ describe("페르소나 mock — 세션 상세 (임시 GET /api/personas/session)
     expect(saved.answers?.at(-1)?.id).toBe(answer.id);
   });
 });
+
+describe("페르소나 mock — 개선 버전(fixed, 임시: P17 재테스트)", () => {
+  it("같은 패널·시드라도 문제 버전보다 이탈이 적고, 입력 부담 이탈이 줄어든다", async () => {
+    const count = (run: Awaited<ReturnType<typeof runToCompletion>>, cause?: string) =>
+      run.sessions.filter(
+        (s) => s.status === "simulated_dropout" && (!cause || s.issue?.category === cause),
+      ).length;
+
+    await confirmPersonaRun(await confirmBody());
+    const problem = await runToCompletion();
+    const plan = await discoverPersonaPlan({ variant: "fixed" });
+    await confirmPersonaRun({ ...(await confirmBody()), plan_id: plan.plan_id });
+    const fixed = await runToCompletion();
+
+    expect(fixed.variant).toBe("fixed");
+    expect(count(fixed)).toBeLessThan(count(problem));
+    expect(count(fixed, "input_burden")).toBeLessThan(count(problem, "input_burden"));
+  });
+});

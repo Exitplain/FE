@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
+import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
 import { buildPath, ROUTES } from "@/constants/routes";
 import { personaErrorHandlers } from "@/mocks/handlers/personas";
 import { server } from "@/mocks/node";
 import { finishPersonaMock } from "@/mocks/personaMock";
+import { useRetestStore } from "@/stores/useRetestStore";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { DropCause, PersonaReport, ReportActual } from "@/types/persona.type";
 
@@ -128,6 +129,52 @@ describe("P12 리포트", () => {
     /* 아래 "닫기" 버튼 (오른쪽 위 X 아이콘도 이름이 "닫기") */
     await userEvent.click(within(dialog).getAllByRole("button", { name: "닫기" })[0]);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("수정 후 재테스트(P17): 같은 과업·타겟으로 개선 버전을 실행하고 비교 대상을 기억한다", async () => {
+    const user = userEvent.setup();
+    useRetestStore.setState({ byRunId: {} });
+    const runId = await completeRun();
+    renderReport(runId);
+
+    await user.click(await screen.findByRole("button", { name: "수정 후 재테스트" }));
+    const dialog = screen.getByRole("dialog", { name: "수정 후 재테스트" });
+    expect(within(dialog).getByLabelText("테스트 이름")).toHaveValue(
+      "첫 주문 외 1개 · 2차 (재테스트)",
+    );
+    expect(dialog).toHaveTextContent("패널1차와 동일 · P-001~P-020");
+    expect(dialog).toHaveTextContent("시드1차와 동일 · 3회");
+    expect(dialog).toHaveTextContent("보정ON · 보정 적용됨(11월 5일)");
+    expect(
+      within(dialog).getByRole("checkbox", { name: "끝나면 1차와 자동으로 비교하기" }),
+    ).toBeChecked();
+
+    await user.type(within(dialog).getByLabelText(/무엇을 고쳤나요/), "가입 필수 입력 줄임");
+    await user.click(within(dialog).getByRole("button", { name: "재테스트 시작" }));
+
+    const run = await getPersonaRun();
+    expect(run).toMatchObject({ status: "running", variant: "fixed" });
+    expect(run.tasks.map((task) => task.id)).toEqual(["order", "coupon"]);
+    expect(useRetestStore.getState().byRunId[run.id!]).toEqual({
+      baseRunId: runId,
+      name: "첫 주문 외 1개 · 2차 (재테스트)",
+      note: "가입 필수 입력 줄임",
+      autoCompare: true,
+    });
+  });
+
+  it("재테스트는 실행 중인 테스트가 있으면 시작하지 않고 알린다 · ?retest=1 이면 바로 연다", async () => {
+    const user = userEvent.setup();
+    const runId = await completeRun();
+    await startRun(["shopping"], ["order"]);
+    renderReport(runId, "?retest=1");
+
+    const dialog = await screen.findByRole("dialog", { name: "수정 후 재테스트" });
+    await user.click(within(dialog).getByRole("button", { name: "재테스트 시작" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "이미 실행 중인 테스트가 있어요",
+    );
   });
 
   it("과업 칩으로 다른 과업 리포트로 바꾼다", async () => {

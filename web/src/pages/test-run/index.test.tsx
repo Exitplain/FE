@@ -1,12 +1,13 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { Route, Routes, useParams } from "react-router-dom";
+import { Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/persona.api";
 import { ROUTES } from "@/constants/routes";
 import { server } from "@/mocks/node";
+import { useRetestStore } from "@/stores/useRetestStore";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { PersonaRun } from "@/types/persona.type";
 
@@ -22,6 +23,16 @@ async function startRun(taskIds = ["order", "coupon"]) {
     context: "첫 방문자",
     additional_request: "",
   });
+}
+
+function RetestProbe() {
+  const { runId } = useParams();
+  const [params] = useSearchParams();
+  return (
+    <p>
+      비교 {runId} {params.get("b")}
+    </p>
+  );
 }
 
 function ReportProbe() {
@@ -170,6 +181,30 @@ describe("P08~P11 실행 화면", () => {
     expect(screen.getByText("다음: 리포트 (자동 이동)")).toBeInTheDocument();
 
     expect(await screen.findByText(`리포트 ${run.id}`, {}, { timeout: 15000 })).toBeInTheDocument();
+  }, 20000);
+
+  it("P17 에서 자동 비교를 고른 재테스트는 끝나면 리포트 대신 P18 로 이동한다", async () => {
+    const run = await startRun(["order"]);
+    useRetestStore
+      .getState()
+      .register(run.id!, { baseRunId: "base-run", name: "", note: "", autoCompare: true });
+    let current = await getPersonaRun();
+    for (let i = 0; i < 30 && current.stage !== "analyzing"; i += 1)
+      current = await getPersonaRun();
+    renderWithProviders(
+      <Routes>
+        <Route path={ROUTES.testRun.path} element={<TestRunPage />} />
+        <Route path={ROUTES.report.path} element={<ReportProbe />} />
+        <Route path={ROUTES.retest.path} element={<RetestProbe />} />
+      </Routes>,
+      { route: `/projects/banchan/runs/${run.id}` },
+    );
+
+    expect(
+      await screen.findByText(`비교 base-run ${run.id}`, {}, { timeout: 15000 }),
+    ).toBeInTheDocument();
+    /* 한 번 이동하면 다시 이동하지 않게 끕니다 */
+    expect(useRetestStore.getState().byRunId[run.id!].autoCompare).toBe(false);
   }, 20000);
 
   it("끝나면 결과를 요약하고 리포트로 연결한다", async () => {
