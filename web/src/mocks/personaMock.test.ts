@@ -9,6 +9,7 @@ import {
   getPersonaReportPdf,
   getPersonaReports,
   getPersonaRun,
+  getPersonaSession,
   saveHumanObservation,
 } from "@/apis/persona.api";
 import { server } from "@/mocks/node";
@@ -532,5 +533,57 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
     await expect(saveHumanObservation(observation(running.id!))).rejects.toMatchObject({
       status: 400,
     });
+  });
+});
+
+describe("페르소나 mock — 세션 상세 (임시 GET /api/personas/session)", () => {
+  it("스텝마다 trace·행동·발화를 남기고, 이탈 세션만 마지막 스텝에서 임계치를 넘는다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const run = await runToCompletion();
+
+    for (const session of run.sessions) {
+      expect(session.trace.map((point) => point.step)).toEqual(
+        Array.from({ length: session.steps }, (_, index) => index + 1),
+      );
+      expect(session.events).toHaveLength(session.steps);
+      const last = session.trace.at(-1)!;
+      const crossed = session.trace.filter((point) => point.crossed).map((point) => point.step);
+      expect(crossed).toEqual(session.status === "simulated_dropout" ? [last.step] : []);
+      expect(session.terminal_stage).toBe(last.stage);
+    }
+  });
+
+  it("끝난 실행(history)의 세션만 주고, 진행 중이거나 없으면 404", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const first = await runToCompletion();
+    const second = await confirmPersonaRun(await confirmBody());
+
+    await expect(getPersonaSession(second.id!, second.sessions[0].id)).rejects.toMatchObject({
+      status: 404,
+    });
+    const past = await getPersonaSession(first.id!, first.sessions[0].id);
+    expect(past).toMatchObject({ id: first.sessions[0].id, seed: 1 });
+    await expect(getPersonaSession(first.id!, "nobody")).rejects.toMatchObject({ status: 404 });
+    await expect(getPersonaSession("other", first.sessions[0].id)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  it("임시: 끝난 실행의 세션에도 질문할 수 있고, 근거는 마지막 두 스텝이다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    const first = await runToCompletion();
+    await confirmPersonaRun(await confirmBody());
+    const sessionId = first.sessions[0].id;
+
+    const answer = await explainPersonaSession({
+      run_id: first.id!,
+      session_id: sessionId,
+      question: "왜?",
+    });
+
+    expect(answer.sources.map((source) => source.step)).toEqual([11, 12]);
+    expect(answer.sources[0].stage_name).not.toBe(answer.sources[0].stage);
+    const saved = await getPersonaSession(first.id!, sessionId);
+    expect(saved.answers?.at(-1)?.id).toBe(answer.id);
   });
 });

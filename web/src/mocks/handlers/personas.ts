@@ -10,6 +10,7 @@ import {
   report,
   reportMarkdown,
   reports,
+  session,
   snapshot,
 } from "../personaMock";
 
@@ -61,6 +62,11 @@ export const personaHandlers = [
     handle(async () => confirm(await request.json()), 202),
   ),
   http.get("*/api/personas/reports", () => handle(() => ({ reports: reports() }))),
+  /* 임시: 세션 상세(P15·P16) 단건 조회. BE 명세가 나오면 경로·모양을 맞춥니다 */
+  http.get("*/api/personas/session", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    return handle(() => session(params.get("run_id"), params.get("session_id")));
+  }),
   http.post("*/api/personas/explain", ({ request }) =>
     handle(async () => explain(await request.json())),
   ),

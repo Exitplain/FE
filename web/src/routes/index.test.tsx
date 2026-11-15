@@ -40,14 +40,23 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     ).toBeInTheDocument();
   });
 
-  it.each([
-    ["sessionDetail", buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })],
-    ["retest", buildPath("retest", { projectId, runId })],
-  ] as const)("%s 화면을 %s 에서 연다", (key, path) => {
-    renderAt(path);
+  it("세션 상세(P15·P16)를 /runs/:runId/sessions/:sessionId 에서 연다", async () => {
+    renderAt(buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" }));
 
-    expectPlaceholder(key);
+    // 저장된 실행이 아닌 runId 라 세션 없음 안내가 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "세션을 찾을 수 없어요" }),
+    ).toBeInTheDocument();
   });
+
+  it.each([["retest", buildPath("retest", { projectId, runId })]] as const)(
+    "%s 화면을 %s 에서 연다",
+    (key, path) => {
+      renderAt(path);
+
+      expectPlaceholder(key);
+    },
+  );
 
   it.each([
     ["projectHistory", "진단 기록"],

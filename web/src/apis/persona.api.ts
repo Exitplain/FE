@@ -10,6 +10,7 @@ import type {
   PersonaReport,
   PersonaReportsResponse,
   PersonaRun,
+  PersonaSession,
 } from "@/types/persona.type";
 
 import axiosInstance from "./axiosInstance";
@@ -50,7 +51,18 @@ export async function getPersonaReports() {
   return data.reports;
 }
 
-/* 세션 기록에 근거한 질문 답변 (규칙 기반). run_id 가 현재 실행과 다르면 400 */
+/*
+  임시: 세션 상세(P15·P16) 단건 조회. 명세에 아직 없는 경로라 mock 에만 있습니다.
+  404 = 실행이나 세션이 없음. 서버 명세가 나오면 경로·모양을 맞춥니다.
+*/
+export async function getPersonaSession(runId: string, sessionId: string) {
+  const { data } = await axiosInstance.get<PersonaSession>("/api/personas/session", {
+    params: { run_id: runId, session_id: sessionId },
+  });
+  return data;
+}
+
+/* 세션 기록에 근거한 질문 답변 (규칙 기반). run_id 가 현재 실행과 다르면 400 (mock 은 임시로 끝난 실행도 받음) */
 export async function explainPersonaSession(body: ExplainRequest) {
   const { data } = await axiosInstance.post<ExplainAnswer>("/api/personas/explain", body);
   return data;

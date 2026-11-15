@@ -667,15 +667,21 @@ const MAX_ANSWERS = 20;
 /*
   BE console.py·session_explain.py 와 같은 검증:
   키는 run_id·session_id·question(+ 선택 step), question 은 다듬은 뒤 1~500자, step 은 1 이상 정수,
-  run_id 는 현재 실행이어야 합니다. 답은 세션 answers 에 최근 20개까지 쌓입니다.
-  답 문장은 BE 규칙 엔진 대신 세션의 마지막 기록(reason)을 그대로 씁니다.
+  답은 세션 answers 에 최근 20개까지 쌓입니다.
+  답 문장은 BE 규칙 엔진 대신 세션의 마지막 기록(reason)과 마지막 두 스텝으로 만듭니다.
+  임시: BE 는 run_id 가 현재 실행이어야 하지만, 세션 상세(P15d)를 리포트에서 열어도 질문할 수 있게
+  mock 은 끝난 실행(history)도 받습니다. 서버 명세가 나오면 맞춥니다.
 */
 export function explain(body: unknown): ExplainAnswer {
   const record = (body ?? {}) as Record<string, unknown>;
   const keys = Object.keys(record);
   const question = typeof record.question === "string" ? record.question.trim() : "";
   const step = record.step;
-  const session = state.run.sessions.find((s) => s.id === record.session_id);
+  const run =
+    record.run_id === state.run.id
+      ? state.run
+      : state.history.find((item) => item.id === record.run_id);
+  const session = run?.sessions.find((s) => s.id === record.session_id);
 
   if (
     !keys.every((key) => EXPLAIN_KEYS.includes(key)) ||
@@ -683,33 +689,63 @@ export function explain(body: unknown): ExplainAnswer {
     question.length < 1 ||
     question.length > 500 ||
     (step !== undefined && (!Number.isInteger(step) || (step as number) < 1)) ||
-    record.run_id !== state.run.id ||
+    !run ||
     !session
   ) {
     throw new MockApiError(400, "질문할 세션과 내용을 확인해주세요.");
   }
 
   const finished = session.status !== "queued" && session.status !== "running";
-  const last = session.trace.at(-1);
+  const recent = session.trace.slice(-2);
   const answer: ExplainAnswer = {
     id: nextId("answer"),
     question,
-    answer: finished ? session.reason : "아직 실행 중이라 기록이 끝나지 않았습니다.",
+    answer: finished ? answerText(session) : "아직 실행 중이라 기록이 끝나지 않았습니다.",
     kind: finished ? "recorded_outcome" : "execution_status",
     supported_by_record: finished,
-    sources:
-      finished && last
-        ? [{ step: last.step, stage: last.stage, stage_name: last.stage, artifact_id: null }]
-        : [],
+    sources: finished
+      ? recent.map((point) => ({
+          step: point.step,
+          stage: point.stage,
+          stage_name: STAGE_LABELS[point.stage],
+          artifact_id: point.artifact_id,
+        }))
+      : [],
     recorded_at: new Date().toISOString(),
     method: "record_based_rules",
     model_calls: 0,
   };
 
   session.answers = [...(session.answers ?? []), answer].slice(-MAX_ANSWERS);
-  syncHistory();
+  /* 현재 실행이면 목록(history)에도 맞추고, 과거 실행이면 history 의 세션을 바로 고쳤습니다 */
+  if (run === state.run) syncHistory();
 
   return structuredClone(answer);
+}
+
+/* 마지막 두 스텝의 점수 변화로 답 문장을 만듭니다 (예: 스텝 11에서 74, 스텝 12에서 임계치 70 초과) */
+function answerText(session: PersonaSession) {
+  const [before, last] =
+    session.trace.length > 1 ? session.trace.slice(-2) : [null, session.trace[0]];
+  if (!last) return session.reason;
+  const lead = before
+    ? `스텝 ${before.step}(${STAGE_LABELS[before.stage]})에서 좌절 점수가 ${before.score}였고, `
+    : "";
+  if (session.status === "simulated_dropout") {
+    return `${lead}스텝 ${last.step}에서 ${last.score}로 올라 임계치 ${last.threshold}을 넘어 멈췄어요.`;
+  }
+  return `${lead}${session.reason}`;
+}
+
+/*
+  임시: 세션 상세(P15·P16) 조회. BE 명세에는 아직 세션 단건 조회가 없어 mock 에만 둡니다.
+  끝난 실행(history, 대표 시드 1)만 줍니다. 진행 중에는 같은 세션 id 의 내용이 시드마다 바뀌어 404 로 둡니다.
+*/
+export function session(runId: string | null, sessionId: string | null): PersonaSession {
+  const run = state.history.find((item) => item.id === runId);
+  const found = run?.sessions.find((item) => item.id === sessionId);
+  if (!found) throw new MockApiError(404, "세션을 찾을 수 없습니다.");
+  return structuredClone(found);
 }
 
 /* 완료된 현재 실행을 바꾼 뒤(질문·사람 관측) 목록(history)에도 같은 내용이 남도록 맞춥니다 */

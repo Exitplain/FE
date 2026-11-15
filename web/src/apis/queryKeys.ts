@@ -9,6 +9,8 @@ export const queryKeys = {
     current: () => [...queryKeys.personas.all, "current"] as const,
     reports: () => [...queryKeys.personas.all, "reports"] as const,
     report: (runId: string) => [...queryKeys.personas.all, "report", runId] as const,
+    session: (runId: string, sessionId: string) =>
+      [...queryKeys.personas.all, "session", runId, sessionId] as const,
   },
   calibration: {
     all: ["calibration"] as const,
