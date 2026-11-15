@@ -4,9 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
-import { buildPath } from "@/constants/routes";
 import { useNewTestStore } from "@/stores/useNewTestStore";
-import type { ApiError } from "@/types/api.type";
 import type { DiscoverResponse } from "@/types/persona.type";
 
 import {
@@ -18,36 +16,27 @@ import {
   type StepKey,
   STEPS,
 } from "../utils/newTest";
-import { StatusRow, StepFooter } from "./StepSection";
+import { StepFooter } from "./StepSection";
 
 type ConfirmStepProps = {
-  projectId: string;
   plan: DiscoverResponse;
   /* 적용된 보정 날짜 ("11월 5일"). 보정 전이면 null, 불러오는 중이면 undefined */
   calibratedLabel: string | null | undefined;
-  isStarting: boolean;
-  error: ApiError | null;
-  /* 409 일 때 이동할 현재 실행 */
-  currentRunId: string | null;
   onPrev: () => void;
-  onStart: () => void;
+  /* "페르소나 생성" → P06 생성 중 · P07 확인 */
+  onNext: () => void;
   onExpired: () => void;
 };
 
 /*
   P05c 시작 전 확인 (Figma Section/CheckAnswers) — 단계별 "변경 · n단계", 마지막에 "페르소나 생성".
-  임시: BE confirm 은 페르소나 생성과 실행 시작을 나누지 않아, 지금은 "페르소나 생성"이 실행까지 시작합니다.
-  P06 생성 중 · P07 페르소나 확인 화면을 붙이면 실행 시작은 P07 로 옮깁니다.
+  "페르소나 생성"은 P06 생성 중으로 넘어가고, 실행 시작은 P07 페르소나 확인에서 합니다.
 */
 export default function ConfirmStep({
-  projectId,
   plan,
   calibratedLabel,
-  isStarting,
-  error,
-  currentRunId,
   onPrev,
-  onStart,
+  onNext,
   onExpired,
 }: ConfirmStepProps) {
   const store = useNewTestStore(
@@ -142,8 +131,7 @@ export default function ConfirmStep({
             <li key={row.label} className="flex items-start gap-6 border-b border-line py-3.5">
               <span className="w-24 shrink-0 text-caption text-muted">{row.label}</span>
               <span className="flex-1 text-caption text-gray-800">{row.value}</span>
-              {/* 실행 시작 요청 중에는 단계를 옮기지 못하게 변경 링크를 숨깁니다 */}
-              {row.step && !isStarting && (
+              {row.step && (
                 <Link
                   to={{ search: `?step=${row.step}` }}
                   className="shrink-0 text-caption font-bold text-ink hover:underline"
@@ -172,37 +160,12 @@ export default function ConfirmStep({
         </div>
       )}
 
-      {error && error.status === 409 && (
-        <StatusRow>
-          <Icon name="status-running" className="size-5" />
-          <span className="font-bold text-ink">이미 실행 중인 테스트가 있어요</span>
-          {currentRunId && (
-            <Link
-              to={buildPath("testRun", { projectId, runId: currentRunId })}
-              className="text-subtle underline underline-offset-4"
-            >
-              실행 화면 보기
-            </Link>
-          )}
-        </StatusRow>
-      )}
-      {error && error.status !== 409 && (
-        <p role="alert" className="flex items-center gap-2 text-caption">
-          <Icon name="status-error" className="size-5 text-danger" />
-          <span className="font-bold text-ink">실행을 시작하지 못했어요</span>
-          <span className="text-subtle">
-            {error.status === 0 ? "서버에 연결할 수 없어요" : error.message} · 잠시 후 다시 시도해
-            주세요
-          </span>
-        </p>
-      )}
-
       <StepFooter>
-        <Button variant="link" disabled={isStarting} onClick={onPrev}>
+        <Button variant="link" onClick={onPrev}>
           이전
         </Button>
-        <Button disabled={expired || isStarting || tasks.length === 0} onClick={onStart}>
-          {isStarting ? "만드는 중…" : "페르소나 생성"}
+        <Button disabled={expired || tasks.length === 0} onClick={onNext}>
+          페르소나 생성
         </Button>
       </StepFooter>
     </div>

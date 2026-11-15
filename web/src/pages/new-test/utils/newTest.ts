@@ -10,6 +10,9 @@ export const STEP_LABELS: Record<StepKey, string> = {
   confirm: "시작 전 확인",
 };
 
+/* 시작 전 확인 다음의 P06 생성 중 · P07 페르소나 확인 (Stepper 에 없는 단계) */
+export const REVIEW_STEP = "personas";
+
 export function parseStep(value: string | null): StepKey {
   return (STEPS as readonly string[]).includes(value ?? "") ? (value as StepKey) : "site";
 }

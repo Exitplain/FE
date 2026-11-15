@@ -13,6 +13,7 @@ import { usePersonaRun } from "@/hooks/usePersonaRun";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 
 import ConfirmStep from "./components/ConfirmStep";
+import PersonaReviewStep from "./components/PersonaReviewStep";
 import PersonaStep from "./components/PersonaStep";
 import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
@@ -26,7 +27,10 @@ import {
   isPlanExpiredMessage,
   panelSize,
   parseStep,
+  REVIEW_STEP,
+  RUN_CONDITIONS,
   STEP_LABELS,
+  SEEDS,
   STEPS,
   type StepKey,
   sum,
@@ -35,7 +39,7 @@ import {
 const EXPIRED_NOTICE = "탐색 결과가 만료됐어요. 사이트를 다시 확인해 주세요";
 
 /*
-  P02~P05c 새 테스트 (단계: ?step=site|task|persona|confirm)
+  P02~P07 새 테스트 (단계: ?step=site|task|persona|confirm, 시작 전 확인 뒤 ?step=personas 는 P06·P07)
   프로젝트가 바뀌면 key 로 위저드를 새로 그려 입력·안내·요청 상태를 모두 처음으로 돌립니다.
 */
 export default function NewTestPage() {
@@ -69,15 +73,19 @@ function NewTestWizard({ project }: { project: SampleProject }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const calibrations = useCalibrations(project.id);
-  const { storeProjectId, plan, taskCount, targetDescription, segmentsValid } = useNewTestStore(
-    useShallow((state) => ({
-      storeProjectId: state.projectId,
-      plan: state.plan,
-      taskCount: state.taskIds.length,
-      targetDescription: state.targetDescription,
-      segmentsValid: sum(state.segmentCounts) === panelSize(state.loginMode, state.accounts.length),
-    })),
-  );
+  const { storeProjectId, plan, taskIds, taskCount, targetDescription, segmentsValid, panel } =
+    useNewTestStore(
+      useShallow((state) => ({
+        storeProjectId: state.projectId,
+        plan: state.plan,
+        taskIds: state.taskIds,
+        taskCount: state.taskIds.length,
+        panel: panelSize(state.loginMode, state.accounts.length),
+        targetDescription: state.targetDescription,
+        segmentsValid:
+          sum(state.segmentCounts) === panelSize(state.loginMode, state.accounts.length),
+      })),
+    );
 
   /* 화면에 그리기 전에 이 프로젝트의 입력으로 시작하고, 떠날 때 지웁니다 */
   useLayoutEffect(() => {
@@ -85,7 +93,12 @@ function NewTestWizard({ project }: { project: SampleProject }) {
     return () => useNewTestStore.getState().reset("", "");
   }, [project.id, project.url]);
 
-  const requested = parseStep(searchParams.get("step"));
+  /*
+    P06·P07 은 Stepper 밖의 화면이라 단계 목록에 넣지 않고, 시작 전 확인까지 갈 수 있을 때만 보여줍니다.
+    갈 수 없으면 시작 전 확인을 요청한 것처럼 갈 수 있는 단계로 돌려보냅니다.
+  */
+  const reviewRequested = searchParams.get("step") === REVIEW_STEP;
+  const requested: StepKey = reviewRequested ? "confirm" : parseStep(searchParams.get("step"));
   const allowed = furthestAllowedStep({
     hasPlan: plan != null,
     taskCount,
@@ -93,12 +106,14 @@ function NewTestWizard({ project }: { project: SampleProject }) {
     segmentsValid,
   });
   const step: StepKey = clampStep(requested, allowed);
+  const reviewing = reviewRequested && step === "confirm";
 
   /* 보여주는 단계와 주소가 다르면 주소를 맞춥니다 (뒤로가기 기록은 남기지 않음) */
   useEffect(() => {
+    if (reviewing) return;
     if (step === requested && (step !== "site" || !searchParams.has("step"))) return;
     setSearchParams(step === "site" ? {} : { step }, { replace: true });
-  }, [step, requested, searchParams, setSearchParams]);
+  }, [reviewing, step, requested, searchParams, setSearchParams]);
 
   /*
     단계가 바뀌면 지난 실행 시작 오류는 지웁니다.
@@ -112,7 +127,7 @@ function NewTestWizard({ project }: { project: SampleProject }) {
   });
   useEffect(() => {
     if (!confirmPending.current) resetConfirm();
-  }, [step, resetConfirm]);
+  }, [step, reviewing, resetConfirm]);
 
   if (storeProjectId !== project.id) return null;
 
@@ -127,7 +142,7 @@ function NewTestWizard({ project }: { project: SampleProject }) {
     ? undefined
     : formatMonthDay(latestCalibration?.applied_at);
 
-  const goTo = (next: StepKey) => {
+  const goTo = (next: StepKey | typeof REVIEW_STEP) => {
     setSearchParams(next === "site" ? {} : { step: next });
     window.scrollTo({ top: 0 });
   };
@@ -161,6 +176,33 @@ function NewTestWizard({ project }: { project: SampleProject }) {
     });
   };
 
+  if (reviewing && plan) {
+    const tasks = plan.tasks.filter((task) => taskIds.includes(task.id));
+    const taskSummary =
+      tasks.length > 1 ? `${tasks[0].name} 외 ${tasks.length - 1}개` : (tasks[0]?.name ?? "");
+    const device = RUN_CONDITIONS.split(" · ")[0];
+    return (
+      <div className="flex flex-col gap-12">
+        {/* Figma P06·P07: Stepper 없이 제목 "페르소나 확인" (P07 은 실행 조건 한 줄을 덧붙임) */}
+        <ProjectPageHeader
+          projectId={project.id}
+          breadcrumb={`${project.name} / 사전 테스트 / 새 테스트 · 테스트`}
+          title="페르소나 확인"
+          description={`${taskSummary} · ${device} · ${panel}명 × 시드 ${SEEDS}회 (1/${SEEDS})`}
+          activeTab="tests"
+        />
+        <PersonaReviewStep
+          projectId={project.id}
+          isStarting={confirm.isPending}
+          error={confirm.error}
+          currentRunId={currentRun.data?.id ?? null}
+          onPrev={() => goTo("confirm")}
+          onStart={start}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-12">
       <ProjectPageHeader
@@ -192,14 +234,10 @@ function NewTestWizard({ project }: { project: SampleProject }) {
       )}
       {step === "confirm" && plan && (
         <ConfirmStep
-          projectId={project.id}
           plan={plan}
           calibratedLabel={calibratedLabel}
-          isStarting={confirm.isPending}
-          error={confirm.error}
-          currentRunId={currentRun.data?.id ?? null}
           onPrev={() => goTo("persona")}
-          onStart={start}
+          onNext={() => goTo(REVIEW_STEP)}
           onExpired={() => backToSite(EXPIRED_NOTICE)}
         />
       )}

@@ -10,6 +10,8 @@ const STATUS_BADGE = {
   preparing: { icon: "status-wait", label: "준비 중", tone: "muted" },
   running: { icon: "play", label: "실행 중", tone: "strong" },
   done: { icon: "check", label: "완료", tone: "muted" },
+  /* E05 로 끝난 실행 — 경고 아이콘, 굵게 */
+  failed: { icon: "status-error", label: "실패", tone: "alert" },
 } as const satisfies Record<TestRowStatus, object>;
 
 type TestListTableProps = {
@@ -22,7 +24,7 @@ type TestListTableProps = {
 /*
   P01 사전 테스트 표. 테스트 이름이 링크입니다 (행 전체를 링크로 감싸면 표 의미가 깨져서):
   진행 중 → 실행 화면(P08~P10), 완료 → 리포트(P12).
-  목표 달성률은 목록 API 에 없어 "—" 로 둡니다 (리포트에서 계산).
+  목표 달성률은 임시로 mock 이 주는 과업별 범위를 보여주고, 없으면 "—" 입니다.
 */
 export default function TestListTable({ projectId, rows, labelledBy }: TestListTableProps) {
   return (
@@ -38,7 +40,7 @@ export default function TestListTable({ projectId, rows, labelledBy }: TestListT
       <tbody>
         {rows.map((row) => {
           const href =
-            row.status === "done"
+            row.status === "done" || row.status === "failed"
               ? buildPath("report", { projectId, runId: row.key })
               : buildPath("testRun", { projectId, runId: row.key });
           const badge = STATUS_BADGE[row.status];
@@ -53,7 +55,7 @@ export default function TestListTable({ projectId, rows, labelledBy }: TestListT
               <td className="py-3">
                 <StatusBadge icon={badge.icon} label={badge.label} tone={badge.tone} />
               </td>
-              <td className="py-3 text-gray-800">—</td>
+              <td className="py-3 text-gray-800">{row.completion}</td>
               <td className="py-3 text-gray-800">{row.date}</td>
             </tr>
           );

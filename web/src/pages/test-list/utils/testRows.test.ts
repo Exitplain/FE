@@ -88,4 +88,53 @@ describe("toTestRows", () => {
 
     expect(toTestRows({ reports: [], currentRun: idle, now: NOW })).toEqual([]);
   });
+
+  it("임시 목록 필드: 과업 이름으로 이름을 짓고, 실패·달성률 범위를 보여준다", () => {
+    const rows = toTestRows({
+      reports: [
+        {
+          run_id: "r2",
+          created_at: null,
+          variant: "problem",
+          sessions: 40,
+          tasks: ["첫 주문", "쿠폰으로 주문"],
+          outcome: "completed",
+          completion: [
+            [20, 30],
+            [25, 25],
+          ],
+        },
+        {
+          run_id: "r1",
+          created_at: null,
+          variant: "problem",
+          sessions: 20,
+          tasks: ["배송 지역 확인"],
+          outcome: "failed",
+          completion: [],
+        },
+      ],
+      currentRun: undefined,
+      now: NOW,
+    });
+
+    expect(rows.map((row) => [row.name, row.status, row.completion])).toEqual([
+      ["2차 · 첫 주문 외 1개", "done", "20~30% · 25%"],
+      ["1차 · 배송 지역 확인", "failed", "—"],
+    ]);
+  });
+
+  it("방금 끝난 현재 실행이 모두 기술 실패면 실패로, stage 가 있으면 stage 로 준비 중을 가린다", () => {
+    const failed = run({
+      status: "completed",
+      sessions: [{ status: "agent_failure" }] as PersonaRun["sessions"],
+    });
+    const preparing = run({
+      stage: "preparing",
+      sessions: [{ status: "running" }] as PersonaRun["sessions"],
+    });
+
+    expect(toTestRows({ reports, currentRun: failed, now: NOW })[0].status).toBe("failed");
+    expect(toTestRows({ reports, currentRun: preparing, now: NOW })[0].status).toBe("preparing");
+  });
 });

@@ -3,14 +3,19 @@ import { describe, expect, it } from "vitest";
 import type { PersonaRun, PersonaSession, SessionStatus } from "@/types/persona.type";
 
 import {
+  actionLabel,
   busiestStage,
   countSessions,
   failureSummary,
   filterSessions,
+  formatClock,
   formatElapsed,
+  formatTokens,
   runPhase,
   safeViewerUrl,
+  sessionCode,
   sessionGroup,
+  sessionSegment,
   taskOptions,
 } from "./runView";
 
@@ -189,5 +194,54 @@ describe("failureSummary — E05 문구", () => {
     expect(
       failureSummary([session("a_order", "agent_failure", { reason: "브라우저 실행 오류 (X)" })]),
     ).toEqual({ reason: "브라우저 실행 오류 (X)", finishedNormally: 0, total: 1 });
+  });
+});
+
+describe("runPhase — 임시 stage·stopped 필드 (mock)", () => {
+  it("stage 가 있으면 세션 상태보다 stage 를 따른다", () => {
+    const queued = [session("P-001_order", "queued")];
+    expect(runPhase({ ...run("running", queued), stage: "preparing" })).toBe("preparing");
+    expect(runPhase({ ...run("running", queued), stage: "running" })).toBe("running");
+    expect(runPhase({ ...run("running", queued), stage: "analyzing" })).toBe("analyzing");
+  });
+
+  it("비용 상한으로 멈춘 실행은 모든 세션이 기술 실패여도 stopped(E12)", () => {
+    const failed = [session("P-001_order", "budget_exceeded")];
+    const stopped = {
+      ...run("completed", failed),
+      stopped: {
+        reason: "budget" as const,
+        seed: 2,
+        finished: 0,
+        total: 60,
+        cost_ratio: 1,
+        tokens: 0,
+      },
+    };
+
+    expect(runPhase(stopped)).toBe("stopped");
+    expect(runPhase(run("completed", failed))).toBe("failed");
+  });
+});
+
+describe("실행 화면 표시 도우미", () => {
+  it("행동 이름·시각·토큰을 Figma 표기로 바꾼다", () => {
+    expect(actionLabel("click")).toBe("클릭");
+    expect(actionLabel("scroll")).toBe("스크롤");
+    expect(actionLabel("custom")).toBe("custom");
+    expect(formatClock("2026-11-15T05:36:00Z")).toBe("14:36");
+    expect(formatClock(null)).toBe("");
+    expect(formatTokens(12400)).toBe("12.4k");
+    expect(formatTokens(1_100_000)).toBe("1.1M");
+    expect(formatTokens(800)).toBe("800");
+  });
+
+  it("P 코드·세그먼트가 없으면(BE) 프로필 이름을 쓴다", () => {
+    const plain = session("quick_order", "running");
+    expect(sessionCode(plain)).toBe("빠른 구매");
+    expect(sessionSegment(plain)).toBe("빠른 구매");
+    const coded = { ...plain, code: "P-001", segment_name: "빠른 구매형" };
+    expect(sessionCode(coded)).toBe("P-001");
+    expect(sessionSegment(coded)).toBe("빠른 구매형");
   });
 });

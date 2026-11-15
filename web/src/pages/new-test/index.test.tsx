@@ -1,6 +1,6 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { Link, Route, Routes, useParams } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -43,6 +43,12 @@ async function goToConfirm(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole("list", { name: "입력 요약" });
 }
 
+/* 시작 전 확인에서 "페르소나 생성" → P06 생성 중 → P07 세그먼트 카드까지 */
+async function goToReview(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+  await screen.findByRole("list", { name: "페르소나 세그먼트" });
+}
+
 async function checkSite(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "확인" }));
   await screen.findByText("접근 가능 · 응답 0.8초 · 화면 12개 읽음");
@@ -50,7 +56,7 @@ async function checkSite(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => useNewTestStore.getState().reset("", ""));
 
-describe("P02~P05c 새 테스트", () => {
+describe("P02~P07 새 테스트", () => {
   it("프로젝트 주소를 미리 채우고 4단계 중 첫 단계를 보여준다", () => {
     renderWizard();
 
@@ -110,7 +116,7 @@ describe("P02~P05c 새 테스트", () => {
     expect(screen.getByRole("button", { name: "다시 확인" })).toBeInTheDocument();
   });
 
-  it("사이트 확인 → 과업·타겟 → 페르소나 → 시작 전 확인 → 실행 화면으로 이동한다", async () => {
+  it("사이트 확인 → 과업·타겟 → 페르소나 → 시작 전 확인 → 페르소나 확인 → 실행 화면으로 이동한다", async () => {
     const user = userEvent.setup();
     renderWizard();
 
@@ -127,7 +133,7 @@ describe("P02~P05c 새 테스트", () => {
         /\/product/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/과업 4개 선택 · 20명 × 4개 × 시드 3회/)).toBeInTheDocument();
+    expect(screen.getByText(/과업 2개 선택 · 20명 × 2개 × 시드 3회/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "30대" }));
     await user.type(screen.getByLabelText("타겟 고객 설명"), "퇴근 후 첫 주문");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
@@ -148,12 +154,82 @@ describe("P02~P05c 새 테스트", () => {
       within(summary).getByText("사이트 분석으로 자동 결정 · 과업별 6단계"),
     ).toBeInTheDocument();
     expect(
-      within(summary).getByText("에이전트 20명 · 과업 4개 · 보정 11월 5일"),
+      within(summary).getByText("에이전트 20명 · 과업 2개 · 보정 11월 5일"),
     ).toBeInTheDocument();
     expect(within(summary).getAllByRole("link", { name: /변경/ }).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
 
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "페르소나 확인" }),
+    ).toBeInTheDocument();
+
+    // P07: 세그먼트 4개 카드 (대표 코드·코드 범위·행동 변수)
+    const cards = await screen.findByRole("list", { name: "페르소나 세그먼트" });
+    expect(within(cards).getAllByRole("listitem", { name: /형$/ })).toHaveLength(4);
+    const quick = within(cards).getByRole("listitem", { name: "빠른 구매형" });
+    expect(quick).toHaveTextContent("5명");
+    expect(quick).toHaveTextContent("대표 P-001");
+    expect(quick).toHaveTextContent("P-001~005");
+    expect(within(quick).getByRole("meter", { name: "인내심 22" })).toHaveAttribute(
+      "aria-valuenow",
+      "22",
+    );
+    expect(
+      screen.getByText("첫 주문 외 1개 · 모바일 390 · 20명 × 시드 3회 (1/3)"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+
     expect(await screen.findByText(/실행 화면 mock-run-\d+/)).toBeInTheDocument();
+  });
+
+  it("P06 — 만드는 동안 생성 단계와 자리 표시 카드를 보여주고 실행을 막는다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await goToConfirm(user);
+    /* 응답을 붙잡아 생성 중 화면에 머물게 합니다 */
+    server.use(http.post("*/api/v1/persona-panels", () => delay("infinite")));
+
+    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "페르소나를 만들고 있어요" }),
+    ).toBeInTheDocument();
+    const steps = screen.getByRole("list", { name: "생성 단계" });
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(steps).getAllByRole("listitem")[0]).toHaveTextContent("타겟 고객 설명 분석완료");
+    expect(steps).toHaveTextContent("세그먼트 4종 추출");
+    expect(steps).toHaveTextContent("20명 샘플링 · P-001~P-020 코드 부여");
+    expect(screen.getByRole("button", { name: "실행 시작" })).toBeDisabled();
+  });
+
+  it("P07 — 이전을 누르면 시작 전 확인으로 돌아간다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await goToConfirm(user);
+    await goToReview(user);
+
+    await user.click(screen.getByRole("button", { name: "이전" }));
+
+    expect(await screen.findByRole("list", { name: "입력 요약" })).toBeInTheDocument();
+  });
+
+  it("페르소나를 만들지 못하면 알리고 다시 시도할 수 있다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await goToConfirm(user);
+
+    server.use(
+      http.post(
+        "*/api/v1/persona-panels",
+        () => HttpResponse.json({ error: "패널을 만들지 못했습니다." }, { status: 503 }),
+        { once: true },
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+
+    expect(await screen.findByText("페르소나를 만들지 못했어요")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(await screen.findByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
   });
 
   it("P05a — 과업을 하나도 고르지 않으면 다음으로 가지 않는다", async () => {
@@ -162,7 +238,8 @@ describe("P02~P05c 새 테스트", () => {
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
 
-    for (const name of ["첫 주문", "배송 지역 확인", "쿠폰으로 주문", "다음 배송 건너뛰기"]) {
+    /* 추천으로 미리 골라 둔 두 과업을 해제합니다 */
+    for (const name of ["첫 주문", "쿠폰으로 주문"]) {
       await user.click(await screen.findByRole("button", { name }));
     }
 
@@ -229,8 +306,11 @@ describe("P02~P05c 새 테스트", () => {
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
     await user.click(await screen.findByRole("button", { name: "다음: 시작 전 확인" }));
 
+    await screen.findByRole("list", { name: "입력 요약" });
+    await goToReview(user);
+
     server.use(personaErrorHandlers.confirmExpired);
-    await user.click(await screen.findByRole("button", { name: "페르소나 생성" }));
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
 
     expect(await screen.findByText(/탐색 결과가 만료됐어요/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "확인" })).toBeInTheDocument();
@@ -291,10 +371,11 @@ describe("P02~P05c 새 테스트", () => {
     expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();
   });
 
-  it("다른 실행이 진행 중이면(409) 실행 중이라고 알리고 확인 화면에 머문다", async () => {
+  it("다른 실행이 진행 중이면(409) 실행 중이라고 알리고 페르소나 확인 화면에 머문다", async () => {
     const user = userEvent.setup();
     renderWizard();
     await goToConfirm(user);
+    await goToReview(user);
 
     // 다른 곳에서 먼저 시작한 실행 (mock 이 실제로 409 를 돌려줌)
     const plan = await discoverPersonaPlan({ variant: "problem" });
@@ -306,10 +387,10 @@ describe("P02~P05c 새 테스트", () => {
       context: "",
       additional_request: "",
     });
-    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
 
     expect(await screen.findByText("이미 실행 중인 테스트가 있어요")).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "입력 요약" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
     // 현재 실행을 다시 받아 그 실행으로 가는 링크를 보여줍니다
     expect(await screen.findByRole("link", { name: "실행 화면 보기" })).toHaveAttribute(
       "href",
@@ -317,20 +398,21 @@ describe("P02~P05c 새 테스트", () => {
     );
   });
 
-  it("만료가 아닌 입력 오류(400)는 확인 화면에서 알리고 사이트 단계로 보내지 않는다", async () => {
+  it("만료가 아닌 입력 오류(400)는 페르소나 확인 화면에서 알리고 사이트 단계로 보내지 않는다", async () => {
     const user = userEvent.setup();
     renderWizard();
     await goToConfirm(user);
+    await goToReview(user);
 
     server.use(
       http.post("*/api/personas/confirm", () =>
         HttpResponse.json({ error: "기능·과업·연령을 한 개 이상 선택해주세요." }, { status: 400 }),
       ),
     );
-    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
 
     expect(await screen.findByText(/기능·과업·연령을 한 개 이상 선택해주세요/)).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "입력 요약" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
   });
 
   it("같은 화면에서 프로젝트가 바뀌면 입력과 안내를 처음으로 돌린다", async () => {

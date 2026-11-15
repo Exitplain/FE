@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import Button from "@/components/Button/Button";
@@ -10,12 +10,20 @@ import { buildPath } from "@/constants/routes";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
 import type { PersonaRun } from "@/types/persona.type";
+import { RUN_CONDITIONS } from "@/pages/new-test/utils/newTest";
 
-import ActionFeed from "./components/ActionFeed";
 import RunProgress from "./components/RunProgress";
-import { PreparingChecklist, RunCompleted, RunFailed } from "./components/RunStates";
+import {
+  AnalyzingChecklist,
+  PreparingChecklist,
+  RunCompleted,
+  RunFailed,
+  RunStopped,
+} from "./components/RunStates";
 import SessionBoard from "./components/SessionBoard";
 import SessionLive from "./components/SessionLive";
+import ThinkAloudFeed from "./components/ThinkAloudFeed";
+import { useRunTitle } from "./hooks/useRunTitle";
 import {
   FILTER_LABELS,
   runPhase,
@@ -26,18 +34,23 @@ import {
 
 const FILTER_KEYS = Object.keys(FILTER_LABELS) as SessionFilter[];
 
+/* Figma 제목 오른쪽 상태 (E12 비용 상한은 배너로 알려 상태 표시가 없습니다) */
 const PHASE_BADGE = {
   preparing: { icon: "status-wait", label: "준비 중", tone: "muted" },
   running: { icon: "play", label: "실행 중", tone: "strong" },
+  analyzing: { icon: "search", label: "분석 중", tone: "muted" },
   completed: { icon: "check", label: "완료", tone: "muted" },
   failed: { icon: "status-error", label: "실패", tone: "alert" },
-} as const satisfies Record<Exclude<RunPhase, "idle">, object>;
+} as const satisfies Record<Exclude<RunPhase, "idle" | "stopped">, object>;
+
+/* 실행 조건 첫 항목 ("모바일 390") */
+const DEVICE = RUN_CONDITIONS.split(" · ")[0];
 
 /*
   P08~P11 실행 화면 (/projects/:projectId/runs/:runId, 세션 라이브는 ?session=)
   - GET /api/personas 를 실행 중일 때 2초마다 조회합니다(usePersonaRun).
   - BE 는 현재 실행 하나만 조회할 수 있어, 주소의 runId 가 현재 실행이 아니면 목록·리포트로 안내합니다.
-  - P06 페르소나 생성 중 · P07 페르소나 확인은 BE confirm 이 바로 실행을 시작해 없습니다.
+  - P08 준비 → P09 실행 → P10 분석 → 리포트(자동 이동), 실패는 E05, 비용 상한은 E12.
 */
 export default function TestRunPage() {
   const { projectId, runId } = useParams();
@@ -116,7 +129,7 @@ function RunView({ project, runId }: { project: SampleProject; runId: string }) 
         </div>
       )}
       {sessionId && session ? (
-        <SessionLive project={project} session={session} backSearch={backSearch} />
+        <SessionLive project={project} run={run} session={session} backSearch={backSearch} />
       ) : (
         <RunDashboard project={project} run={run} missingSession={sessionId != null && !session} />
       )}
@@ -134,7 +147,9 @@ function RunDashboard({
   missingSession: boolean;
 }) {
   const phase = runPhase(run);
+  const navigate = useNavigate();
   const tasks = taskOptions(run.sessions);
+  const { order, summary, title } = useRunTitle(run);
   /* 과업·상태 필터는 주소에 두어 세션 라이브에 갔다 와도 유지합니다 */
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTask = searchParams.get("task");
@@ -156,22 +171,40 @@ function RunDashboard({
     setSearchParams(next, { replace: true });
   };
   const taskSessions = run.sessions.filter((session) => session.task_id === activeTaskId);
-  const elapsedMs = useElapsed(run.created_at, phase === "preparing" || phase === "running");
+  const elapsedMs = useElapsed(
+    run.created_at,
+    phase === "preparing" || phase === "running" || phase === "analyzing",
+  );
 
-  const title =
-    tasks.length > 1
-      ? `${tasks[0].name} 외 ${tasks.length - 1}개`
-      : (tasks[0]?.name ?? "사전 테스트");
-  const profileCount = new Set(run.sessions.map((session) => session.profile_id)).size;
-  const badge = phase === "idle" ? null : PHASE_BADGE[phase];
+  /* P10: 분석 화면을 보던 중 끝나면 리포트로 자동 이동합니다 (이미 끝난 실행을 연 경우는 요약만) */
+  const sawAnalyzing = useRef(false);
+  useEffect(() => {
+    if (phase === "analyzing") sawAnalyzing.current = true;
+    if (phase === "completed" && sawAnalyzing.current && run.id) {
+      navigate(buildPath("report", { projectId: project.id, runId: run.id }), { replace: true });
+    }
+  }, [phase, run.id, project.id, navigate]);
+
+  const panelSize =
+    run.panel?.reduce((total, segment) => total + segment.count, 0) ?? taskSessions.length;
+  const seeds = run.seeds ?? { current: 1, total: 1 };
+  const condition = [
+    `과업 ${tasks.length}개`,
+    /* Figma P10 은 기기 조건을 빼고 보여줍니다 */
+    ...(phase === "analyzing" ? [] : [DEVICE]),
+    `${panelSize}명 × 시드 ${seeds.total}회 (${seeds.current}/${seeds.total})`,
+  ].join(" · ");
+  const ended = phase === "failed" || phase === "stopped";
+  const badge = phase === "idle" || phase === "stopped" ? null : PHASE_BADGE[phase];
 
   return (
     <div className="flex flex-col gap-12">
       <ProjectPageHeader
         projectId={project.id}
         breadcrumb={`${project.name} / 사전 테스트 · 테스트`}
-        title={title}
-        description={`과업 ${tasks.length}개 · 프로필 ${profileCount}개 · 세션 ${run.sessions.length}개 · 동시 3세션`}
+        /* E05·E12 는 "과업 · n차" 순서이고 실행 조건 줄이 없습니다 */
+        title={ended ? `${summary} · ${order}차` : title}
+        description={ended ? undefined : condition}
         activeTab="tests"
         actions={badge && <StatusBadge {...badge} />}
       />
@@ -184,10 +217,13 @@ function RunDashboard({
 
       {phase === "failed" ? (
         <RunFailed run={run} projectId={project.id} />
+      ) : phase === "stopped" ? (
+        <RunStopped run={run} projectId={project.id} />
       ) : (
         <>
           {phase === "completed" && <RunCompleted run={run} projectId={project.id} />}
           <RunProgress
+            phase={phase}
             sessions={run.sessions}
             taskId={activeTaskId}
             onTaskChange={(id) => {
@@ -195,12 +231,26 @@ function RunDashboard({
               if (id !== activeTaskId) updateQuery({ task: id, filter: null });
             }}
             elapsedMs={phase === "completed" ? null : elapsedMs}
+            nextHint={
+              phase === "preparing"
+                ? `다음: 세션 ${taskSessions.length}개와 Think-aloud (자동 전환)`
+                : phase === "analyzing"
+                  ? "다음: 리포트 (자동 이동)"
+                  : undefined
+            }
+            checklist={
+              phase === "preparing" ? (
+                <PreparingChecklist run={run} panelSize={panelSize} />
+              ) : phase === "analyzing" ? (
+                <AnalyzingChecklist run={run} />
+              ) : undefined
+            }
           />
-          {phase === "preparing" && <PreparingChecklist run={run} />}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <SessionBoard
                 sessions={taskSessions}
+                filterable={phase === "running"}
                 filter={filter}
                 onFilterChange={(next) => updateQuery({ filter: next === "all" ? null : next })}
                 sessionSearch={(id) => {
@@ -210,7 +260,7 @@ function RunDashboard({
                 }}
               />
             </div>
-            <ActionFeed sessions={taskSessions} />
+            <ThinkAloudFeed sessions={taskSessions} />
           </div>
         </>
       )}

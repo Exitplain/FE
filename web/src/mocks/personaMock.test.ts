@@ -31,7 +31,7 @@ async function confirmBody(overrides: Partial<ConfirmRequest> = {}): Promise<Con
 
 /* 실행이 끝날 때까지 상태를 조회합니다 (mock 은 조회할 때마다 한 단계씩 진행) */
 async function runToCompletion() {
-  for (let i = 0; i < 50; i += 1) {
+  for (let i = 0; i < 100; i += 1) {
     const run = await getPersonaRun();
     if (run.status === "completed") return run;
   }
@@ -97,38 +97,82 @@ describe("페르소나 mock — 확인 검증 (BE preflight.confirm 규칙)", ()
 });
 
 describe("페르소나 mock — 실행", () => {
-  it("확인하면 과업 × 프로필 3개 세션이 대기 상태로 시작한다", async () => {
+  it("확인하면 에이전트 20명 × 과업 세션이 준비 단계·대기 상태로 시작한다", async () => {
     const run = await confirmPersonaRun(await confirmBody());
 
     expect(run.status).toBe("running");
-    expect(run.sessions).toHaveLength(6);
-    expect(run.sessions.map((session) => session.id)).toContain("quick_order");
+    expect(run.stage).toBe("preparing");
+    expect(run.prepare).toEqual({ browsers_ready: 0, browsers_total: 20 });
+    expect(run.seeds).toEqual({ current: 1, total: 3 });
+    expect(run.sessions).toHaveLength(40);
+    expect(run.sessions[0]).toMatchObject({
+      id: "P-001_order",
+      code: "P-001",
+      segment_name: "빠른 구매형",
+      seed: 1,
+    });
     expect(run.sessions.every((session) => session.status === "queued")).toBe(true);
+    expect(run.panel?.map((segment) => segment.count)).toEqual([5, 5, 5, 5]);
     expect(run.audience?.ages).toEqual(["30s"]);
   });
 
-  it("조회할수록 진행되고, 끝날 때까지 동시에 3세션까지만 실행한다", async () => {
+  it("준비 → 실행(시드 1~3) → 분석 1~3단계 → 완료 순서로 진행한다", async () => {
     await confirmPersonaRun(await confirmBody());
 
-    let sawRunning = false;
-    for (let i = 0; i < 50; i += 1) {
+    const stages: string[] = [];
+    const seeds = new Set<number>();
+    const steps = new Set<number>();
+    for (let i = 0; i < 100; i += 1) {
       const run = await getPersonaRun();
-      const running = run.sessions.filter((session) => session.status === "running").length;
-      expect(running).toBeLessThanOrEqual(3);
-      sawRunning ||= running > 0;
+      if (stages.at(-1) !== run.stage) stages.push(run.stage!);
+      if (run.stage === "running") seeds.add(run.seeds!.current);
+      if (run.stage === "analyzing") steps.add(run.analysis!.step);
+      expect(run.sessions.filter((s) => s.status === "running").length).toBeLessThanOrEqual(20);
       if (run.status === "completed") break;
     }
-    expect(sawRunning).toBe(true);
+
+    expect(stages).toEqual(["preparing", "running", "analyzing", "completed"]);
+    expect([...seeds]).toEqual([1, 2, 3]);
+    expect([...steps]).toEqual([1, 2, 3]);
   });
 
-  it("여유 있는 탐색의 배송 지역 확인은 실행 오류로 끝나 기술 실패를 확인할 수 있다", async () => {
+  it("세션은 진행하면서 행동 기록·Think-aloud 발화·토큰·비용이 쌓인다 (임시 필드)", async () => {
+    await confirmPersonaRun(await confirmBody());
+
+    const run = await runToCompletion();
+    const session = run.sessions[0];
+
+    expect(session.events.length).toBeGreaterThan(0);
+    expect(session.utterances?.length).toBe(session.events.length);
+    expect(session.tokens).toBeGreaterThan(0);
+    expect(session.elapsed_ms).toBeGreaterThan(0);
+  });
+
+  it("배송 지역 확인은 모든 세션이 접속 실패라 첫 시드에서 끝난다 (E05 예시)", async () => {
     await confirmPersonaRun(
       await confirmBody({ feature_ids: ["delivery"], task_ids: ["delivery"] }),
     );
 
     const run = await runToCompletion();
 
-    expect(run.sessions.find((s) => s.id === "patient_delivery")?.status).toBe("agent_failure");
+    expect(run.seeds?.current).toBe(1);
+    expect(run.sessions.every((s) => s.status === "agent_failure")).toBe(true);
+  });
+
+  it("과업이 5개 이상이면 시드 2 중간에 비용 상한으로 멈추고 부분 결과로 끝난다 (E12 예시)", async () => {
+    await confirmPersonaRun(
+      await confirmBody({
+        feature_ids: ["shopping", "coupon", "subscription"],
+        task_ids: ["order", "cart", "coupon", "benefit", "subscription"],
+      }),
+    );
+
+    const run = await runToCompletion();
+
+    expect(run.stopped).toMatchObject({ reason: "budget", seed: 2, total: 300, cost_ratio: 1 });
+    expect(run.stopped!.finished).toBeLessThan(run.stopped!.total);
+    const report = await getPersonaReport(run.id!);
+    expect(report.limitations.join(" ")).toMatch(/비용 상한/);
   });
 
   it("끝나면 completed 가 되고 모든 세션이 종료 상태다", async () => {
@@ -150,7 +194,7 @@ describe("페르소나 mock — 실행", () => {
     const reports = await getPersonaReports();
 
     expect(reports.map((report) => report.run_id)).toEqual([second.id, first.id]);
-    expect(reports[1]).toMatchObject({ sessions: 6, variant: "problem" });
+    expect(reports[1]).toMatchObject({ sessions: 40, variant: "problem" });
   });
 });
 
@@ -243,14 +287,17 @@ describe("페르소나 mock — 리포트", () => {
 
     const report = await getPersonaReport(run.id!);
 
-    expect(report.summary).toMatchObject({ sessions: 6, simulated_dropout: 2, technical: 1 });
-    expect(report.technical_failures).toEqual([
-      expect.objectContaining({ session_id: "patient_delivery", status: "agent_failure" }),
-    ]);
+    expect(report.summary).toMatchObject({ sessions: 40, simulated_dropout: 10, technical: 20 });
+    expect(report.technical_failures).toHaveLength(20);
+    expect(report.technical_failures[0]).toMatchObject({
+      session_id: "P-001_delivery",
+      persona_name: "P-001",
+      status: "agent_failure",
+    });
     /* 기술 실패는 퍼널 분모에서 빠집니다 */
     const delivery = report.tasks.find((task) => task.id === "delivery");
-    expect(delivery).toMatchObject({ total: 3, technical: 1 });
-    expect(delivery?.funnel?.[0]).toMatchObject({ stage: "landing", reached: [2, 2] });
+    expect(delivery).toMatchObject({ total: 20, technical: 20 });
+    expect(delivery?.funnel?.[0]).toMatchObject({ stage: "landing", reached: [0, 0] });
   });
 
   it("과업 퍼널은 단계별 도달·이탈 인원을 범위로 주고, 이탈은 문제로 묶는다", async () => {
@@ -260,31 +307,40 @@ describe("페르소나 mock — 리포트", () => {
     const report = await getPersonaReport(run.id!);
     const funnel = report.tasks[0].funnel!;
 
-    /* 빠른 구매는 가입 화면에서 떠나 장바구니까지만 넘어온 것으로 셉니다 (가입 행의 이탈) */
+    /* 시드 3회의 [최소, 최대]. 가입 화면에서 떠난 세션은 장바구니까지만 넘어온 것으로 셉니다 */
     expect(funnel.map((stage) => stage.reached)).toEqual([
-      [3, 3],
-      [3, 3],
-      [3, 3],
-      [2, 2],
-      [2, 2],
-      [2, 2],
+      [20, 20],
+      [17, 20],
+      [17, 20],
+      [10, 15],
+      [8, 13],
+      [8, 13],
     ]);
-    expect(funnel.map((stage) => stage.dropout[0])).toEqual([0, 0, 0, 1, 0, 0]);
+    expect(funnel.map((stage) => stage.dropout)).toEqual([
+      [0, 0],
+      [0, 3],
+      [0, 0],
+      [5, 8],
+      [2, 2],
+      [0, 0],
+    ]);
+    /* 문제 수는 대표 시드(시드 1) 기준 */
     expect(report.findings).toEqual([
       expect.objectContaining({
         stage: "signup",
         category: "input_burden",
-        affected_sessions: 1,
-        task_sessions: 3,
+        affected_sessions: 8,
+        task_sessions: 20,
       }),
+      expect.objectContaining({ stage: "checkout", category: "cost", affected_sessions: 2 }),
     ]);
     /* mock 은 화면을 캡처하지 않아 근거 이미지를 만들어 채우지 않습니다 */
     expect(report.findings[0].evidence[0]).toMatchObject({
-      session_id: "quick_order",
+      session_id: "P-001_order",
       artifact_id: null,
       evidence_status: "missing",
     });
-    expect(report.summary.missing_evidence).toBe(1);
+    expect(report.summary.missing_evidence).toBe(10);
   });
 
   it("run_id 를 생략하면 현재 실행의 리포트를 준다", async () => {
@@ -331,20 +387,31 @@ describe("페르소나 mock — 리포트", () => {
 
     for (const task of report.tasks) {
       const funnel = task.funnel!;
-      /* 구간 i → i+1 의 세그먼트 합 = 퍼널 i+1 단계 이탈 */
+      /*
+        시드마다는 구간 i → i+1 의 세그먼트 합 = 퍼널 i+1 단계 이탈.
+        범위는 세그먼트·퍼널을 따로 [최소, 최대] 로 합쳐, 세그먼트 합의 범위가 퍼널 범위를 감쌉니다
+      */
       funnel.slice(1).forEach((stage, index) => {
-        const sum = task.segments!.reduce(
-          (total, segment) => total + segment.dropouts[index][0],
-          0,
+        const [low, high] = task.segments!.reduce(
+          ([min, max], segment) => [
+            min + segment.dropouts[index][0],
+            max + segment.dropouts[index][1],
+          ],
+          [0, 0],
         );
-        expect(sum).toBe(stage.dropout[0]);
+        expect(low).toBeLessThanOrEqual(stage.dropout[0]);
+        expect(high).toBeGreaterThanOrEqual(stage.dropout[1]);
       });
       expect(task.actual).toMatchObject({ status: "comparable" });
     }
     const order = report.tasks.find((task) => task.id === "order")!;
     expect(order.actual).toMatchObject({ max_drop: { predicted: ["cart", "signup"] } });
-    expect(order.median_duration).toEqual([180, 180]);
-    expect(report.conditions).toEqual({ panel_size: 3, seeds: 1, calibrated_at: null });
+    expect(order.median_duration).toEqual([86, 95]);
+    expect(report.conditions).toEqual({
+      panel_size: 20,
+      seeds: 3,
+      calibrated_at: "2026-11-05T05:50:00+00:00",
+    });
   });
 
   it("Markdown 과 PDF 로 내보낼 수 있다", async () => {
@@ -370,7 +437,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
   ): HumanObservationRequest {
     return {
       run_id: runId,
-      persona_id: "quick_order",
+      persona_id: "P-001_order",
       participant_id: "H-001",
       outcome: "dropout",
       stage: "signup",
@@ -386,7 +453,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
     await saveHumanObservation(observation(run.id!));
     const saved = await saveHumanObservation(
       observation(run.id!, {
-        persona_id: "careful_order",
+        persona_id: "P-002_order",
         participant_id: "H-002",
         stage: "cart",
         cause: "cost",
@@ -398,7 +465,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
     expect(report.alignment).toMatchObject({
       participants: 2,
       observations: 2,
-      /* careful_order 는 예측상 완료 → 결과·단계·원인 모두 다름 */
+      /* P-002_order 는 예측상 완료 → 결과·단계·원인 모두 다름 */
       metrics: {
         outcome: { matched: 1, total: 2 },
         stage: { matched: 1, total: 2 },
@@ -416,7 +483,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
 
     await saveHumanObservation(
       observation(run.id!, {
-        persona_id: "patient_delivery",
+        persona_id: "P-001_delivery",
         stage: "delivery",
         cause: "unknown",
       }),
@@ -442,7 +509,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
     ]);
 
     await expect(
-      saveHumanObservation(observation(run.id!, { persona_id: "careful_order" })),
+      saveHumanObservation(observation(run.id!, { persona_id: "P-002_order" })),
     ).rejects.toMatchObject({ status: 400 });
   });
 

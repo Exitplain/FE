@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/persona.api";
+import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
 import { buildPath, ROUTES } from "@/constants/routes";
 import { personaErrorHandlers } from "@/mocks/handlers/personas";
 import { server } from "@/mocks/node";
+import { finishPersonaMock } from "@/mocks/personaMock";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { DropCause, PersonaReport, ReportActual } from "@/types/persona.type";
 
@@ -32,14 +33,10 @@ async function startRun(features: string[], tasks: string[]) {
   });
 }
 
-/* mock 은 조회할 때마다 진행하므로 끝날 때까지 부릅니다 */
+/* mock 은 조회할 때마다 진행하므로 테스트에서는 끝까지 바로 돌립니다 */
 async function completeRun(features = ["shopping", "coupon"], tasks = ["order", "coupon"]) {
   await startRun(features, tasks);
-  for (let i = 0; i < 30; i += 1) {
-    const run = await getPersonaRun();
-    if (run.status === "completed") return run.id!;
-  }
-  throw new Error("mock 실행이 끝나지 않았습니다");
+  return finishPersonaMock().id!;
 }
 
 describe("P12 리포트", () => {
@@ -50,34 +47,36 @@ describe("P12 리포트", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
     ).toBeInTheDocument();
-    /* 과업별 3명 · mock 은 시드 1회 · 보정 없음 */
-    expect(screen.getByText(/3명 × 시드 1회 · 보정 전/)).toBeInTheDocument();
-    /* mock 소요 시간 = 스텝 12 × 15초 */
+    /* 패널 20명 · 시드 3회 · 최근 보정(11월 5일) */
+    expect(screen.getByText(/20명 × 시드 3회 · 보정 11월 5일/)).toBeInTheDocument();
+    /* 시드별 완료자 중앙 소요 시간의 범위 */
     expect(screen.getByText("완료자 중앙 소요 시간").nextElementSibling).toHaveTextContent(
-      "3분 0초",
+      "1분 26초~1분 35초",
     );
 
-    /* 퍼널 마지막 도달 2명 / 첫 단계 3명 */
-    expect(screen.getByText("67%")).toBeInTheDocument();
-    expect(screen.getByText("완료 2명 / 3명")).toBeInTheDocument();
-    /* 빠른 구매 세션이 가입 단계에서 이탈 → 직전 단계(장바구니)에서 가입으로 가는 구간 */
+    /* 퍼널 마지막 도달 8~13명 / 첫 단계 20명 */
+    expect(screen.getByText("40~65%")).toBeInTheDocument();
+    expect(screen.getByText("완료 8~13명 / 20명")).toBeInTheDocument();
+    /* 가입 단계 이탈이 가장 많음 → 직전 단계(장바구니)에서 가입으로 가는 구간 */
     expect(screen.getByText("장바구니 → 가입")).toBeInTheDocument();
 
     const funnel = screen.getByRole("table", { name: "예측 퍼널" });
     expect(within(funnel).getAllByRole("row")).toHaveLength(6);
-    expect(within(funnel).getByRole("row", { name: /첫 화면/ })).toHaveTextContent("3명 (100%)");
-    expect(within(funnel).getByRole("row", { name: /가입/ })).toHaveTextContent("2명 · 이탈 1");
+    expect(within(funnel).getByRole("row", { name: /첫 화면/ })).toHaveTextContent("20명 (100%)");
+    expect(within(funnel).getByRole("row", { name: /가입/ })).toHaveTextContent(
+      "10~15명 · 이탈 5~8",
+    );
 
     expect(screen.getByRole("table", { name: "이탈 원인 분포" })).toHaveTextContent(
-      "입력 부담100%",
+      "입력 부담80%비용 충격20%",
     );
 
     const issue = screen.getByRole("button", { name: /입력 부담 · 가입 단계/ });
     expect(issue).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("캡처된 근거 화면이 없어요")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "세션 1개 전체 보기" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "세션 8개 전체 보기" })).toHaveAttribute(
       "href",
-      buildPath("sessionDetail", { projectId: "banchan", runId, sessionId: "quick_order" }),
+      buildPath("sessionDetail", { projectId: "banchan", runId, sessionId: "P-001_order" }),
     );
   });
 
@@ -86,14 +85,15 @@ describe("P12 리포트", () => {
     renderReport(runId);
 
     const section = await screen.findByRole("region", { name: "세그먼트 × 이탈 구간" });
-    /* 빠른 구매가 장바구니 → 가입 구간에서 떠남 */
-    expect(section).toHaveTextContent("최다: 빠른 구매 장바구니→가입 1명");
+    /* 빠른 구매형이 장바구니 → 가입 구간에서 가장 많이 떠남 (상한 기준) */
+    expect(section).toHaveTextContent("최다: 빠른 구매형 장바구니→가입 5명");
 
-    await userEvent.click(within(section).getByRole("button", { name: "세그먼트 3개 더 보기" }));
+    await userEvent.click(within(section).getByRole("button", { name: "세그먼트 4개 더 보기" }));
     const table = within(section).getByRole("table", { name: "세그먼트 × 이탈 구간 히트맵" });
     expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
-    expect(within(table).getByRole("row", { name: /빠른 구매/ })).toHaveTextContent(
-      "빠른 구매00100",
+    expect(within(table).getAllByRole("row")).toHaveLength(5);
+    expect(within(table).getByRole("row", { name: /빠른 구매형/ })).toHaveTextContent(
+      "빠른 구매형002~500",
     );
 
     await userEvent.click(within(section).getByRole("button", { name: "접기" }));
@@ -140,7 +140,7 @@ describe("P12 리포트", () => {
       screen.getByRole("heading", { level: 1, name: "쿠폰으로 주문 · 1차" }),
     ).toBeInTheDocument();
     /* 과업을 바꿔도 그 과업의 첫 문제가 펼쳐져 있어야 합니다 */
-    expect(screen.getByRole("button", { name: /입력 부담 · 장바구니 단계/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /탐색 실패 · 장바구니 단계/ })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
@@ -161,8 +161,8 @@ describe("P12 리포트", () => {
 
     const section = await screen.findByRole("region", { name: "기술 실패 · 한도 초과" });
     expect(section).toHaveTextContent("이탈률·원인 계산에서 제외");
-    expect(section).toHaveTextContent("여유 있는 탐색");
-    expect(section).toHaveTextContent("브라우저 실행 오류 (mock)");
+    expect(section).toHaveTextContent("P-001");
+    expect(section).toHaveTextContent("접속 불가 · 응답 시간 초과 3회");
   });
 
   it("실행 선택(P12c)에서 다른 완료 실행으로 이동하고, 진행 중 실행은 고를 수 없다", async () => {

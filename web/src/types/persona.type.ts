@@ -60,6 +60,10 @@ export type DiscoverResponse = {
   - context·additional_request: 500자 이하 (빈 문자열 가능)
   응답은 202 + 실행 상태(PersonaRun). 호출 즉시 실행이 시작됩니다.
 */
+/*
+  임시: P07 에서 만든 패널(POST /api/v1/persona-panels)을 가리키는 필드가 아직 없습니다.
+  mock 은 마지막으로 만든 패널을 기억해 쓰므로, 서버 명세가 나오면 panel_id 같은 연결 필드를 맞춥니다.
+*/
 export type ConfirmRequest = {
   plan_id: string;
   feature_ids: string[];
@@ -163,6 +167,67 @@ export type PersonaSession = PersonaProfile & {
   answers?: ExplainAnswer[];
   /* 브라우저 정리에 실패했을 때만 */
   cleanup_warning?: string;
+  /*
+    ─── 임시: Figma 실행 화면(P08~P11)에 필요한 필드. 명세에 없음 ───
+    P 코드("P-001"), 세그먼트, 시드, Think-aloud 발화, 경과·토큰·비용
+  */
+  code?: string;
+  segment_id?: string;
+  segment_name?: string;
+  seed?: number;
+  utterances?: ThinkAloud[];
+  elapsed_ms?: number;
+  tokens?: number;
+  cost_usd?: number;
+};
+
+/* Think-aloud 발화 한 줄 (임시: 명세에 없음) */
+export type ThinkAloud = {
+  step: number;
+  stage: Stage;
+  text: string;
+  at: string;
+};
+
+/*
+  ─── 임시: 페르소나 패널 (P06 생성 · P07 확인). 명세 8절 P05b "segments" 를 화면에 맞게 구체화 ───
+  POST /api/v1/persona-panels { context, segments: [인원…] } → { segments: PanelSegment[] }
+*/
+export type PanelTraits = {
+  /* 행동 변수 0~100 */
+  patience: number;
+  digital: number;
+  price: number;
+  trust: number;
+};
+
+export type PanelSegment = {
+  id: string;
+  name: string;
+  count: number;
+  /* 이 세그먼트에 붙은 P 코드 범위 [처음, 끝] */
+  codes: [string, string];
+  representative: string;
+  traits: PanelTraits;
+};
+
+export type PersonaPanelRequest = { context: string; segments: number[] };
+export type PersonaPanel = { segments: PanelSegment[] };
+
+/*
+  임시: 실행 단계 (P08 준비 → P09 실행 → P10 분석 → 완료). BE 실행 상태(status)에는 준비·분석 단계가 없습니다.
+  - prepare: 브라우저 준비 개수 · seeds: 지금 시드 / 전체 · analysis: 분석 단계(1~3)
+  - stopped: 비용 상한 등으로 시드 중간에 멈춘 실행 (E12)
+*/
+export type RunStage = "preparing" | "running" | "analyzing" | "completed";
+
+export type RunStopped = {
+  reason: "budget";
+  seed: number;
+  finished: number;
+  total: number;
+  cost_ratio: number;
+  tokens: number;
 };
 
 /*
@@ -216,6 +281,13 @@ export type PersonaRun = {
   human_observations?: HumanObservation[];
   /* 사람 관측과 예측의 일치 요약 (K04) */
   alignment?: ReportAlignment;
+  /* 임시: 실행 단계·시드·패널 (위 RunStage 설명). 명세에 없음 */
+  stage?: RunStage;
+  prepare?: { browsers_ready: number; browsers_total: number };
+  seeds?: { current: number; total: number };
+  analysis?: { step: 1 | 2 | 3 };
+  panel?: PanelSegment[];
+  stopped?: RunStopped;
 };
 
 /* ─── 실행 목록 (GET /api/personas/reports) ─────────────────────────────── */
@@ -227,6 +299,14 @@ export type PersonaReportSummary = {
   variant: Variant | null;
   /* 세션 개수 */
   sessions: number;
+  /*
+    임시 (Figma P01): 목록 API 에 없는 값. 서버가 정하면 맞춥니다.
+    tasks: 고른 과업 이름 (테스트 이름 "첫 주문 외 1개") · outcome: 실패(E05)·비용 상한(E12) 구분
+    completion: 과업별 예측 목표 달성률 범위(%) — 실패 실행은 비어 있음
+  */
+  tasks?: string[];
+  outcome?: "completed" | "failed" | "stopped";
+  completion?: Range[];
 };
 
 export type PersonaReportsResponse = { reports: PersonaReportSummary[] };

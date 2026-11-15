@@ -3,23 +3,29 @@ import type { StatusTone } from "@/components/StatusBadge/StatusBadge";
 import type { PersonaRun, PersonaSession, SessionStatus, Stage } from "@/types/persona.type";
 
 /*
-  실행 화면이 어떤 상태를 보여줄지 (BE 실행 상태에는 준비·분석 단계가 따로 없어 세션으로 판단)
-  - preparing (P08): 실행 중이지만 아직 어떤 세션도 행동하지 않음 (브라우저 준비)
-  - running (P09): 한 세션이라도 행동을 시작했거나 끝남
-  - completed (P10 자리): 실행 종료 — BE 는 리포트를 요청할 때 계산하므로 "분석 중" 단계 없이 결과 요약
+  실행 화면이 어떤 상태를 보여줄지
+  - preparing (P08): 브라우저 준비 · running (P09): 세션 진행 · analyzing (P10): 결과 분석
+  - completed: 실행 종료 (분석 화면을 보고 있었다면 리포트로 자동 이동)
   - failed (E05): 끝났는데 모든 세션이 기술 실패(실행 오류·한도 도달)
+  - stopped (E12): 비용 상한에 닿아 중간에 멈춤 (부분 결과)
+  임시 stage 필드(mock)가 있으면 그것을 따르고, 없으면(BE 개발 서버) 세션 상태로 판단합니다.
 */
-export type RunPhase = "idle" | "preparing" | "running" | "completed" | "failed";
+export type RunPhase =
+  "idle" | "preparing" | "running" | "analyzing" | "completed" | "failed" | "stopped";
 
 const TECHNICAL_FAILURE: SessionStatus[] = ["agent_failure", "budget_exceeded"];
 
 export function runPhase(run: PersonaRun): RunPhase {
   if (run.status === "idle") return "idle";
   if (run.status === "completed") {
+    if (run.stopped) return "stopped";
     const allFailed =
       run.sessions.length > 0 &&
       run.sessions.every((session) => TECHNICAL_FAILURE.includes(session.status));
     return allFailed ? "failed" : "completed";
+  }
+  if (run.stage === "preparing" || run.stage === "running" || run.stage === "analyzing") {
+    return run.stage;
   }
   const started = run.sessions.some(
     (session) => session.steps > 0 || !["queued", "running"].includes(session.status),
@@ -135,8 +141,58 @@ export function formatElapsed(ms: number) {
   return `${Math.floor(seconds / 60)}분 ${seconds % 60}초`;
 }
 
-/* BE 실행 한도 (agent/persona_dashboard.py) — 세션당 최대 행동 수 */
-export const MAX_STEPS = 35;
+/*
+  세션당 최대 행동 수. BE 개발 서버 한도는 35 지만 Figma·실행 조건(스텝 40)에 맞춰 40 으로 보여줍니다 (임시)
+*/
+export const MAX_STEPS = 40;
+/* 세션당 시간 상한 (실행 조건 "세션당 시간 상한 5분") */
+export const SESSION_TIME_LIMIT_MIN = 5;
+
+/* 타일·발화에 쓰는 이름: mock 은 P 코드와 세그먼트를 주고, 없으면(BE) 프로필 이름 */
+export function sessionCode(session: PersonaSession) {
+  return session.code ?? session.name;
+}
+export function sessionSegment(session: PersonaSession) {
+  return session.segment_name ?? session.name;
+}
+
+/* 행동 로그의 행동 이름 (Figma P11: 클릭 · 스크롤 · 입력 · 뒤로) */
+const ACTION_LABELS: Record<string, string> = {
+  click: "클릭",
+  scroll: "스크롤",
+  input: "입력",
+  type: "입력",
+  back: "뒤로",
+  navigate: "이동",
+};
+export function actionLabel(action: string) {
+  return ACTION_LABELS[action] ?? action;
+}
+
+/* 서울 시간 "14:36" */
+const clockFormat = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+export function formatClock(iso: string | null | undefined) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : clockFormat.format(date);
+}
+
+/* "12.4k 토큰" · "1.1M" */
+export function formatTokens(tokens: number) {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k`;
+  return String(tokens);
+}
+
+/* 세션의 마지막 Think-aloud 발화 (mock 임시 필드) */
+export function lastUtterance(session: PersonaSession) {
+  return session.utterances?.at(-1) ?? null;
+}
 
 /*
   P11 라이브 화면 iframe 주소 검증.
@@ -170,6 +226,7 @@ export function failureSummary(sessions: PersonaSession[]) {
     reason: allBudget
       ? "모든 세션이 행동·시간 한도에 닿았어요"
       : reasons.slice(0, 2).join(" · ") || "브라우저를 실행하지 못했어요",
+    /* Figma E05 "끝난 세션 0 / 20" — 정상 종료(완료·이탈)한 세션 */
     finishedNormally: counts.success + counts.dropout,
     total: counts.all,
   };

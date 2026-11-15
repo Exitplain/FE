@@ -4,6 +4,8 @@ export const ICON_NAMES = [
   "arrow-down",
   "arrow-right",
   "check",
+  /* P06 생성 단계 대기. Figma icon/circle 20 그리드를 24 그리드로 옮김 */
+  "circle",
   "chevron-down",
   "chevron-right",
   "close",
