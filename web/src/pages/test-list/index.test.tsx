@@ -52,12 +52,16 @@ describe("P01 사전 테스트 목록", () => {
     );
   });
 
-  it("실행 기록이 없으면 빈 상태(E02)를 보여준다", async () => {
+  it("실행 기록이 없으면 빈 상태(E02)만 보여주고 머리말 버튼은 숨긴다", async () => {
     renderPage();
 
     expect(
-      await screen.findByRole("heading", { name: "아직 사전 테스트가 없어요" }),
+      await screen.findByRole("heading", { name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("AI 고객 20명이 어디서 왜 떠나는지 알려줘요")).toBeInTheDocument();
+    /* 새 테스트 링크는 빈 상태 안의 하나뿐입니다 */
+    expect(screen.getAllByRole("link", { name: "새 테스트 시작하기" })).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "사전 테스트" })).not.toBeInTheDocument();
   });
 
   it("진행 중인 실행은 실행 화면으로, 완료된 실행은 리포트로 연결한다", async () => {
@@ -93,7 +97,7 @@ describe("P01 사전 테스트 목록", () => {
     await user.click(retry);
 
     expect(
-      await screen.findByRole("heading", { name: "아직 사전 테스트가 없어요" }),
+      await screen.findByRole("heading", { name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
   });
 

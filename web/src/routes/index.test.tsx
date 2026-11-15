@@ -73,8 +73,9 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
   it("목록(/tests)은 새 테스트가 아니라 테스트 목록(P01)을 연다", async () => {
     renderAt(buildPath("testList", { projectId }));
 
+    // 실행 기록이 없어 빈 상태(E02)가 열립니다
     expect(
-      await screen.findByRole("heading", { level: 2, name: "사전 테스트" }),
+      await screen.findByRole("heading", { level: 2, name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
   });
 
