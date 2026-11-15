@@ -19,6 +19,23 @@ class NoopResizeObserver {
 }
 vi.stubGlobal("ResizeObserver", NoopResizeObserver);
 
+/*
+  jsdom 의 Blob 에는 stream() 이 없습니다. Node 22(CI) 의 fetch(undici)는 Blob 응답 본문을 만들 때
+  stream() 을 불러, PDF 내려받기(responseType: "blob") 테스트가 "object.stream is not a function" 으로 멈춥니다.
+  arrayBuffer() 로 읽어 한 번에 내보내는 스트림으로 채웁니다. (Node 26 은 다른 경로라 영향 없음)
+*/
+if (typeof Blob !== "undefined" && typeof Blob.prototype.stream !== "function") {
+  Blob.prototype.stream = function stream(this: Blob) {
+    const read = () => this.arrayBuffer();
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(new Uint8Array(await read()));
+        controller.close();
+      },
+    });
+  } as Blob["stream"];
+}
+
 /* jsdom 의 window.scrollTo 는 "Not implemented" 를 출력만 하므로 조용한 빈 함수로 바꿉니다 */
 vi.stubGlobal("scrollTo", () => {});
 
