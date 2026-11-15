@@ -14,6 +14,14 @@
 
 개발 서버 API에는 인증·리소스 소유권 검사가 없습니다. 로그인 화면은 `/api/v1`이 생길 때까지 mock으로 만듭니다.
 
+위 표는 로컬 개발 서버(4174) 기준입니다. 배포된 실서버(`http://43.200.218.110`)는 모든 API가 `/api/v1/*`이고, 표의 버전 없는 `/api/*` 경로는 없습니다. 실서버에서 확인된 경로는 `GET /api/v1/auth/session`, `GET /api/v1/auth/csrf`, `POST /api/v1/auth/google`, `/api/v1/projects`, `POST /api/v1/runs`입니다(2026-11-15).
+
+Vercel 배포본은 `build:mock`이지만 `vercel.json` rewrite로 `/api/*`를 실서버에 넘깁니다. ([WEB_SETUP.md](WEB_SETUP.md) 5절)
+
+- MSW 핸들러는 메서드별입니다. 아래 요청은 계속 mock이 응답합니다: `/api/personas*`(GET·POST, `personas.ts` 참고), `POST /api/v1/persona-panels`, `GET /api/v1/projects/{id}/calibrations`, `GET /api/artifacts/{id}`.
+- 그 밖의 `/api/*`(예: `GET /api/v1/auth/session`, 핸들러 없는 `GET /api/state`)는 실서버로 갑니다. 실서버에 없는 경로는 404입니다.
+- 실서버 API를 붙일 때는 해당 mock 핸들러를 지우면 배포본도 실서버를 씁니다.
+
 ## 2. 호출 흐름
 
 ```

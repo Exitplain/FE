@@ -45,6 +45,8 @@ dev 서버가 `/api/*` 요청을 `VITE_API_PROXY_TARGET`(기본 `http://127.0.0.
 npm run dev:mock     # .env.mock 사용, MSW가 /api 요청을 가로챕니다
 ```
 
+**Vercel 배포** — `build:mock`으로 빌드하고, `vercel.json` rewrite가 mock 핸들러가 없는 `/api/*`를 실서버로 넘깁니다. [docs/WEB_SETUP.md](../docs/WEB_SETUP.md) 5절 참고.
+
 ## 스크립트
 
 | 명령                              | 설명                      |
