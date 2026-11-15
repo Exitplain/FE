@@ -109,10 +109,12 @@ describe("P12 리포트", () => {
     await user.click(await screen.findByRole("button", { name: "공유 링크 복사" }));
     const dialog = screen.getByRole("dialog", { name: "공유 링크" });
     const link = within(dialog).getByRole("textbox", { name: "링크" });
-    expect(link).toHaveValue(`${window.location.origin}/share/${runId}`);
+    expect(link).toHaveValue(`${window.location.origin}/share/${runId}?task=order`);
 
     await user.click(within(dialog).getByRole("button", { name: "복사" }));
-    expect(await navigator.clipboard.readText()).toBe(`${window.location.origin}/share/${runId}`);
+    expect(await navigator.clipboard.readText()).toBe(
+      `${window.location.origin}/share/${runId}?task=order`,
+    );
   });
 
   it("목업 비교(P12b): 관측 화면과 개선 목업이 없으면 만들지 않고 없다고 보여준다", async () => {

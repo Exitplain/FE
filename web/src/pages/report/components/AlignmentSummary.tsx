@@ -52,7 +52,7 @@ function ActualWaiting({
   projectId,
 }: {
   actual: Exclude<ReportActual, { status: "comparable" }>;
-  projectId: string;
+  projectId?: string;
 }) {
   const headingId = useId();
   const look = WAITING[actual.status];
@@ -78,12 +78,14 @@ function ActualWaiting({
         {text.title}
       </p>
       <p className="text-caption text-subtle">{text.body}</p>
-      <Link
-        to={buildPath("analytics", { projectId })}
-        className={buttonVariants({ className: "self-end" })}
-      >
-        {look.action}
-      </Link>
+      {projectId && (
+        <Link
+          to={buildPath("analytics", { projectId })}
+          className={buttonVariants({ className: "self-end" })}
+        >
+          {look.action}
+        </Link>
+      )}
     </section>
   );
 }
@@ -100,7 +102,8 @@ export default function AlignmentSummary({
 }: {
   alignment: ReportAlignment;
   actual?: ReportActual;
-  projectId: string;
+  /* 없으면(P21 공유 리포트) 앱 안 화면으로 가는 링크를 숨깁니다 */
+  projectId?: string;
 }) {
   if (actual.status !== "comparable")
     return <ActualWaiting actual={actual} projectId={projectId} />;
@@ -146,12 +149,14 @@ export default function AlignmentSummary({
           예측 {dropText(actual.max_drop.predicted)} · 실측 {dropText(actual.max_drop.actual)}
         </p>
       </div>
-      <Link
-        to={buildPath("analytics", { projectId })}
-        className={buttonVariants({ variant: "link", className: "-ml-2 self-start" })}
-      >
-        실측 분석 보기
-      </Link>
+      {projectId && (
+        <Link
+          to={buildPath("analytics", { projectId })}
+          className={buttonVariants({ variant: "link", className: "-ml-2 self-start" })}
+        >
+          실측 분석 보기
+        </Link>
+      )}
     </ReportSection>
   );
 }

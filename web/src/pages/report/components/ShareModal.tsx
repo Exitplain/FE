@@ -16,15 +16,19 @@ export default function ShareModal({
   open,
   onClose,
   runId,
+  taskId,
 }: {
   open: boolean;
   onClose: () => void;
   runId: string;
+  /* 보고 있던 과업을 받는 사람도 먼저 보도록 ?task= 로 붙입니다 */
+  taskId?: string;
 }) {
   const show = useToastStore((state) => state.show);
   const inputRef = useRef<HTMLInputElement>(null);
   /* TODO(API): 공유 API 응답의 url 로 바꿉니다. 실행 ID 는 추측 가능해 공개 토큰으로 쓰면 안 됩니다 */
-  const url = `${window.location.origin}${buildPath("sharedReport", { shareId: runId })}`;
+  const query = taskId ? `?task=${encodeURIComponent(taskId)}` : "";
+  const url = `${window.location.origin}${buildPath("sharedReport", { shareId: runId })}${query}`;
 
   const copy = async () => {
     try {

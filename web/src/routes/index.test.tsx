@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import { buildPath, ROUTES, type RouteKey } from "@/constants/routes";
+import { buildPath } from "@/constants/routes";
 import { createTestQueryClient } from "@/test/renderWithProviders";
 
 import { routes } from "./index";
@@ -16,15 +16,6 @@ function renderAt(path: string) {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-}
-
-/*
-  아직 화면이 없는 라우트는 PagePlaceholder 가 제목과 경로 패턴을 보여줍니다.
-  화면을 구현해 PagePlaceholder 를 지우면 해당 케이스의 확인 대상(제목 등)도 같이 바꿉니다.
-*/
-function expectPlaceholder(key: RouteKey) {
-  expect(screen.getByRole("heading", { level: 1, name: ROUTES[key].title })).toBeInTheDocument();
-  expect(screen.getByText(ROUTES[key].path)).toBeInTheDocument();
 }
 
 const projectId = "banchan";
@@ -99,9 +90,14 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     expect(screen.getByRole("heading", { name: "페이지를 찾을 수 없습니다" })).toBeInTheDocument();
   });
 
-  it("공유 리포트는 프로젝트 밖 경로를 유지한다", () => {
+  it("공유 리포트(P21)는 프로젝트 밖 경로에서 사이드바 없이 연다", async () => {
     renderAt(buildPath("sharedReport", { shareId: "abc" }));
 
-    expectPlaceholder("sharedReport");
+    // 저장된 실행이 아닌 shareId 라 만료 안내(E17)가 열립니다
+    expect(
+      await screen.findByRole("heading", { name: "공유 링크가 만료됐거나 해제됐어요" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("읽기 전용")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "대시보드" })).not.toBeInTheDocument();
   });
 });

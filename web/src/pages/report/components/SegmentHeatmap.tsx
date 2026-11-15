@@ -24,9 +24,17 @@ function heatLevel(value: number, max: number) {
   접힘: 가장 많이 떠난 칸 한 줄 + "세그먼트 n개 더 보기" / 펼침: 세그먼트 × 구간 히트맵 표 (Figma Section/Heatmap)
   칸 값은 이탈 인원 범위의 상한(시드 범위가 있으면 "1~2")입니다.
 */
-export default function SegmentHeatmap({ task }: { task: ReportTask }) {
+export default function SegmentHeatmap({
+  task,
+  alwaysOpen = false,
+}: {
+  task: ReportTask;
+  /* P21 공유 리포트처럼 읽기만 하는 화면은 표를 펼친 채로 두고 접기 버튼을 숨깁니다 */
+  alwaysOpen?: boolean;
+}) {
   const headingId = useId();
-  const [open, setOpen] = useState(false);
+  const [toggled, setOpen] = useState(false);
+  const open = alwaysOpen || toggled;
   const funnel = task.funnel ?? [];
   const segments = task.segments ?? [];
   const transitions = funnel
@@ -103,14 +111,16 @@ export default function SegmentHeatmap({ task }: { task: ReportTask }) {
         </div>
       )}
 
-      <Button
-        variant="link"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="-ml-2 self-start"
-      >
-        {open ? "접기" : `세그먼트 ${segments.length}개 더 보기`}
-      </Button>
+      {!alwaysOpen && (
+        <Button
+          variant="link"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          className="-ml-2 self-start"
+        >
+          {open ? "접기" : `세그먼트 ${segments.length}개 더 보기`}
+        </Button>
+      )}
     </section>
   );
 }

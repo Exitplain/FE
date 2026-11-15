@@ -165,7 +165,12 @@ function Report({ project, runId }: { project: SampleProject; runId: string }) {
           <ReportNoTasks />
         ))}
       {report.data && <ReportFooter report={report.data} />}
-      <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} runId={runId} />
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        runId={runId}
+        taskId={task?.id}
+      />
       {report.data && retestOpen && (
         <RetestModal
           open
