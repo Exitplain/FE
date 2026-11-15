@@ -4,6 +4,11 @@
   새 도메인을 추가할 때 같은 형태로 이어서 작성합니다.
 */
 export const queryKeys = {
+  /* 로그인 상태. 로그인·로그아웃 성공 시 응답으로 바로 채웁니다 */
+  auth: {
+    all: ["auth"] as const,
+    session: () => [...queryKeys.auth.all, "session"] as const,
+  },
   personas: {
     all: ["personas"] as const,
     current: () => [...queryKeys.personas.all, "current"] as const,

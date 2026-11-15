@@ -1,25 +1,28 @@
-import googleIcon from "@/assets/login/google.svg";
-import Button from "@/components/Button/Button";
 import Input from "@/components/Input/Input";
 import { cn } from "@/utils/cn";
 
 import AuthButton from "./AuthButton";
+import GoogleLoginButton from "./GoogleLoginButton";
 import LoginError from "./LoginError";
 
 type EmailFormProps = {
   email: string;
   onEmailChange: (email: string) => void;
-  networkError: boolean;
+  /* 코드 요청·구글 로그인 실패 문구 (L10 네트워크 오류 포함) */
+  errorMessage: string | null;
+  /* 코드 요청 중 */
+  pending: boolean;
   onContinue: () => void;
-  onGoogle: () => void;
+  onGoogleCredential: (credential: string) => void;
 };
 
 export default function EmailForm({
   email,
   onEmailChange,
-  networkError,
+  errorMessage,
+  pending,
   onContinue,
-  onGoogle,
+  onGoogleCredential,
 }: EmailFormProps) {
   return (
     <div className="flex flex-col gap-8">
@@ -28,11 +31,12 @@ export default function EmailForm({
           로그인하면 고객이 어디서, 왜 이탈하는지 진단하고 UX 개선 방향까지 스마트하게 확인할 수
           있습니다.
         </p>
-        {networkError && <LoginError />}
+        {errorMessage && <LoginError message={errorMessage} />}
         <form
           noValidate
-          className={cn("flex flex-col gap-2.5", networkError && "mt-4")}
-          aria-describedby={networkError ? "login-error" : undefined}
+          aria-busy={pending}
+          className={cn("flex flex-col gap-2.5", errorMessage && "mt-4")}
+          aria-describedby={errorMessage ? "login-error" : undefined}
           onSubmit={(event) => {
             event.preventDefault();
             onContinue();
@@ -50,7 +54,7 @@ export default function EmailForm({
             onChange={(event) => onEmailChange(event.target.value)}
             className="h-12.5 rounded-full border border-gray-300 bg-surface px-6 placeholder:text-gray-300"
           />
-          <AuthButton type="submit" muted={!email && !networkError}>
+          <AuthButton type="submit" disabled={pending} muted={!email.trim() || pending}>
             계속
           </AuthButton>
         </form>
@@ -61,14 +65,7 @@ export default function EmailForm({
           <span className="login-divider-label">또는</span>
           <span className="h-px flex-1 bg-line" />
         </div>
-        <Button
-          variant="secondary"
-          className="h-12.5 w-full gap-2 rounded-full border border-gray-300 text-sm"
-          onClick={onGoogle}
-        >
-          <img src={googleIcon} alt="" className="size-5 shrink-0" />
-          Google로 계속하기
-        </Button>
+        <GoogleLoginButton onCredential={onGoogleCredential} />
       </div>
     </div>
   );
