@@ -92,7 +92,27 @@ proxy.on("proxyReq", (proxyReq) => {
 });
 ```
 
-이 처리는 개발 서버에만 해당합니다. 배포할 때는 BE와 같은 origin에서 제공하거나, BE의 Origin 검사 규칙을 함께 정해야 합니다.
+이 처리는 개발 서버에만 해당합니다. 배포본은 아래 Vercel rewrite를 씁니다.
+
+### Vercel 배포와 실서버 프록시
+
+실서버(`http://43.200.218.110`, 모든 API가 `/api/v1/*`)는 HTTP만 지원하고 CORS 헤더가 없습니다. HTTPS인 Vercel 페이지에서 직접 부르면 mixed content·CORS로 막히므로, `vercel.json`의 rewrite로 Vercel이 대신 요청합니다. 브라우저 입장에서는 같은 origin이라 CORS가 필요 없습니다.
+
+```json
+"rewrites": [
+  { "source": "/api/:path*", "destination": "http://43.200.218.110/api/:path*" },
+  { "source": "/(.*)", "destination": "/index.html" }
+]
+```
+
+- `/api` rewrite는 SPA fallback(`/(.*)`)보다 **앞에** 둡니다. 뒤에 두면 API 요청에 `index.html`이 돌아옵니다.
+- 배포 빌드는 `build:mock`(`.env.mock`, `VITE_API_BASE_URL` 비움)입니다. MSW 핸들러가 있는 경로는 mock이 응답하고, 핸들러가 없는 `/api/*`만 실서버로 갑니다.
+- Vercel 대시보드의 `VITE_*` 환경변수는 `.env.mock`보다 우선합니다. `VITE_USE_MOCK_API`·`VITE_API_BASE_URL`을 대시보드에 넣지 않습니다.
+- rewrite 대상에는 환경변수를 쓸 수 없습니다. 서버 주소가 바뀌면 `vercel.json`을 고치고 다시 배포합니다.
+- Origin 헤더는 바뀌지 않고 `https://exitplain.vercel.app`으로 전달됩니다. POST가 CSRF 검사에 걸리지 않으려면 BE의 `CSRF_TRUSTED_ORIGINS`에 배포 도메인이 있어야 합니다. Preview 배포는 `*.vercel.app`의 다른 도메인이라 따로 등록하지 않으면 POST가 실패합니다.
+- Vercel 외부 rewrite에는 프록시 타임아웃이 있습니다. 오래 걸리는 요청은 202 + 상태 polling으로 설계합니다.
+- Vercel → 서버 구간은 평문 HTTP입니다. 로그인 연동 전에 서버 HTTPS(도메인·인증서)가 필요합니다.
+- rewrite는 로컬·CI에서 검증되지 않습니다. 배포 후 브라우저 콘솔에서 `await (await fetch("/api/v1/auth/session")).json()`이 `{authenticated: false}`인지 확인합니다.
 
 ## 6. 스크립트
 
