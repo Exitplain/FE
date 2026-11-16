@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/apis/queryKeys";
 import { getRunReport } from "@/apis/report.api";
 import { getRunDetail } from "@/apis/run.api";
-import { POLLING_INTERVAL_MS } from "@/hooks/usePersonaRun";
+import { POLLING_INTERVAL_MS } from "@/constants/polling";
 import { ApiError } from "@/types/api.type";
 import { ACTIVE_RUN_STATUSES } from "@/types/run.type";
 

@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 
-import { artifactUrl } from "@/apis/persona.api";
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
@@ -9,7 +8,7 @@ import type { CurrentProject } from "@/components/Projects/currentProject";
 import { RUN_CONDITIONS } from "@/pages/new-test/utils/newTest";
 import type { PersonaRun, PersonaSession } from "@/types/persona.type";
 
-import { useRunTitle } from "../hooks/useRunTitle";
+import { runTitle } from "../hooks/useRunTitle";
 import {
   actionLabel,
   formatClock,
@@ -30,7 +29,7 @@ const LOG_LIMIT = 5;
 /*
   P11 세션 라이브 (?session=세션ID)
   - 라이브 화면: 실행 중이고 viewer_url 이 있으면(개발 환경 원격 브라우저) 그대로 보여주고,
-    아니면 마지막 스크린샷(GET /api/artifacts/{id}), 둘 다 없으면 자리 표시만 둡니다.
+    아니면 최근 관찰 스크린샷(GET /api/v1/observations/{id}/screenshot), 둘 다 없으면 자리 표시만 둡니다.
   - 현재 상태(단계·스텝·경과·좌절 점수·토큰·비용)·행동 로그 최근 5개·마지막 Think-aloud 발화.
     경과·토큰·비용·발화는 임시 필드라 mock 에만 있고, 없으면 — 로 둡니다.
 */
@@ -46,7 +45,7 @@ export default function SessionLive({
   /* 실행 화면으로 돌아갈 때 유지할 과업·필터 쿼리 */
   backSearch: string;
 }) {
-  const { title } = useRunTitle(run);
+  const { title } = runTitle(run);
   const badge = sessionBadge(session.status);
   const last = session.trace.at(-1);
   const threshold = last?.threshold ?? session.max_required_fields * 16;
@@ -54,7 +53,6 @@ export default function SessionLive({
   /* 앱과 다른 출처의 http(s) 주소만 iframe 으로 띄웁니다 (같은 출처면 sandbox 가 풀릴 수 있음) */
   const viewerUrl = isRunning ? safeViewerUrl(session.viewer_url, window.location.origin) : null;
   const said = lastUtterance(session);
-  const seeds = run.seeds ?? { current: 1, total: 1 };
   const code = sessionCode(session);
 
   const status: [string, string, boolean?][] = [
@@ -67,12 +65,15 @@ export default function SessionLive({
         : "—",
     ],
     ["좌절 점수", `${last ? last.score : "—"} · 이탈 임계치 ${threshold}`, true],
-    [
-      "토큰 · 비용",
-      session.tokens != null
-        ? `${formatTokens(session.tokens)} 토큰 · $${(session.cost_usd ?? 0).toFixed(2)}`
-        : "—",
-    ],
+    /* 토큰·비용은 제품 API 세션에 없어 값이 있을 때만 보여 줍니다 */
+    ...(session.tokens != null
+      ? [
+          [
+            "토큰 · 비용",
+            `${formatTokens(session.tokens)} 토큰 · ${(session.cost_usd ?? 0).toFixed(2)}`,
+          ] as [string, string],
+        ]
+      : []),
   ];
 
   return (
@@ -81,7 +82,13 @@ export default function SessionLive({
         projectId={project.id}
         breadcrumb={`${project.name} / 사전 테스트 / ${title.split(" · ").reverse().join(" · ")} · 테스트`}
         title={`${code} · 라이브`}
-        description={`${sessionSegment(session)} · 목표: ${session.task_name} · 시드 ${session.seed ?? seeds.current} / ${seeds.total}`}
+        description={[
+          sessionSegment(session),
+          `목표: ${session.task_name}`,
+          ...(session.seed != null
+            ? [run.seeds ? `시드 ${session.seed} / ${run.seeds.total}` : `시드 ${session.seed}`]
+            : []),
+        ].join(" · ")}
         activeTab="tests"
         actions={
           <>
@@ -112,9 +119,10 @@ export default function SessionLive({
                 referrerPolicy="no-referrer"
                 className="size-full"
               />
-            ) : session.artifact_id ? (
+            ) : session.screenshot_url ? (
+              /* 제품 API 최근 관찰 화면 (같은 출처 쿠키로 받음) */
               <img
-                src={artifactUrl(session.artifact_id)}
+                src={session.screenshot_url}
                 alt={`${code} 세션의 마지막 화면`}
                 className="size-full object-contain"
               />

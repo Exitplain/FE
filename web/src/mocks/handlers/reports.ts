@@ -3,7 +3,8 @@ import { http, HttpResponse } from "msw";
 import type { ShareLink } from "@/types/report.type";
 import type { RunDetail, RunItem } from "@/types/run.type";
 
-import { MockApiError, runList } from "../personaMock";
+import { MockApiError, runList, snapshot } from "../personaMock";
+import { runEventsV1, runProgressV1, runSessionsV1 } from "../runV1Mock";
 import { reportMarkdownV1, runIdOfReport, runReportV1 } from "../reportV1Mock";
 
 /*
@@ -50,6 +51,7 @@ export function runDetailOf(item: RunItem): RunDetail {
       expected_sessions: 0,
       started_sessions: 0,
       finished_sessions: 0,
+      ...runProgressV1(item.id),
       sessions_by_status: {},
       task_runs: { total: 0, queued: 0, running: 0, succeeded: 0, failed: 0, cancelled: 0 },
     },
@@ -87,6 +89,23 @@ export const reportHandlers = [
   http.get("*/api/v1/runs/:runId", ({ params }) => {
     const item = findRunItem(String(params.runId));
     return item ? HttpResponse.json(runDetailOf(item)) : notFound("실행을 찾을 수 없습니다.");
+  }),
+  /* 실행 화면이 진행 중에 세션을 다시 받을 때마다 개발 mock 실행을 한 단계 진행합니다 (GET /api/personas 와 같음) */
+  http.get("*/api/v1/runs/:runId/sessions", ({ params }) => {
+    snapshot();
+    const page = runSessionsV1(String(params.runId));
+    return page ? HttpResponse.json(page) : notFound("실행을 찾을 수 없습니다.");
+  }),
+  http.get("*/api/v1/runs/:runId/events", ({ params, request }) => {
+    const after = Number(new URL(request.url).searchParams.get("after")) || 0;
+    const page = runEventsV1(String(params.runId), after);
+    return page ? HttpResponse.json(page) : notFound("실행을 찾을 수 없습니다.");
+  }),
+  /* mock 은 중지를 흉내 내지 않고 지금 상태만 돌려줍니다 */
+  http.post("*/api/v1/runs/:runId/cancel", ({ params }) => {
+    const item = findRunItem(String(params.runId));
+    if (!item) return notFound("실행을 찾을 수 없습니다.");
+    return HttpResponse.json({ ...runDetailOf(item), cancel_requested: true }, { status: 202 });
   }),
   http.get("*/api/v1/runs/:runId/reports", ({ params }) => {
     const report = reportOf(String(params.runId));

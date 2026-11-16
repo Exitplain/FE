@@ -89,3 +89,58 @@ export type RunDetail = RunItem & {
     };
   };
 };
+
+/* GET /api/v1/runs/{id}/sessions 의 세션 — 시작한 세션만 들어 있습니다 (대기 세션 없음) */
+export type RunSessionStatus =
+  | "running"
+  | "success"
+  | "simulated_dropout"
+  | "agent_failure"
+  | "site_failure"
+  | "blocked_auth"
+  | "budget_exceeded"
+  | "cancelled";
+
+export type RunSession = {
+  id: number;
+  session_key: string;
+  persona: { code: string; segment_id: string; segment_name: string };
+  task_id: string;
+  seed: number;
+  status: RunSessionStatus;
+  reason: string | null;
+  steps: number;
+  duration_seconds: number | null;
+  max_frustration: number | null;
+  /* 퍼널 단계 키 (landing · browse · detail · cart · signup · payment · complete) */
+  terminal_stage: string | null;
+  stages_reached: string[];
+  latest_observation: {
+    id: number;
+    step: number;
+    url: string;
+    screenshot_url: string | null;
+  } | null;
+  final_screenshot_url: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+/* GET /api/v1/runs/{id}/events — after 커서로 이어 받습니다 */
+export type RunEvent = {
+  id: number;
+  type:
+    | "session.started"
+    | "observation.created"
+    | "friction.detected"
+    | "action.completed"
+    | "session.finished"
+    | string;
+  sequence: number;
+  session_id: number | null;
+  session_key: string | null;
+  occurred_at: string;
+  payload: Record<string, unknown>;
+};
+
+export type RunEventPage = { items: RunEvent[]; next_after: number; has_more: boolean };

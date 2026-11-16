@@ -30,8 +30,10 @@ export const queryKeys = {
     all: ["runs"] as const,
     list: (projectId: number) => [...queryKeys.runs.all, projectId, "list"] as const,
     detail: (runId: string) => [...queryKeys.runs.all, "detail", runId] as const,
+    sessions: (runId: string) => [...queryKeys.runs.all, "sessions", runId] as const,
+    events: (runId: string) => [...queryKeys.runs.all, "events", runId] as const,
   },
-  /* 제품 API 리포트. 실행이 끝나면 runs.all 과 함께 무효화합니다 (hooks/usePersonaRun) */
+  /* 제품 API 리포트. 리포트 화면은 실행이 끝나는 순간(useRunDetail) 다시 받습니다 */
   reports: {
     all: ["reports"] as const,
     byRun: (runId: string) => [...queryKeys.reports.all, "run", runId] as const,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PersonaRun, PersonaSession, SessionStatus } from "@/types/persona.type";
+import type { PersonaSession, SessionStatus } from "@/types/persona.type";
 
 import {
   actionLabel,
@@ -11,7 +11,6 @@ import {
   formatClock,
   formatElapsed,
   formatTokens,
-  runPhase,
   safeViewerUrl,
   sessionCode,
   sessionGroup,
@@ -48,49 +47,6 @@ function session(
     ...extra,
   };
 }
-
-function run(status: PersonaRun["status"], sessions: PersonaSession[]): PersonaRun {
-  return {
-    status,
-    id: "r1",
-    policy: "",
-    model_calls: 0,
-    target: "",
-    profiles: [],
-    tasks: [],
-    sessions,
-  };
-}
-
-describe("runPhase — 화면 단계", () => {
-  it("실행 중인데 아직 아무 세션도 행동하지 않았으면 준비 중(P08)", () => {
-    expect(runPhase(run("running", [session("quick_order", "queued")]))).toBe("preparing");
-    expect(runPhase(run("running", [session("quick_order", "running")]))).toBe("preparing");
-  });
-
-  it("한 세션이라도 행동을 시작했거나 끝났으면 실행 중(P09)", () => {
-    expect(runPhase(run("running", [session("quick_order", "running", { steps: 2 })]))).toBe(
-      "running",
-    );
-    expect(runPhase(run("running", [session("quick_order", "success")]))).toBe("running");
-  });
-
-  it("끝났는데 모든 세션이 기술 실패면 실패(E05), 아니면 완료", () => {
-    expect(runPhase(run("completed", [session("quick_order", "agent_failure")]))).toBe("failed");
-    expect(
-      runPhase(
-        run("completed", [
-          session("quick_order", "agent_failure"),
-          session("careful_order", "success"),
-        ]),
-      ),
-    ).toBe("completed");
-  });
-
-  it("실행이 없으면 idle", () => {
-    expect(runPhase(run("idle", []))).toBe("idle");
-  });
-});
 
 describe("sessionGroup · countSessions — 필터 묶음", () => {
   it("한도 도달과 실행 오류는 오류로, 가상 이탈만 이탈로 센다", () => {
@@ -194,33 +150,6 @@ describe("failureSummary — E05 문구", () => {
     expect(
       failureSummary([session("a_order", "agent_failure", { reason: "브라우저 실행 오류 (X)" })]),
     ).toEqual({ reason: "브라우저 실행 오류 (X)", finishedNormally: 0, total: 1 });
-  });
-});
-
-describe("runPhase — 임시 stage·stopped 필드 (mock)", () => {
-  it("stage 가 있으면 세션 상태보다 stage 를 따른다", () => {
-    const queued = [session("P-001_order", "queued")];
-    expect(runPhase({ ...run("running", queued), stage: "preparing" })).toBe("preparing");
-    expect(runPhase({ ...run("running", queued), stage: "running" })).toBe("running");
-    expect(runPhase({ ...run("running", queued), stage: "analyzing" })).toBe("analyzing");
-  });
-
-  it("비용 상한으로 멈춘 실행은 모든 세션이 기술 실패여도 stopped(E12)", () => {
-    const failed = [session("P-001_order", "budget_exceeded")];
-    const stopped = {
-      ...run("completed", failed),
-      stopped: {
-        reason: "budget" as const,
-        seed: 2,
-        finished: 0,
-        total: 60,
-        cost_ratio: 1,
-        tokens: 0,
-      },
-    };
-
-    expect(runPhase(stopped)).toBe("stopped");
-    expect(runPhase(run("completed", failed))).toBe("failed");
   });
 });
 
