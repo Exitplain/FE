@@ -1,23 +1,47 @@
-import type { PersonaReportSummary, PersonaRun, Range, Variant } from "@/types/persona.type";
+import type { RunGoalRate, RunItem, RunStatus } from "@/types/run.type";
 
-export type TestRowStatus = "preparing" | "running" | "done" | "failed";
+export type TestRowStatus = "preparing" | "running" | "done" | "failed" | "cancelled";
+
+/*
+  이름을 누르면 갈 화면. 끝났는데 리포트가 없는 실행(취소 등)은 링크가 없습니다.
+  - report: 리포트(P12) · testRun: 실행 화면(P08~P10)
+*/
+export type TestRowLink = "report" | "testRun" | null;
 
 export type TestRow = {
-  /* run_id */
+  /* run id */
   key: string;
   name: string;
   status: TestRowStatus;
-  /* Figma P01 목표 달성률(예측 · 과업별) "20~30% · 25~35%". 모르면 — */
+  link: TestRowLink;
+  /* Figma P01 목표 달성률(예측 · 과업별) "25% · 40%". 모르면 — */
   completion: string;
   date: string;
 };
 
-function formatCompletion(ranges: Range[] | undefined) {
-  if (!ranges || ranges.length === 0) return "—";
-  return ranges.map(([low, high]) => (low === high ? `${low}%` : `${low}~${high}%`)).join(" · ");
+const ROW_STATUS: Record<RunStatus, TestRowStatus> = {
+  queued: "preparing",
+  running: "running",
+  /* 집계 중(P10 분석)도 아직 리포트가 없어 실행 화면에서 봅니다 */
+  finalizing: "running",
+  completed: "done",
+  partially_completed: "done",
+  failed: "failed",
+  cancelled: "cancelled",
+};
+
+function rowLink(item: RunItem, status: TestRowStatus): TestRowLink {
+  if (status === "preparing" || status === "running") return "testRun";
+  return item.report ? "report" : null;
 }
 
-const VARIANT_LABEL: Record<Variant, string> = { fixed: "개선 버전", problem: "문제 버전" };
+/* 0~1 비율을 정수 %로. 유효 세션이 없어 비율이 없는 과업은 — */
+export function formatGoalRates(rates: readonly RunGoalRate[] | undefined) {
+  if (!rates || rates.length === 0) return "—";
+  return rates
+    .map(({ achievement_rate: rate }) => (rate === null ? "—" : `${Math.round(rate * 100)}%`))
+    .join(" · ");
+}
 
 /* 서비스 사용자가 한국에 있어 실행 환경 시간대와 상관없이 서울 시간으로 보여줍니다 */
 const TIME_ZONE = "Asia/Seoul";
@@ -46,75 +70,19 @@ export function formatRunDate(iso: string | null | undefined, now = new Date()):
 }
 
 /*
-  목록 API 에는 이름·차수·과업 필드가 없어 이름을 "N차 · 버전 · 세션 수" 로 만듭니다.
-  차수는 완료된 실행 순서(오래된 것이 1차), 진행 중인 실행은 그다음 차수입니다.
-  BE 목록은 저장된 완료 실행 전체를 페이지 없이 주므로(report_history) 길이로 차수를 셉니다.
+  제품 API 실행 목록 → P01 행. 이름·차수는 BE 가 만든 name 을 그대로 씁니다.
+  목록에는 진행 중인 실행도 들어 있고 번호 최신순입니다.
 */
-function rowName(
-  order: number,
-  variant: Variant | null | undefined,
-  sessions: number,
-  tasks?: string[],
-) {
-  /* 임시: mock 은 과업 이름을 줘서 Figma 처럼 "N차 · 첫 주문 외 1개" 로 만듭니다 */
-  if (tasks && tasks.length > 0) {
-    const summary = tasks.length > 1 ? `${tasks[0]} 외 ${tasks.length - 1}개` : tasks[0];
-    return `${order}차 · ${summary}`;
-  }
-  const parts = [`${order}차`];
-  if (variant) parts.push(VARIANT_LABEL[variant]);
-  parts.push(`세션 ${sessions}개`);
-  return parts.join(" · ");
-}
-
-export function toTestRows({
-  reports,
-  currentRun,
-  now = new Date(),
-}: {
-  reports: PersonaReportSummary[];
-  currentRun: PersonaRun | undefined;
-  now?: Date;
-}): TestRow[] {
-  const done = reports.map((report, index): TestRow => ({
-    key: report.run_id,
-    name: rowName(reports.length - index, report.variant, report.sessions, report.tasks),
-    status: report.outcome === "failed" ? "failed" : "done",
-    completion: formatCompletion(report.completion),
-    date: formatRunDate(report.created_at, now),
-  }));
-
-  /* idle 은 실행이 아니고, 목록에 이미 있는 실행은 두 번 넣지 않습니다 */
-  if (!currentRun?.id || currentRun.status === "idle") return done;
-  if (reports.some((report) => report.run_id === currentRun.id)) return done;
-
-  /* 방금 끝나 목록을 다시 받기 전인 실행도 완료 행으로 남겨 목록에서 사라지지 않게 합니다 */
-  const started = currentRun.stage
-    ? currentRun.stage !== "preparing"
-    : currentRun.sessions.some((session) => session.status !== "queued");
-  const allFailed =
-    currentRun.sessions.length > 0 &&
-    currentRun.sessions.every((session) =>
-      ["agent_failure", "budget_exceeded"].includes(session.status),
-    );
-  const status: TestRowStatus =
-    currentRun.status === "completed"
-      ? allFailed && !currentRun.stopped
-        ? "failed"
-        : "done"
-      : started
-        ? "running"
-        : "preparing";
-  const taskNames =
-    currentRun.tasks.length > 0 ? currentRun.tasks.map((task) => task.name) : undefined;
-  return [
-    {
-      key: currentRun.id,
-      name: rowName(reports.length + 1, currentRun.variant, currentRun.sessions.length, taskNames),
+export function toTestRows(items: readonly RunItem[], now = new Date()): TestRow[] {
+  return items.map((item) => {
+    const status = ROW_STATUS[item.status];
+    return {
+      key: item.id,
+      name: item.name || `${item.sequence_no}차`,
       status,
-      completion: "—",
-      date: formatRunDate(currentRun.created_at, now),
-    },
-    ...done,
-  ];
+      link: rowLink(item, status),
+      completion: formatGoalRates(item.report?.goal_rates),
+      date: formatRunDate(item.created_at, now),
+    };
+  });
 }

@@ -4,6 +4,11 @@
   새 도메인을 추가할 때 같은 형태로 이어서 작성합니다.
 */
 export const queryKeys = {
+  /* 로그인 상태. 로그인·로그아웃 성공 시 응답으로 바로 채웁니다 */
+  auth: {
+    all: ["auth"] as const,
+    session: () => [...queryKeys.auth.all, "session"] as const,
+  },
   personas: {
     all: ["personas"] as const,
     current: () => [...queryKeys.personas.all, "current"] as const,
@@ -11,6 +16,16 @@ export const queryKeys = {
     report: (runId: string) => [...queryKeys.personas.all, "report", runId] as const,
     session: (runId: string, sessionId: string) =>
       [...queryKeys.personas.all, "session", runId, sessionId] as const,
+  },
+  /* 제품 API 프로젝트 (숫자 id) */
+  projectsV1: {
+    all: ["projectsV1"] as const,
+    sample: () => [...queryKeys.projectsV1.all, "sample"] as const,
+  },
+  /* 제품 API 실행. 실행을 만들거나 끝난 뒤에는 runs.all 로 한꺼번에 무효화합니다 */
+  runs: {
+    all: ["runs"] as const,
+    list: (projectId: number) => [...queryKeys.runs.all, projectId, "list"] as const,
   },
   calibration: {
     all: ["calibration"] as const,

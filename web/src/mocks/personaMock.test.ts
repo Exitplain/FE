@@ -16,6 +16,7 @@ import { server } from "@/mocks/node";
 import type { ConfirmRequest, HumanObservationRequest } from "@/types/persona.type";
 
 import { personaErrorHandlers } from "./handlers/personas";
+import { runList } from "./personaMock";
 
 async function confirmBody(overrides: Partial<ConfirmRequest> = {}): Promise<ConfirmRequest> {
   const plan = await discoverPersonaPlan({ variant: "problem" });
@@ -604,5 +605,68 @@ describe("페르소나 mock — 개선 버전(fixed, 임시: P17 재테스트)",
     expect(fixed.variant).toBe("fixed");
     expect(count(fixed)).toBeLessThan(count(problem));
     expect(count(fixed, "input_burden")).toBeLessThan(count(problem, "input_burden"));
+  });
+});
+
+describe("페르소나 mock — 제품 API 실행 목록 (runList)", () => {
+  it("진행 중인 실행을 맨 위에, 오래된 실행을 1차로 번호 붙인다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    await runToCompletion();
+    await confirmPersonaRun(await confirmBody({ feature_ids: ["shopping"], task_ids: ["order"] }));
+
+    const items = runList({ progress: false });
+
+    expect(items.map((item) => [item.sequence_no, item.status, item.report])).toEqual([
+      [2, "queued", null],
+      [1, "completed", expect.objectContaining({ status: "final", revision: 1 })],
+    ]);
+    expect(items[0].name).toMatch(/^2차·/);
+    expect(items[1].name).toMatch(/^1차·.+ 외 1개$/);
+  });
+
+  it("완료 실행의 과업별 달성률은 0~1 비율이다", async () => {
+    await confirmPersonaRun(await confirmBody());
+    await runToCompletion();
+
+    const [item] = runList({ progress: false });
+
+    expect(item.report?.goal_rates.map((rate) => rate.task_id)).toEqual(["order", "coupon"]);
+    for (const { achievement_rate: rate } of item.report!.goal_rates) {
+      expect(rate).not.toBeNull();
+      expect(rate).toBeGreaterThanOrEqual(0);
+      expect(rate).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("모든 세션이 기술 실패면 failed, 비용 상한으로 멈추면 partially_completed 다", async () => {
+    await confirmPersonaRun(
+      await confirmBody({ feature_ids: ["delivery"], task_ids: ["delivery"] }),
+    );
+    await runToCompletion();
+    expect(runList({ progress: false })[0]).toMatchObject({
+      status: "failed",
+      report: { goal_rates: [{ achievement_rate: null }] },
+    });
+
+    await confirmPersonaRun(
+      await confirmBody({
+        feature_ids: ["shopping", "coupon", "subscription"],
+        task_ids: ["order", "cart", "coupon", "benefit", "subscription"],
+      }),
+    );
+    await runToCompletion();
+    expect(runList({ progress: false })[0]).toMatchObject({
+      status: "partially_completed",
+      report: { status: "partial" },
+    });
+  });
+
+  it("progress=false 면 실행을 진행하지 않는다", async () => {
+    await confirmPersonaRun(await confirmBody());
+
+    runList({ progress: false });
+    runList({ progress: false });
+
+    expect(runList({ progress: false })[0].status).toBe("queued");
   });
 });
