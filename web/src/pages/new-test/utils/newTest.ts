@@ -1,4 +1,13 @@
-import type { AgeOption, ConfirmRequest, DiscoverResponse } from "@/types/persona.type";
+import { ApiError } from "@/types/api.type";
+import type { DiscoverFeature, DiscoverTask, PanelSegment } from "@/types/persona.type";
+import type {
+  AgeKey,
+  Discovery,
+  Plan,
+  PlanReview,
+  RevisionPersonas,
+  SiteCheck,
+} from "@/types/plan.type";
 
 /* 새 테스트 단계 (?step= 값) — Figma Stepper 순서 */
 export const STEPS = ["site", "task", "persona", "confirm"] as const;
@@ -39,16 +48,72 @@ export function clampStep(requested: StepKey, allowed: StepKey): StepKey {
   return STEPS.indexOf(requested) <= STEPS.indexOf(allowed) ? requested : allowed;
 }
 
-/* confirm 400 중 계획 만료 (BE: "탐색 결과가 만료됐습니다. 다시 확인해주세요.") — 그 밖의 400 은 입력 오류 */
-export function isPlanExpiredMessage(message: string) {
-  return message.includes("만료");
+/* 탐색 결과 만료 (BE 409 DISCOVERY_EXPIRED · 확정 blocking DISCOVERY_EXPIRED) */
+export function isDiscoveryExpiredError(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    (error.code === "DISCOVERY_EXPIRED" ||
+      (Array.isArray(error.fields?.blocking) &&
+        error.fields.blocking.includes("DISCOVERY_EXPIRED")))
+  );
 }
 
-/* BE 탐색 계획 보관 시간 (agent/preflight.py 900초) */
-export const PLAN_TTL_MS = 15 * 60 * 1000;
+/* 탐색 결과의 만료 시각(expires_at, 15분)이 지났는지 */
+export function isPlanExpired(expiresAt: number, now = Date.now()) {
+  return now >= expiresAt;
+}
 
-export function isPlanExpired(discoveredAt: number, now = Date.now()) {
-  return now - discoveredAt >= PLAN_TTL_MS;
+/*
+  위저드가 쓰는 계획 — 탐색 결과(features·tasks)와 서버 계획(id·revision·review)을 합친 화면용 값.
+  - tasks[].funnel_stages: 계획의 과업별 퍼널 단계 수 (P05c "과업별 7단계")
+  - age_options: 서버가 받는 연령과 이름 (전체 · 20대 … 50대 이상)
+  - check: 사이트 주소 확인 결과 (실패해도 탐색은 진행합니다)
+*/
+export type WizardPlan = {
+  planId: string;
+  revision: number;
+  discoveryId: string;
+  expiresAt: number;
+  loginMode: "none" | "test_account";
+  features: DiscoverFeature[];
+  tasks: DiscoverTask[];
+  age_options: Partial<Record<AgeKey, string>>;
+  personaTotal: number;
+  segmentIds: string[];
+  review: PlanReview;
+  check: SiteCheck | null;
+};
+
+export function toWizardPlan(
+  discovery: Discovery,
+  plan: Plan,
+  check: SiteCheck | null,
+): WizardPlan {
+  const stages = new Map(plan.task_funnels.map((funnel) => [funnel.task_id, funnel.stages.length]));
+  return {
+    planId: plan.id,
+    revision: plan.revision,
+    discoveryId: discovery.id,
+    expiresAt: Date.parse(discovery.expires_at),
+    loginMode: discovery.login_mode,
+    features: plan.options.features,
+    tasks: plan.options.tasks.map((task) => ({ ...task, funnel_stages: stages.get(task.id) })),
+    age_options: plan.options.capabilities.ages,
+    personaTotal: plan.options.capabilities.persona_total,
+    segmentIds: plan.options.capabilities.segment_ids,
+    review: plan.review,
+    check,
+  };
+}
+
+/* 계획을 고친 뒤(PATCH) 바뀌는 값만 덮어씁니다 */
+export function withServerPlan(current: WizardPlan, plan: Plan): WizardPlan {
+  return {
+    ...current,
+    revision: plan.revision,
+    review: plan.review,
+    personaTotal: plan.options.capabilities.persona_total,
+  };
 }
 
 /* BE context·additional_request 최대 길이 */
@@ -83,6 +148,18 @@ export function panelSize(loginMode: "none" | "account", accountCount: number) {
     : PANEL_SIZE;
 }
 
+/*
+  지금 에이전트 수 — 계획이 있으면 서버가 정한 총원(persona_total: 20 또는 서버에 저장된 테스트 계정 수),
+  없으면 화면 입력으로 짐작한 값입니다. 세그먼트 합계 검증·표시는 모두 이 값을 씁니다.
+*/
+export function agentTotal(
+  plan: Pick<WizardPlan, "personaTotal"> | null,
+  loginMode: "none" | "account",
+  accountCount: number,
+) {
+  return plan?.personaTotal ?? panelSize(loginMode, accountCount);
+}
+
 /* 인원을 세그먼트에 고르게 나눕니다 (나머지는 앞 세그먼트부터 1명씩) — 20 → [5, 5, 5, 5] */
 export function evenSplit(total: number, parts = SEGMENT_COUNT): number[] {
   return Array.from(
@@ -108,14 +185,10 @@ export function formatMonthDay(iso: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : monthDay.format(date);
 }
 
-/* Figma 연령 표기: 전체 · 20대 … 50대 이상 (50s·60plus 를 함께 고르면 "50대 이상" 하나로) */
-export function ageSummary(ages: AgeOption[], labels: Partial<Record<AgeOption, string>>) {
-  if (ages.includes("any")) return "전체";
-  const merged = ages.includes("50s") && ages.includes("60plus");
-  return ages
-    .filter((age) => !(merged && age === "60plus"))
-    .map((age) => (merged && age === "50s" ? "50대 이상" : (labels[age] ?? age)))
-    .join(", ");
+/* Figma 연령 표기: 전체 · 20대 … 50대 이상 (이름은 서버 capabilities.ages) */
+export function ageSummary(ages: AgeKey[], labels: Partial<Record<AgeKey, string>>) {
+  if (ages.length === 0 || ages.includes("any")) return "전체";
+  return ages.map((age) => labels[age] ?? age).join(", ");
 }
 
 /* E07 잘못된 URL — 주소 모양만 확인합니다 (접속 가능 여부는 서버 탐색 결과로) */
@@ -132,11 +205,11 @@ export function validateSiteUrl(value: string): string | null {
 }
 
 /*
-  연령 선택 (BE: 비어 있으면 400, "any" 는 단독으로만)
+  연령 선택 (BE: "any" 는 단독으로만)
   - 전체를 고르면 다른 연령을 지우고, 특정 연령을 고르면 전체를 지웁니다.
   - 마지막 하나를 끄면 전체로 돌아갑니다.
 */
-export function toggleAge(ages: AgeOption[], age: AgeOption): AgeOption[] {
+export function toggleAge(ages: AgeKey[], age: AgeKey): AgeKey[] {
   if (age === "any") return ["any"];
   const withoutAny = ages.filter((item) => item !== "any");
   const next = withoutAny.includes(age)
@@ -146,10 +219,10 @@ export function toggleAge(ages: AgeOption[], age: AgeOption): AgeOption[] {
 }
 
 /*
-  Figma 연령 칩 하나가 BE 연령 여러 개일 수 있습니다 ("50대 이상" = 50s + 60plus).
+  연령 칩 하나가 서버 연령 여러 개일 수 있게 둡니다 (지금은 칩 하나 = 연령 하나, "50대 이상" = 50plus).
   칩이 켜져 있으면(모두 포함) 끄고, 아니면 빠진 연령만 켭니다. 전체(any)는 단독입니다.
 */
-export function toggleAgeChip(current: AgeOption[], chip: AgeOption[]): AgeOption[] {
+export function toggleAgeChip(current: AgeKey[], chip: AgeKey[]): AgeKey[] {
   if (chip.includes("any")) return ["any"];
   const on = chip.every((age) => current.includes(age));
   return chip.reduce(
@@ -158,37 +231,36 @@ export function toggleAgeChip(current: AgeOption[], chip: AgeOption[]): AgeOptio
   );
 }
 
-export type TaskTargetInput = {
-  taskIds: string[];
-  ages: AgeOption[];
-  targetDescription: string;
-  memo: string;
-};
-
 /*
-  confirm 요청 여섯 필드를 만듭니다.
+  P05 과업·타겟을 계획에 저장하는 본문 (PATCH /api/v1/plans/{id}).
   - task_ids: 탐색 결과에 있는 과업만, 화면(탐색 결과) 순서대로
-  - feature_ids: 고른 과업이 속한 기능 (BE 는 과업의 기능이 feature_ids 에 있어야 받음)
-  - 직접 추가한 과업은 BE 가 실행하지 못해 보내지 않습니다 (Figma: 따로 저장, 자동 포함 안 함)
+  - 직접 추가한 과업·추가 메모는 서버가 저장만 하고 실행에는 넣지 않습니다 (Figma: 따로 저장, 자동 포함 안 함)
 */
-export function buildConfirmRequest(
-  plan: DiscoverResponse,
-  input: TaskTargetInput,
-): ConfirmRequest {
-  const tasks = plan.tasks.filter((task) => input.taskIds.includes(task.id));
-  const featureIds = new Set(tasks.map((task) => task.feature_id));
-
+export function taskTargetPatch(
+  plan: WizardPlan,
+  input: {
+    taskIds: string[];
+    customTasks: string[];
+    memo: string;
+    targetDescription: string;
+    ages: AgeKey[];
+  },
+) {
   return {
-    plan_id: plan.plan_id,
-    feature_ids: plan.features.filter((f) => featureIds.has(f.id)).map((f) => f.id),
-    task_ids: tasks.map((task) => task.id),
-    ages: input.ages,
-    context: input.targetDescription.trim(),
+    task_ids: plan.tasks.filter((task) => input.taskIds.includes(task.id)).map((task) => task.id),
+    custom_tasks: input.customTasks,
     additional_request: input.memo.trim(),
+    audience: { context: input.targetDescription.trim(), ages: input.ages },
   };
 }
 
-export type TestAccount = { username: string; password: string };
+/* P05b 세그먼트 인원을 계획에 저장하는 본문 (서버 segment_ids 순서, 4개) */
+export function segmentsPatch(plan: WizardPlan, counts: number[]) {
+  return { segments: plan.segmentIds.map((id, index) => ({ id, count: counts[index] ?? 0 })) };
+}
+
+/* 서버에 저장한 계정은 id 가 있고, id 가 있으면 비밀번호를 비워 보내도 서버가 유지합니다 */
+export type TestAccount = { id?: string; username: string; password: string };
 
 /*
   P04d 붙여넣기: 스프레드시트·CSV 에서 복사한 "아이디,비밀번호" 줄을 읽습니다.
@@ -226,4 +298,31 @@ export function findDuplicateUsernames(rows: TestAccount[]): Set<number> {
     seen.set(key, [...(seen.get(key) ?? []), index]);
   });
   return new Set([...seen.values()].filter((list) => list.length > 1).flat());
+}
+
+/*
+  P07 세그먼트 카드 값 — 확정한 계획의 페르소나(GET /api/v1/plan-revisions/{id}/personas)에서 만듭니다.
+  P 코드 범위는 그 세그먼트에 속한 페르소나 코드의 처음~끝입니다.
+*/
+export function toPanelSegments(personas: RevisionPersonas): PanelSegment[] {
+  return personas.segments.map((segment) => {
+    const codes = personas.items
+      .filter((item) => item.segment_id === segment.id)
+      .map((item) => item.code)
+      .sort();
+    const first = codes[0] ?? segment.representative;
+    return {
+      id: segment.id,
+      name: segment.name,
+      count: segment.count,
+      codes: [first, codes[codes.length - 1] ?? first],
+      representative: segment.representative,
+      traits: {
+        patience: segment.variables.patience,
+        digital: segment.variables.digital_literacy,
+        price: segment.variables.price_sensitivity,
+        trust: segment.variables.trust_need,
+      },
+    };
+  });
 }

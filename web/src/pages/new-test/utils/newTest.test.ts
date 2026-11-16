@@ -1,36 +1,41 @@
 import { describe, expect, it } from "vitest";
 
-import { DISCOVER_TASKS, FEATURES } from "@/mocks/fixtures/personas";
-import type { DiscoverResponse } from "@/types/persona.type";
+import {
+  confirmPlan,
+  createDiscovery,
+  createPlan,
+  patchPlan,
+  revisionPersonas,
+} from "@/mocks/planMock";
+import { ApiError } from "@/types/api.type";
 
 import {
   ageSummary,
-  buildConfirmRequest,
   clampStep,
   evenSplit,
-  furthestAllowedStep,
-  panelSize,
-  toggleAgeChip,
-  sum,
-  isPlanExpiredMessage,
   findDuplicateUsernames,
+  furthestAllowedStep,
+  isDiscoveryExpiredError,
   isPlanExpired,
+  panelSize,
   parseAccountsText,
   parseStep,
-  PLAN_TTL_MS,
+  segmentsPatch,
+  sum,
+  taskTargetPatch,
   toggleAge,
+  toggleAgeChip,
+  toPanelSegments,
+  toWizardPlan,
   validateSiteUrl,
 } from "./newTest";
 
-const plan: DiscoverResponse = {
-  project: "반찬로드",
-  plan_id: "plan-1",
-  variant: "problem",
-  features: FEATURES,
-  tasks: DISCOVER_TASKS,
-  age_options: {},
-  note: "",
-};
+/* mock 서버로 만든 탐색 결과 + 계획 */
+function wizardPlan() {
+  const discovery = createDiscovery(1, {});
+  const server = createPlan(1, { discovery_id: discovery.id });
+  return { discovery, server, plan: toWizardPlan(discovery, server, null) };
+}
 
 describe("validateSiteUrl (E07)", () => {
   it.each(["https://banchanroad.example", "http://localhost:4173/"])("%s 는 통과", (url) => {
@@ -64,34 +69,72 @@ describe("toggleAge — 전체 연령은 다른 연령과 함께 고를 수 없�
   });
 });
 
-describe("buildConfirmRequest — BE confirm 여섯 필드", () => {
-  it("고른 과업에서 기능을 계산하고, 화면 순서대로 정렬한다", () => {
-    const body = buildConfirmRequest(plan, {
-      taskIds: ["coupon", "order"],
-      ages: ["30s"],
+describe("toWizardPlan — 탐색 결과 + 서버 계획", () => {
+  it("id·revision·만료 시각과 과업별 퍼널 단계 수·연령 이름을 모은다", () => {
+    const { discovery, server, plan } = wizardPlan();
+
+    expect(plan).toMatchObject({
+      planId: server.id,
+      revision: 1,
+      discoveryId: discovery.id,
+      expiresAt: Date.parse(discovery.expires_at),
+      loginMode: "none",
+      personaTotal: 20,
+      segmentIds: ["segment_1", "segment_2", "segment_3", "segment_4"],
+    });
+    expect(plan.tasks.find((task) => task.id === "order")?.funnel_stages).toBe(7);
+    expect(plan.age_options["50plus"]).toBe("50대 이상");
+  });
+});
+
+describe("계획 저장 본문 (PATCH /api/v1/plans/{id})", () => {
+  it("과업은 탐색 결과에 있는 것만 화면 순서대로, 타겟·메모는 앞뒤 공백을 지운다", () => {
+    const { plan } = wizardPlan();
+    const body = taskTargetPatch(plan, {
+      taskIds: ["coupon", "직접 추가한 과업", "order"],
+      customTasks: ["배송지 바꾸기"],
+      memo: " 쿠폰 적용 후 총액 ",
       targetDescription: "  퇴근 후 첫 주문  ",
-      memo: "쿠폰 적용 후 총액",
+      ages: ["30s", "50plus"],
     });
 
     expect(body).toEqual({
-      plan_id: "plan-1",
-      feature_ids: ["shopping", "coupon"],
       task_ids: ["order", "coupon"],
-      ages: ["30s"],
-      context: "퇴근 후 첫 주문",
+      custom_tasks: ["배송지 바꾸기"],
       additional_request: "쿠폰 적용 후 총액",
+      audience: { context: "퇴근 후 첫 주문", ages: ["30s", "50plus"] },
     });
   });
 
-  it("탐색 결과에 없는 과업은 보내지 않는다", () => {
-    const body = buildConfirmRequest(plan, {
-      taskIds: ["order", "직접 추가한 과업"],
-      ages: ["any"],
-      targetDescription: "",
-      memo: "",
+  it("세그먼트는 서버 segment_ids 순서로 4개", () => {
+    const { plan } = wizardPlan();
+    expect(segmentsPatch(plan, [8, 4, 4, 4])).toEqual({
+      segments: [
+        { id: "segment_1", count: 8 },
+        { id: "segment_2", count: 4 },
+        { id: "segment_3", count: 4 },
+        { id: "segment_4", count: 4 },
+      ],
     });
+  });
+});
 
-    expect(body.task_ids).toEqual(["order"]);
+describe("toPanelSegments — P07 세그먼트 카드", () => {
+  it("확정한 페르소나에서 세그먼트 이름·인원·대표·코드 범위·행동 변수를 만든다", () => {
+    const { server } = wizardPlan();
+    patchPlan(server.id, '"1"', { audience: { context: "첫 방문자", ages: [] } });
+    const snapshot = confirmPlan(server.id, { revision: 2 });
+    const [first, second] = toPanelSegments(revisionPersonas(snapshot.plan_revision_id));
+
+    expect(first).toEqual({
+      id: "segment_1",
+      name: "빠른 구매형",
+      count: 5,
+      codes: ["P-001", "P-005"],
+      representative: "P-001",
+      traits: { patience: 22, digital: 80, price: 40, trust: 30 },
+    });
+    expect(second.codes).toEqual(["P-006", "P-010"]);
   });
 });
 
@@ -125,10 +168,10 @@ describe("findDuplicateUsernames (P04c 중복)", () => {
   });
 });
 
-describe("isPlanExpired — 탐색 계획은 15분", () => {
-  it("15분이 지나면 만료", () => {
-    expect(isPlanExpired(1_000, 1_000 + PLAN_TTL_MS - 1)).toBe(false);
-    expect(isPlanExpired(1_000, 1_000 + PLAN_TTL_MS)).toBe(true);
+describe("isPlanExpired — 탐색 결과의 expires_at", () => {
+  it("만료 시각이 되면 만료", () => {
+    expect(isPlanExpired(10_000, 9_999)).toBe(false);
+    expect(isPlanExpired(10_000, 10_000)).toBe(true);
   });
 });
 
@@ -154,10 +197,21 @@ describe("furthestAllowedStep · clampStep — 앞 단계를 건너뛰지 않게
   });
 });
 
-describe("isPlanExpiredMessage", () => {
-  it("만료 메시지만 만료로 본다", () => {
-    expect(isPlanExpiredMessage("탐색 결과가 만료됐습니다. 다시 확인해주세요.")).toBe(true);
-    expect(isPlanExpiredMessage("기능·과업·연령을 한 개 이상 선택해주세요.")).toBe(false);
+describe("isDiscoveryExpiredError", () => {
+  it("DISCOVERY_EXPIRED 코드나 blocking 목록의 만료만 만료로 본다", () => {
+    const expired = new ApiError({ status: 409, message: "", code: "DISCOVERY_EXPIRED" });
+    const blocked = new ApiError({
+      status: 409,
+      message: "",
+      code: "NO_AUDIENCE",
+      fields: { blocking: ["NO_AUDIENCE", "DISCOVERY_EXPIRED"] },
+    });
+    const other = new ApiError({ status: 409, message: "", code: "NO_AUDIENCE" });
+
+    expect(isDiscoveryExpiredError(expired)).toBe(true);
+    expect(isDiscoveryExpiredError(blocked)).toBe(true);
+    expect(isDiscoveryExpiredError(other)).toBe(false);
+    expect(isDiscoveryExpiredError(new Error("x"))).toBe(false);
   });
 });
 
@@ -194,19 +248,20 @@ describe("패널 (P05b·P05h)", () => {
     ).toBe("persona");
   });
 
-  it("연령은 Figma 표기로 요약한다 (50대·60대 이상 → 50대 이상)", () => {
+  it("연령은 서버 연령 이름으로 요약한다 (없거나 전체면 전체)", () => {
     expect(ageSummary(["any"], {})).toBe("전체");
-    expect(ageSummary(["30s", "50s", "60plus"], { "30s": "30대", "50s": "50대" })).toBe(
+    expect(ageSummary([], {})).toBe("전체");
+    expect(ageSummary(["30s", "50plus"], { "30s": "30대", "50plus": "50대 이상" })).toBe(
       "30대, 50대 이상",
     );
   });
 });
 
 describe("toggleAgeChip (Figma 연령 칩)", () => {
-  it("50대 이상은 50s·60plus 를 함께 켜고 끈다", () => {
-    expect(toggleAgeChip(["any"], ["50s", "60plus"])).toEqual(["50s", "60plus"]);
-    expect(toggleAgeChip(["20s", "50s", "60plus"], ["50s", "60plus"])).toEqual(["20s"]);
-    expect(toggleAgeChip(["50s", "60plus"], ["50s", "60plus"])).toEqual(["any"]);
+  it("50대 이상(50plus) 칩을 켜고 끈다", () => {
+    expect(toggleAgeChip(["any"], ["50plus"])).toEqual(["50plus"]);
+    expect(toggleAgeChip(["20s", "50plus"], ["50plus"])).toEqual(["20s"]);
+    expect(toggleAgeChip(["50plus"], ["50plus"])).toEqual(["any"]);
   });
 
   it("전체는 단독으로만 고른다", () => {

@@ -5,43 +5,48 @@ import { useShallow } from "zustand/react/shallow";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import { useNewTestStore } from "@/stores/useNewTestStore";
-import type { DiscoverResponse } from "@/types/persona.type";
-
 import {
+  agentTotal,
   ageSummary,
   isPlanExpired,
-  panelSize,
-  PLAN_TTL_MS,
   RUN_CONDITIONS,
   type StepKey,
   STEPS,
+  type WizardPlan,
 } from "../utils/newTest";
 import { StepFooter } from "./StepSection";
 
 type ConfirmStepProps = {
-  plan: DiscoverResponse;
+  plan: WizardPlan;
   /* 적용된 보정 날짜 ("11월 5일"). 보정 전이면 null, 불러오는 중이면 undefined */
   calibratedLabel: string | null | undefined;
   onPrev: () => void;
   /* "페르소나 생성" → P06 생성 중 · P07 확인 */
   onNext: () => void;
   onExpired: () => void;
+  /* "페르소나 생성" 전에 남은 입력을 저장하는 중 */
+  saving?: boolean;
 };
 
 /*
   P05c 시작 전 확인 (Figma Section/CheckAnswers) — 단계별 "변경 · n단계", 마지막에 "페르소나 생성".
   "페르소나 생성"은 P06 생성 중으로 넘어가고, 실행 시작은 P07 페르소나 확인에서 합니다.
+  - 서버 계획의 review.blocking(확정을 막는 이유)이 있으면 그 단계로 가는 링크와 함께 보여 주고 생성을 막습니다.
+  - 만료는 탐색 결과의 expires_at(15분) 기준입니다.
 */
+
+/* review.blocking 의 step(1~3) → 위저드 단계 */
+const BLOCKING_STEP: Record<number, StepKey> = { 1: "site", 2: "task", 3: "persona" };
 export default function ConfirmStep({
   plan,
   calibratedLabel,
   onPrev,
   onNext,
   onExpired,
+  saving = false,
 }: ConfirmStepProps) {
   const store = useNewTestStore(
     useShallow((state) => ({
-      discoveredAt: state.discoveredAt,
       taskIds: state.taskIds,
       ages: state.ages,
       siteUrl: state.siteUrl,
@@ -57,21 +62,28 @@ export default function ConfirmStep({
   /* 이 화면에 머무는 동안 15분이 지나면 다시 그려 만료 안내를 띄웁니다 */
   const [, setTick] = useState(0);
   useEffect(() => {
-    if (store.discoveredAt == null) return;
-    const remaining = store.discoveredAt + PLAN_TTL_MS - Date.now();
-    if (remaining <= 0) return;
+    const remaining = plan.expiresAt - Date.now();
+    if (!(remaining > 0)) return;
     /* 타이머가 조금 일찍 울려 아직 만료 전으로 판정되지 않게 여유를 둡니다 */
     const timer = window.setTimeout(() => setTick((tick) => tick + 1), remaining + 100);
     return () => window.clearTimeout(timer);
-  }, [store.discoveredAt]);
+  }, [plan.expiresAt]);
 
-  const expired = store.discoveredAt != null && isPlanExpired(store.discoveredAt);
+  const expired =
+    isPlanExpired(plan.expiresAt) ||
+    plan.review.blocking.some((item) => item.code === "DISCOVERY_EXPIRED");
+  /* 만료는 아래 만료 안내로 따로 보여 줍니다 */
+  const blocking = plan.review.blocking.filter((item) => item.code !== "DISCOVERY_EXPIRED");
   const tasks = plan.tasks.filter((task) => store.taskIds.includes(task.id));
-  const panel = panelSize(store.loginMode, store.accounts.length);
+  const panel = agentTotal(plan, store.loginMode, store.accounts.length);
   const stages = Math.max(0, ...tasks.map((task) => task.funnel_stages ?? 0));
 
   const rows: { label: string; value: string; step?: StepKey }[] = [
-    { label: "제품 URL", value: `${store.siteUrl} · 접근 가능`, step: "site" },
+    {
+      label: "제품 URL",
+      value: `${store.siteUrl} · ${plan.check?.status === "failed" ? "접근 확인 실패" : "접근 가능"}`,
+      step: "site",
+    },
     {
       label: "로그인",
       value:
@@ -145,6 +157,36 @@ export default function ConfirmStep({
         </ul>
       </section>
 
+      {blocking.length > 0 && (
+        /* 알림 영역 안에 목록을 둡니다 (ul 에 role 을 주면 목록으로 읽히지 않음) */
+        <div role="alert">
+          <ul aria-label="확인이 필요한 입력" className="flex flex-col gap-2">
+            {blocking.map((item) => {
+              const step = BLOCKING_STEP[item.step];
+              return (
+                <li
+                  key={item.code}
+                  className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 p-3"
+                >
+                  <span className="flex items-center gap-2 text-caption font-bold text-ink">
+                    <Icon name="status-error" className="size-5 text-danger" />
+                    {item.message}
+                  </span>
+                  {step && (
+                    <Link
+                      to={{ search: step === "site" ? "" : `?step=${step}` }}
+                      className="shrink-0 text-caption font-bold text-ink hover:underline"
+                    >
+                      변경 · {STEPS.indexOf(step) + 1}단계
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {expired && (
         <div
           role="alert"
@@ -164,7 +206,10 @@ export default function ConfirmStep({
         <Button variant="link" onClick={onPrev}>
           이전
         </Button>
-        <Button disabled={expired || tasks.length === 0} onClick={onNext}>
+        <Button
+          disabled={expired || tasks.length === 0 || blocking.length > 0 || saving}
+          onClick={onNext}
+        >
           페르소나 생성
         </Button>
       </StepFooter>

@@ -8,28 +8,27 @@ import Icon from "@/components/Icon/Icon";
 import TextArea from "@/components/TextArea/TextArea";
 import { inputClass } from "@/components/Input/inputVariants";
 import { useNewTestStore } from "@/stores/useNewTestStore";
-import type { AgeOption, DiscoverResponse } from "@/types/persona.type";
+import type { AgeKey } from "@/types/plan.type";
 import { cn } from "@/utils/cn";
 
-import { panelSize, SEEDS, TEXT_MAX, toggleAgeChip } from "../utils/newTest";
+import { agentTotal, SEEDS, TEXT_MAX, toggleAgeChip, type WizardPlan } from "../utils/newTest";
 import { StepFooter } from "./StepSection";
 
 type TaskTargetStepProps = {
-  plan: DiscoverResponse;
+  plan: WizardPlan;
   onPrev: () => void;
   onNext: () => void;
+  /* 다음 단계로 가기 전에 계획을 저장하는 중 (PATCH) */
+  saving?: boolean;
 };
 
-/*
-  Figma 연령대 칩: 전체 · 20대 · 30대 · 40대 · 50대 이상.
-  BE 연령 값에는 10대·60대 이상도 있어, "50대 이상"은 50s·60plus 를 함께 고릅니다.
-*/
-const AGE_CHIPS: { label: string; ages: AgeOption[] }[] = [
+/* Figma 연령대 칩: 전체 · 20대 · 30대 · 40대 · 50대 이상 (서버 연령 any · 20s · 30s · 40s · 50plus) */
+const AGE_CHIPS: { label: string; ages: AgeKey[] }[] = [
   { label: "전체", ages: ["any"] },
   { label: "20대", ages: ["20s"] },
   { label: "30대", ages: ["30s"] },
   { label: "40대", ages: ["40s"] },
-  { label: "50대 이상", ages: ["50s", "60plus"] },
+  { label: "50대 이상", ages: ["50plus"] },
 ];
 
 /*
@@ -39,7 +38,12 @@ const AGE_CHIPS: { label: string; ages: AgeOption[] }[] = [
   - 직접 추가한 과업은 BE 가 실행하지 못해 실행에 넣지 않고 따로 둡니다(태그 칩).
   - 추가 메모는 additional_request 로 기록만 남고 실행 행동은 바꾸지 않습니다.
 */
-export default function TaskTargetStep({ plan, onPrev, onNext }: TaskTargetStepProps) {
+export default function TaskTargetStep({
+  plan,
+  onPrev,
+  onNext,
+  saving = false,
+}: TaskTargetStepProps) {
   /* 필요한 값만 구독해 다른 단계 입력에 이 화면이 다시 그려지지 않게 합니다 (액션은 바뀌지 않는 참조) */
   const store = useNewTestStore(
     useShallow((state) => ({
@@ -69,7 +73,7 @@ export default function TaskTargetStep({ plan, onPrev, onNext }: TaskTargetStepP
 
   const taskError = store.taskIds.length === 0 ? "과업을 1개 이상 골라주세요" : null;
   const targetError = store.targetDescription.trim() ? null : "타겟 고객을 적어 주세요";
-  const panel = panelSize(store.loginMode, store.accountCount);
+  const panel = agentTotal(plan, store.loginMode, store.accountCount);
 
   const next = () => {
     setSubmitted(true);
@@ -282,7 +286,7 @@ export default function TaskTargetStep({ plan, onPrev, onNext }: TaskTargetStepP
         <Button variant="link" onClick={onPrev}>
           이전
         </Button>
-        <Button disabled={taskError !== null} onClick={next}>
+        <Button disabled={taskError !== null || saving} onClick={next}>
           다음: 페르소나
         </Button>
       </StepFooter>
