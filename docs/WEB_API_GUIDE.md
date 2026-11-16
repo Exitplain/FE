@@ -10,17 +10,17 @@
 | 페르소나 실행 | `/api/personas`, `/discover`, `/confirm` | 구현됨 | P02~P11 |
 | 질문·사람 관측 | `/api/personas/explain`, `/human` | 구현됨 | P15, K04 |
 | 리포트·근거 | `/api/personas/report*`, `/api/artifacts/{id}` | 구현됨 | P12~P14 |
-| 제품 API | `/api/v1/*` (로그인, 프로젝트, 공유, 실측, 보정 등) | **미구현** → mock | L, W, C, P17~P21, R, K |
+| 로그인 | `/api/v1/auth/*` (session, csrf, google, email/request·verify, logout) | 구현됨 (실서버) | L01~L10 |
+| 제품 API | `/api/v1/*` (프로젝트, 공유, 실측, 보정 등) | **미구현** → mock | W, C, P17~P21, R, K |
 
-개발 서버 API에는 인증·리소스 소유권 검사가 없습니다. 로그인 화면은 `/api/v1`이 생길 때까지 mock으로 만듭니다.
+개발 서버 API에는 인증·리소스 소유권 검사가 없습니다. 로그인(`/api/v1/auth/*`)은 실서버와만 통신합니다. 브라우저 mock 핸들러는 두지 않고, 테스트에서만 `mocks/node.ts`·`server.use(...)`로 응답을 흉내 냅니다. 엔드포인트·오류 코드는 BE의 Notion API 명세가 기준입니다.
 
 위 표는 로컬 개발 서버(4174) 기준입니다. 배포된 실서버(`http://43.200.218.110`)는 모든 API가 `/api/v1/*`이고, 표의 버전 없는 `/api/*` 경로는 없습니다. 실서버에서 확인된 경로는 `GET /api/v1/auth/session`, `GET /api/v1/auth/csrf`, `POST /api/v1/auth/google`, `/api/v1/projects`, `POST /api/v1/runs`입니다(2026-11-15).
 
-Vercel 배포본은 `build:mock`이지만 `vercel.json` rewrite로 `/api/*`를 실서버에 넘깁니다. ([WEB_SETUP.md](WEB_SETUP.md) 5절)
+Vercel 배포본은 실서버 빌드(`build`)이고 `vercel.json` rewrite로 `/api/*`를 실서버에 넘깁니다. MSW는 켜지지 않습니다. ([WEB_SETUP.md](WEB_SETUP.md) 5절)
 
-- MSW 핸들러는 메서드별입니다. 아래 요청은 계속 mock이 응답합니다: `/api/personas*`(GET·POST, `personas.ts` 참고), `POST /api/v1/persona-panels`, `GET /api/v1/projects/{id}/calibrations`, `GET /api/artifacts/{id}`.
-- 그 밖의 `/api/*`(예: `GET /api/v1/auth/session`, 핸들러 없는 `GET /api/state`)는 실서버로 갑니다. 실서버에 없는 경로는 404입니다.
-- 실서버 API를 붙일 때는 해당 mock 핸들러를 지우면 배포본도 실서버를 씁니다.
+- 예전 mock 배포본에서 mock이 응답하던 `/api/personas*`, `POST /api/v1/persona-panels`, `GET /api/v1/projects/{id}/calibrations`, `GET /api/artifacts/{id}`도 이제 실서버로 갑니다. 실서버에 없는 경로는 404입니다.
+- mock 핸들러(`src/mocks/handlers`)는 `npm run dev:mock`과 테스트에서만 씁니다.
 
 ## 2. 호출 흐름
 

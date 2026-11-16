@@ -6,6 +6,7 @@ import workspaceSettings from "@/assets/login/workspace-settings.svg";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import { ROUTES } from "@/constants/routes";
+import { useLogout } from "@/hooks/useAuthSession";
 import { useDemoSessionStore } from "@/stores/useDemoSessionStore";
 import { cn } from "@/utils/cn";
 
@@ -15,7 +16,7 @@ const menuItem =
 export default function AccountControls() {
   const account = useDemoSessionStore((state) => state.account);
   const openLogin = useDemoSessionStore((state) => state.openLogin);
-  const signOut = useDemoSessionStore((state) => state.signOut);
+  const logout = useLogout();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -83,9 +84,10 @@ export default function AccountControls() {
           <button
             type="button"
             className={menuItem}
+            disabled={logout.isPending}
             onClick={() => {
               setOpen(false);
-              signOut();
+              logout.mutate();
             }}
           >
             <Icon name="logout" />
