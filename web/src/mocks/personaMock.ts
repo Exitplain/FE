@@ -26,6 +26,7 @@ import type {
   Stage,
   Variant,
 } from "@/types/persona.type";
+import type { RunGoalRate, RunItem } from "@/types/run.type";
 
 import { STAGE_LABELS } from "@/constants/persona";
 
@@ -647,6 +648,74 @@ export function reports(): PersonaReportSummary[] {
       outcome: run.stopped ? "stopped" : failed ? "failed" : "completed",
       completion: failed ? [] : completionOf(run.id!),
     };
+  });
+}
+
+/*
+  제품 API 실행 목록(GET /api/v1/projects/{id}/runs) 흉내. 개발 API 의 같은 실행(history + 현재 실행)으로
+  만들어, 다른 화면이 아직 개발 API 를 써도 mock 에서 같은 id 로 이어지게 합니다.
+  P01 이 목록만 polling 해도 실행이 진행되도록 조회마다 한 단계 진행합니다 (GET /api/personas 와 같음).
+  다음 페이지 요청은 진행하지 않습니다(progress=false). 페이지 수만큼 빨라지지 않게 하려는 것입니다.
+  차수(sequence_no)는 오래된 실행이 1차입니다. 리포트·재테스트 화면의 차수 계산과 같습니다.
+*/
+export function runList({ progress = true }: { progress?: boolean } = {}): RunItem[] {
+  if (progress) advance();
+  const current = state.run;
+  const inProgress =
+    current.id && current.status === "running" && !state.history.some((r) => r.id === current.id)
+      ? [current]
+      : [];
+  const runs = [...inProgress, ...state.history];
+  return runs.map((run, index) => runItemOf(run, runs.length - index));
+}
+
+function runItemOf(run: PersonaRun, sequenceNo: number): RunItem {
+  const tasks = run.tasks.map((task) => task.name);
+  const name =
+    tasks.length === 0
+      ? `${sequenceNo}차`
+      : `${sequenceNo}차·${tasks[0]}${tasks.length > 1 ? ` 외 ${tasks.length - 1}개` : ""}`;
+  const base = {
+    id: run.id!,
+    sequence_no: sequenceNo,
+    name,
+    kind: "pretest" as const,
+    change_note: "",
+    parent_run_id: null,
+    created_at: run.created_at ?? new Date().toISOString(),
+    started_at: null,
+    finished_at: null,
+  };
+
+  if (run.status === "running") {
+    const status =
+      run.stage === "analyzing" ? "finalizing" : run.stage === "preparing" ? "queued" : "running";
+    return { ...base, status, report: null };
+  }
+
+  const failed = run.sessions.length > 0 && run.sessions.every((s) => TECHNICAL.includes(s.status));
+  return {
+    ...base,
+    status: run.stopped ? "partially_completed" : failed ? "failed" : "completed",
+    report: {
+      id: `report-${run.id}`,
+      status: run.stopped ? "partial" : "final",
+      revision: 1,
+      goal_rates: goalRatesOf(run.id!, failed),
+    },
+  };
+}
+
+/* 과업별 달성률(0~1): 완료 도달 범위의 가운데 ÷ 첫 단계 인원. 기술 실패만 있으면 null */
+function goalRatesOf(runId: string, failed: boolean): RunGoalRate[] {
+  return report(runId).tasks.map((task) => {
+    const base = task.funnel?.[0]?.reached[1] ?? 0;
+    const last = task.funnel?.[task.funnel.length - 1]?.reached;
+    const rate =
+      failed || !last || base === 0
+        ? null
+        : Math.round(((last[0] + last[1]) / 2 / base) * 10000) / 10000;
+    return { task_id: task.id, name: task.name, achievement_rate: rate };
   });
 }
 

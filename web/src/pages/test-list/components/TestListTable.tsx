@@ -12,6 +12,8 @@ const STATUS_BADGE = {
   done: { icon: "check", label: "완료", tone: "muted" },
   /* E05 로 끝난 실행 — 경고 아이콘, 굵게 */
   failed: { icon: "status-error", label: "실패", tone: "alert" },
+  /* Figma 에 없음: 사용자가 멈춘 실행 — 닫기 아이콘, 연회색 */
+  cancelled: { icon: "close", label: "취소됨", tone: "muted" },
 } as const satisfies Record<TestRowStatus, object>;
 
 type TestListTableProps = {
@@ -23,8 +25,8 @@ type TestListTableProps = {
 
 /*
   P01 사전 테스트 표. 테스트 이름이 링크입니다 (행 전체를 링크로 감싸면 표 의미가 깨져서):
-  진행 중 → 실행 화면(P08~P10), 완료 → 리포트(P12).
-  목표 달성률은 임시로 mock 이 주는 과업별 범위를 보여주고, 없으면 "—" 입니다.
+  진행 중 → 실행 화면(P08~P10), 리포트가 있으면 → 리포트(P12), 끝났는데 리포트가 없으면 링크 없음.
+  목표 달성률은 최신 리포트의 과업별 달성률이고, 없으면 "—" 입니다.
 */
 export default function TestListTable({ projectId, rows, labelledBy }: TestListTableProps) {
   return (
@@ -39,18 +41,22 @@ export default function TestListTable({ projectId, rows, labelledBy }: TestListT
       </thead>
       <tbody>
         {rows.map((row) => {
-          const href =
-            row.status === "done" || row.status === "failed"
-              ? buildPath("report", { projectId, runId: row.key })
-              : buildPath("testRun", { projectId, runId: row.key });
           const badge = STATUS_BADGE[row.status];
 
           return (
             <tr key={row.key} className="border-b border-line last:border-b-0">
               <td className="py-3">
-                <Link to={href} className="font-medium text-ink hover:underline">
-                  {row.name}
-                </Link>
+                {row.link ? (
+                  <Link
+                    to={buildPath(row.link, { projectId, runId: row.key })}
+                    className="font-medium text-ink hover:underline"
+                  >
+                    {row.name}
+                  </Link>
+                ) : (
+                  /* 누를 수 없는 행은 링크와 구분되게 흐리게 둡니다 */
+                  <span className="font-medium text-subtle">{row.name}</span>
+                )}
               </td>
               <td className="py-3">
                 <StatusBadge icon={badge.icon} label={badge.label} tone={badge.tone} />

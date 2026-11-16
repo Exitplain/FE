@@ -30,6 +30,7 @@ export function useStartRetest() {
     onSuccess: (run) => {
       queryClient.setQueryData(queryKeys.personas.current(), run);
       void queryClient.invalidateQueries({ queryKey: queryKeys.personas.reports() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
     },
   });
 }

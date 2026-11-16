@@ -1,6 +1,6 @@
 import IconButton from "@/components/IconButton/IconButton";
 
-import { useLoginPrototype } from "../hooks/useLoginPrototype";
+import { useLoginFlow } from "../hooks/useLoginFlow";
 import AuthCard from "./AuthCard";
 import EmailForm from "./EmailForm";
 import SessionExpiredCard from "./SessionExpiredCard";
@@ -14,12 +14,12 @@ export default function LoginPanel({
   mode?: "page" | "dialog";
   onClose?: () => void;
 }) {
-  const login = useLoginPrototype(mode);
-  if (login.view === "expired")
-    return <SessionExpiredCard onLogin={() => login.changeView("email")} />;
+  const login = useLoginFlow(mode);
+  if (login.step === "expired") return <SessionExpiredCard onLogin={login.restart} />;
 
+  const isVerification = login.step === "code";
   return (
-    <AuthCard title={login.isVerification ? "이메일을 확인하세요" : "로그인 또는 회원가입"}>
+    <AuthCard title={isVerification ? "이메일을 확인하세요" : "로그인 또는 회원가입"}>
       {onClose && (
         <IconButton
           icon="close"
@@ -29,24 +29,29 @@ export default function LoginPanel({
           className="absolute top-6 right-6"
         />
       )}
-      {login.isVerification ? (
+      {isVerification ? (
         <VerificationForm
-          email={login.email || "maker@example.com"}
+          email={login.email}
           code={login.code}
           onCodeChange={login.setCode}
-          error={login.view === "code-error"}
-          loading={login.view === "loading"}
+          errorMessage={login.codeError}
+          loading={login.verifying}
+          complete={login.codeComplete}
           resent={login.resent}
+          resendError={login.resendError}
+          cooldown={login.cooldown}
+          resending={login.requesting}
           onResend={login.resendCode}
-          onSubmit={login.completeLogin}
+          onSubmit={login.submitCode}
         />
       ) : (
         <EmailForm
           email={login.email}
           onEmailChange={login.setEmail}
-          networkError={login.view === "network-error"}
+          errorMessage={login.emailError}
+          pending={login.emailBusy}
           onContinue={login.continueWithEmail}
-          onGoogle={login.completeLogin}
+          onGoogleCredential={login.continueWithGoogle}
         />
       )}
     </AuthCard>

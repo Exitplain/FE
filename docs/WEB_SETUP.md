@@ -72,9 +72,14 @@ npx msw init public --save
 
 | 이름 | 기본값 | 설명 |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | 비움 | 비우면 `/api/...` 요청이 dev 서버 프록시로 갑니다 |
-| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:4174` | 프록시가 요청을 넘길 BE 주소 |
+| `VITE_API_BASE_URL` | 비움 | 비우면 `/api/...` 요청이 dev 서버 프록시로 갑니다. 로그인 쿠키 때문에 로컬에서는 **비워 둡니다** |
+| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:4174` (`.env.example`은 실서버 `http://43.200.218.110`) | 프록시가 요청을 넘길 BE 주소 |
 | `VITE_USE_MOCK_API` | `false` | `true`이면 MSW가 `/api` 요청을 가로챕니다 |
+| `VITE_GOOGLE_CLIENT_ID` | 비움 | 구글 로그인 버튼(GSI) 클라이언트 ID. 비우면 버튼이 비활성입니다 |
+
+실서버의 `csrftoken`·`sessionid` 쿠키는 `Secure; SameSite=None`입니다. `VITE_API_BASE_URL`에 실서버 주소(`http://43.200.218.110`)를 직접 넣으면 브라우저가 쿠키를 저장하지 않아 로그인이 되지 않습니다. 프록시를 쓰면 `http://localhost:5173`과 같은 origin이고, 브라우저는 localhost를 안전한 주소로 봐서 Secure 쿠키를 저장합니다.
+
+구글 로그인은 Google에 등록된 `http://localhost:5173`에서만 됩니다. IP 주소 배포본은 https 도메인이 생기기 전까지, Vercel 배포본은 BE가 그 도메인을 Google에 등록하기 전까지 이메일 코드 로그인만 쓸 수 있습니다. 지금은 BE에 테스트 사용자로 등록된 구글 계정만 로그인됩니다.
 
 `.env.mock`은 비밀 값이 없어 커밋합니다. `npm run dev:mock`, `npm run build:mock`이 이 파일을 씁니다.
 
@@ -106,8 +111,9 @@ proxy.on("proxyReq", (proxyReq) => {
 ```
 
 - `/api` rewrite는 SPA fallback(`/(.*)`)보다 **앞에** 둡니다. 뒤에 두면 API 요청에 `index.html`이 돌아옵니다.
-- 배포 빌드는 `build:mock`(`.env.mock`, `VITE_API_BASE_URL` 비움)입니다. MSW 핸들러가 있는 경로는 mock이 응답하고, 핸들러가 없는 `/api/*`만 실서버로 갑니다.
-- Vercel 대시보드의 `VITE_*` 환경변수는 `.env.mock`보다 우선합니다. `VITE_USE_MOCK_API`·`VITE_API_BASE_URL`을 대시보드에 넣지 않습니다.
+- 배포 빌드는 실서버 빌드 `build`입니다(2026-11-16, 이전에는 `build:mock`). MSW가 켜지지 않으므로 모든 `/api/*`가 실서버로 갑니다. 실서버에 없는 경로(버전 없는 `/api/personas*` 등)는 404입니다.
+- Vercel 대시보드에 `VITE_USE_MOCK_API`·`VITE_API_BASE_URL`은 넣지 않습니다(`VITE_API_BASE_URL`이 비어야 rewrite를 탑니다).
+- `VITE_GOOGLE_CLIENT_ID`는 BE가 Google에 배포 도메인(`https://exitplain.vercel.app` 등)을 등록한 **뒤에** 대시보드에 넣습니다. 등록 전에 넣으면 Google 버튼이 나타나지만 눌렀을 때 `origin_mismatch` 오류가 납니다. 넣지 않으면 버튼이 비활성이고 이메일 로그인만 됩니다.
 - rewrite 대상에는 환경변수를 쓸 수 없습니다. 서버 주소가 바뀌면 `vercel.json`을 고치고 다시 배포합니다.
 - Origin 헤더는 바뀌지 않고 `https://exitplain.vercel.app`으로 전달됩니다. POST가 CSRF 검사에 걸리지 않으려면 BE의 `CSRF_TRUSTED_ORIGINS`에 배포 도메인이 있어야 합니다. Preview 배포는 `*.vercel.app`의 다른 도메인이라 따로 등록하지 않으면 POST가 실패합니다.
 - Vercel 외부 rewrite에는 프록시 타임아웃이 있습니다. 오래 걸리는 요청은 202 + 상태 polling으로 설계합니다.
@@ -121,7 +127,7 @@ proxy.on("proxyReq", (proxyReq) => {
 | `npm run dev` | 개발 서버 (BE 프록시), http://localhost:5173 |
 | `npm run dev:mock` | 개발 서버 (MSW mock) |
 | `npm run build` | 타입 검사 + 프로덕션 빌드 |
-| `npm run build:mock` | mock 데모 빌드 |
+| `npm run build:mock` | mock 데모 빌드 (Vercel 배포에는 쓰지 않음) |
 | `npm run lint` | ESLint |
 | `npm run format` / `format:check` | Prettier 적용 / 검사 |
 | `npm run test` / `test:run` | Vitest 감시 모드 / 1회 실행 |
