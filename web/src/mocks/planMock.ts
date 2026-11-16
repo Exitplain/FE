@@ -42,6 +42,8 @@ const PERSONA_TOTAL = 10;
 const PERSONA_MIN = 4;
 const PERSONA_MAX = 20;
 const ACCOUNT_MIN = 4;
+/* 테스트 계정 보관 기간 (BE TEST_ACCOUNT_RETENTION_DAYS) */
+const RETENTION_DAYS = 90;
 const SEED_RANGE = { min: 1, max: 3 };
 const SEGMENT_IDS = ["segment_1", "segment_2", "segment_3", "segment_4"];
 const AGES: Record<AgeKey, string> = {
@@ -512,6 +514,7 @@ export function getTestAccounts(projectId: number): TestAccounts {
       min: ACCOUNT_MIN,
       max: 20,
       ready: false,
+      retention_days: RETENTION_DAYS,
       items: [],
     },
   );
@@ -533,12 +536,18 @@ export function putTestAccounts(projectId: number, body: Record<string, unknown>
     min: ACCOUNT_MIN,
     max: 20,
     ready: accounts.length >= ACCOUNT_MIN,
+    retention_days: RETENTION_DAYS,
     items: accounts.map((account, index) => ({
       id: account.id ?? nextId("account"),
       position: index + 1,
       username: account.username,
       has_password: true,
       status: "unchecked",
+      status_message: "",
+      checked_at: null,
+      last_used_at: null,
+      /* 마지막으로 바뀐 뒤 보관 기간이 지나면 자동 삭제 */
+      expires_at: new Date(Date.now() + RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     })),
   };
   state.accounts.set(projectId, saved);

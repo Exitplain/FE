@@ -24,6 +24,8 @@ type AccountModalProps = {
   saving?: boolean;
   /* 저장하지 못한 이유 (서버 message) */
   error?: string | null;
+  /* 계정 보관 기간 (서버 retention_days, 기본 90일) */
+  retentionDays?: number;
 };
 
 const EMPTY_ROW: TestAccount = { username: "", password: "" };
@@ -35,7 +37,8 @@ const isBlank = (row: TestAccount) => row.username.trim() === "" && row.password
 /*
   P04 테스트 계정 등록 모달 (P04b 10개 입력, P04c 중복, P04d 붙여넣기) — 퍼블리싱 단계.
   저장하면 프로젝트 테스트 계정으로 서버에 보냅니다 (PUT /api/v1/projects/{id}/test-accounts).
-  비밀번호는 서버에만 남고 응답·브라우저 저장소(localStorage 등)에는 남기지 않습니다.
+  비밀번호는 서버가 암호화해서 저장하고 응답·브라우저 저장소(localStorage 등)에는 남기지 않습니다.
+  저장에 실패하면(예: 503 암호화 서비스 연결 실패) 모달과 입력을 그대로 두고 서버 안내를 보여 다시 저장하게 합니다.
   서버 에이전트가 아직 로그인 상태 실행을 지원하지 않아, 실행에는 계정 수(=에이전트 수)만 반영됩니다.
   Figma 의 원격 브라우저 단계(1. 브라우저 열기 ~ 3. 시작 화면 지정)와 P04c "로그인 확인"은
   서버 기능이 생기면 이 모달에 이어서 붙입니다.
@@ -51,6 +54,7 @@ function AccountDialog({
   onSave,
   saving = false,
   error = null,
+  retentionDays = 90,
 }: Omit<AccountModalProps, "open">) {
   const baseId = useId();
   const [mode, setMode] = useState<"manual" | "paste">("manual");
@@ -248,8 +252,13 @@ function AccountDialog({
         <p className="text-xs text-muted">계정을 더 넣으면 최대 {ACCOUNT_MAX}명까지 늘어나요</p>
       </div>
       <p className="text-xs text-subtle">
-        실제 개인정보·결제 정보가 없는 테스트 계정만 넣어주세요 · 비밀번호는 서버에만 저장하고 다시
-        보여주지 않아요 · 지금은 로그인 상태 실행을 지원하지 않아 저장만 해요
+        실제 개인정보·결제 정보가 없는 테스트 계정만 넣어주세요 · 지금은 로그인 상태 실행을 지원하지
+        않아 저장만 해요
+      </p>
+      {/* BE 요청 문구 (/privacy 와 같음) — 보관 기간은 서버 retention_days */}
+      <p className="text-xs text-subtle">
+        입력한 비밀번호는 암호화해서 저장하고, 화면에 다시 보여주지 않아요. 마지막으로 사용하거나
+        수정한 뒤 {retentionDays}일이 지나면 자동으로 삭제돼요.
       </p>
       {error && (
         <p role="alert" className="text-caption font-medium text-danger">

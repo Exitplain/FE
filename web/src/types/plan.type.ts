@@ -158,15 +158,23 @@ export type TestAccountItem = {
   username: string;
   has_password: boolean;
   status: "unchecked" | "ok" | "failed";
+  status_message?: string;
+  checked_at?: string | null;
+  last_used_at?: string | null;
+  /* 자동 삭제 예정일 — 마지막으로 쓰이거나 바뀐 뒤 retention_days 가 지난 날 */
+  expires_at?: string;
 };
 
 export type TestAccounts = {
   project_id: number;
   login_url: string;
   count: number;
+  /* 로그인 상태 테스트에 필요한 계정 수 (4~20개). count >= min 이면 ready */
   min: number;
   max: number;
   ready: boolean;
+  /* 계정 보관 기간 (기본 90일) */
+  retention_days?: number;
   items: TestAccountItem[];
 };
 

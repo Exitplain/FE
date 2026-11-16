@@ -330,6 +330,7 @@ export default function SiteStep({
         }}
         saving={saveAccounts.isPending}
         error={saveAccounts.error ? accountSaveError(saveAccounts.error) : null}
+        retentionDays={savedAccounts.data?.retention_days}
         onSave={(accounts) =>
           saveAccounts.mutate(
             { projectId: v1ProjectId, accounts },

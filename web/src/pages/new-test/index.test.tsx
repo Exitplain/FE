@@ -376,6 +376,52 @@ describe("P02~P07 새 테스트", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText(/테스트 계정 2개 등록/)).toBeInTheDocument();
   });
+
+  it("P04 — 비밀번호를 암호화하지 못하면(503) 입력을 지우지 않고 다시 저장할 수 있다", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    server.use(
+      http.put(
+        "*/api/v1/projects/:projectId/test-accounts",
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "TEST_ACCOUNT_KEY_UNAVAILABLE",
+                message: "비밀번호를 암호화하지 못했습니다. 잠시 뒤 다시 저장해주세요.",
+                fields: {},
+              },
+            },
+            { status: 503 },
+          ),
+        { once: true },
+      ),
+    );
+
+    await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
+    await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
+    const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    expect(
+      within(dialog).getByText(
+        "입력한 비밀번호는 암호화해서 저장하고, 화면에 다시 보여주지 않아요. 마지막으로 사용하거나 수정한 뒤 90일이 지나면 자동으로 삭제돼요.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("radio", { name: "붙여넣기" }));
+    await user.click(within(dialog).getByLabelText("계정 붙여넣기"));
+    await user.paste("a@x.example,pw1");
+    await user.click(within(dialog).getByRole("button", { name: "목록에 넣기" }));
+    await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "비밀번호를 암호화하지 못했습니다. 잠시 뒤 다시 저장해주세요.",
+    );
+    expect(within(dialog).getByText("1 / 20")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
+    expect(await screen.findByText(/테스트 계정 1개 등록/)).toBeInTheDocument();
+  });
+
   it("다른 단계 주소로 들어와 사이트를 확인해도 과업·타겟부터 다시 입력한다", async () => {
     const user = userEvent.setup();
     await renderWizard("confirm");
