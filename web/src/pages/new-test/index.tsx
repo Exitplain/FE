@@ -20,15 +20,15 @@ import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
 import { useSavePlan, useStartRun } from "./hooks/useNewTestMutations";
 import {
-  agentTotal,
+  agentRange,
   clampStep,
   formatMonthDay,
   furthestAllowedStep,
+  inRange,
   parseStep,
   REVIEW_STEP,
-  RUN_CONDITIONS,
+  RUN_DEVICE,
   STEP_LABELS,
-  SEEDS,
   segmentsPatch,
   STEPS,
   type StepKey,
@@ -68,20 +68,30 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
   const saved = useRef<{ planId: string; body: Record<string, unknown> } | null>(null);
 
   const calibrations = useCalibrations(project.id);
-  const { storeProjectId, plan, taskIds, taskCount, targetDescription, segmentsValid, panel } =
-    useNewTestStore(
-      useShallow((state) => ({
-        storeProjectId: state.projectId,
-        plan: state.plan,
-        taskIds: state.taskIds,
-        taskCount: state.taskIds.length,
-        panel: agentTotal(state.plan, state.loginMode, state.accounts.length),
-        targetDescription: state.targetDescription,
-        segmentsValid:
-          sum(state.segmentCounts) ===
-          agentTotal(state.plan, state.loginMode, state.accounts.length),
-      })),
-    );
+  const {
+    storeProjectId,
+    plan,
+    taskIds,
+    taskCount,
+    targetDescription,
+    segmentsValid,
+    panel,
+    seedCount,
+  } = useNewTestStore(
+    useShallow((state) => ({
+      storeProjectId: state.projectId,
+      plan: state.plan,
+      taskIds: state.taskIds,
+      taskCount: state.taskIds.length,
+      panel: sum(state.segmentCounts),
+      seedCount: state.seedCount,
+      targetDescription: state.targetDescription,
+      segmentsValid: inRange(
+        sum(state.segmentCounts),
+        agentRange(state.plan, state.loginMode, state.accounts.length),
+      ),
+    })),
+  );
 
   /* 화면에 그리기 전에 이 프로젝트의 입력으로 시작하고, 떠날 때 지웁니다 */
   useLayoutEffect(() => {
@@ -173,7 +183,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     const state = useNewTestStore.getState();
     const current: Record<string, unknown> = {
       ...taskTargetPatch(plan, state),
-      ...segmentsPatch(plan, state.segmentCounts),
+      ...segmentsPatch(plan, state.segmentCounts, state.seedCount),
     };
     const last = saved.current?.planId === plan.planId ? saved.current.body : {};
     const dirty = Object.fromEntries(
@@ -225,7 +235,6 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     const tasks = plan.tasks.filter((task) => taskIds.includes(task.id));
     const taskSummary =
       tasks.length > 1 ? `${tasks[0].name} 외 ${tasks.length - 1}개` : (tasks[0]?.name ?? "");
-    const device = RUN_CONDITIONS.split(" · ")[0];
     return (
       <div className="flex flex-col gap-12">
         {/* Figma P06·P07: Stepper 없이 제목 "페르소나 확인" (P07 은 실행 조건 한 줄을 덧붙임) */}
@@ -233,7 +242,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           projectId={project.id}
           breadcrumb={`${project.name} / 사전 테스트 / 새 테스트 · 테스트`}
           title="페르소나 확인"
-          description={`${taskSummary} · ${device} · ${panel}명 × 시드 ${SEEDS}회 (1/${SEEDS})`}
+          description={`${taskSummary} · ${RUN_DEVICE} · ${panel}명 × 시드 ${seedCount}회 (1/${seedCount})`}
           activeTab="tests"
         />
         <PersonaReviewStep
@@ -289,9 +298,10 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           calibratedLabel={calibratedLabel}
           saving={save.isPending}
           onPrev={() => goTo("task")}
-          onNext={() =>
-            saveThen(segmentsPatch(plan, useNewTestStore.getState().segmentCounts), "confirm")
-          }
+          onNext={() => {
+            const state = useNewTestStore.getState();
+            saveThen(segmentsPatch(plan, state.segmentCounts, state.seedCount), "confirm");
+          }}
         />
       )}
       {step === "confirm" && plan && (

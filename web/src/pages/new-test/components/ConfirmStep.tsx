@@ -6,12 +6,12 @@ import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 import {
-  agentTotal,
   ageSummary,
   isPlanExpired,
-  RUN_CONDITIONS,
+  runConditions,
   type StepKey,
   STEPS,
+  sum,
   type WizardPlan,
 } from "../utils/newTest";
 import { StepFooter } from "./StepSection";
@@ -56,6 +56,9 @@ export default function ConfirmStep({
       targetDescription: state.targetDescription,
       memo: state.memo,
       customTasks: state.customTasks,
+      /* 세그먼트 인원 합계 = 에이전트 수 (P05b 에서 조절) */
+      agents: sum(state.segmentCounts),
+      seedCount: state.seedCount,
     })),
   );
 
@@ -75,7 +78,7 @@ export default function ConfirmStep({
   /* 만료는 아래 만료 안내로 따로 보여 줍니다 */
   const blocking = plan.review.blocking.filter((item) => item.code !== "DISCOVERY_EXPIRED");
   const tasks = plan.tasks.filter((task) => store.taskIds.includes(task.id));
-  const panel = agentTotal(plan, store.loginMode, store.accounts.length);
+  const panel = store.agents;
   const stages = Math.max(0, ...tasks.map((task) => task.funnel_stages ?? 0));
 
   const rows: { label: string; value: string; step?: StepKey }[] = [
@@ -126,7 +129,7 @@ export default function ConfirmStep({
       value: `에이전트 ${panel}명 · 과업 ${tasks.length}개 · ${calibratedLabel ? `보정 ${calibratedLabel}` : calibratedLabel === null ? "보정 전" : "보정 확인 중"}`,
       step: "persona",
     },
-    { label: "실행 조건", value: RUN_CONDITIONS, step: "persona" },
+    { label: "실행 조건", value: runConditions(store.seedCount), step: "persona" },
   ];
 
   return (

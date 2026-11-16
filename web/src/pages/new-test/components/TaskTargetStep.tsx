@@ -11,7 +11,7 @@ import { useNewTestStore } from "@/stores/useNewTestStore";
 import type { AgeKey } from "@/types/plan.type";
 import { cn } from "@/utils/cn";
 
-import { agentTotal, SEEDS, TEXT_MAX, toggleAgeChip, type WizardPlan } from "../utils/newTest";
+import { sum, TEXT_MAX, toggleAgeChip, type WizardPlan } from "../utils/newTest";
 import { StepFooter } from "./StepSection";
 
 type TaskTargetStepProps = {
@@ -52,8 +52,9 @@ export default function TaskTargetStep({
       memo: state.memo,
       targetDescription: state.targetDescription,
       ages: state.ages,
-      loginMode: state.loginMode,
-      accountCount: state.accounts.length,
+      /* 세그먼트 인원 합계 = 에이전트 수 (P05b 에서 조절) */
+      agents: sum(state.segmentCounts),
+      seedCount: state.seedCount,
       toggleTask: state.toggleTask,
       addCustomTask: state.addCustomTask,
       removeCustomTask: state.removeCustomTask,
@@ -73,7 +74,6 @@ export default function TaskTargetStep({
 
   const taskError = store.taskIds.length === 0 ? "과업을 1개 이상 골라주세요" : null;
   const targetError = store.targetDescription.trim() ? null : "타겟 고객을 적어 주세요";
-  const panel = agentTotal(plan, store.loginMode, store.accountCount);
 
   const next = () => {
     setSubmitted(true);
@@ -123,8 +123,8 @@ export default function TaskTargetStep({
                 </p>
               ) : (
                 <p className="text-caption font-medium text-gray-800">
-                  과업 {store.taskIds.length}개 선택 · {panel}명 × {store.taskIds.length}개 × 시드{" "}
-                  {SEEDS}회
+                  과업 {store.taskIds.length}개 선택 · {store.agents}명 × {store.taskIds.length}개 ×
+                  시드 {store.seedCount}회
                 </p>
               )}
             </div>

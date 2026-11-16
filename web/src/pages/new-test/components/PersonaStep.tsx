@@ -6,7 +6,16 @@ import Icon from "@/components/Icon/Icon";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 import { cn } from "@/utils/cn";
 
-import { agentTotal, RUN_CONDITION_DETAILS, RUN_CONDITIONS, sum } from "../utils/newTest";
+import {
+  agentRange,
+  inRange,
+  RUN_CONDITION_DETAILS,
+  runConditions,
+  SEED_DEFAULT,
+  SEED_MAX,
+  segmentTotalMessage,
+  sum,
+} from "../utils/newTest";
 import { StepFooter } from "./StepSection";
 
 type PersonaStepProps = {
@@ -18,35 +27,42 @@ type PersonaStepProps = {
   saving?: boolean;
 };
 
-/* Figma Stepper — 연회색 pill(너비 136) 안 − 인원 + */
+/* Figma Stepper — 연회색 pill(너비 136) 안 − 인원 + (시드 횟수에도 씁니다) */
 function SegmentStepper({
   label,
   value,
+  min = 1,
   max,
+  unit = "명",
+  valueName = "인원",
   onChange,
 }: {
   label: string;
   value: number;
+  min?: number;
   max: number;
+  unit?: string;
+  valueName?: string;
   onChange: (value: number) => void;
 }) {
   return (
     <div className="flex w-34 items-center justify-between rounded-full bg-gray-50 px-4 py-2">
       <button
         type="button"
-        aria-label={`${label} 1명 줄이기`}
-        disabled={value <= 1}
+        aria-label={`${label} 1${unit} 줄이기`}
+        disabled={value <= min}
         onClick={() => onChange(value - 1)}
         className="rounded text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-gray-400"
       >
         <Icon name="minus" />
       </button>
-      <output aria-label={`${label} 인원`} className="text-sm font-medium text-ink">
-        {value}명
+      <output aria-label={`${label} ${valueName}`} className="text-sm font-medium text-ink">
+        {value}
+        {unit}
       </output>
       <button
         type="button"
-        aria-label={`${label} 1명 늘리기`}
+        aria-label={`${label} 1${unit} 늘리기`}
         disabled={value >= max}
         onClick={() => onChange(value + 1)}
         className="rounded text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-gray-400"
@@ -59,8 +75,11 @@ function SegmentStepper({
 
 /*
   P05b 세그먼트 비율 (+ P05e 합계 오류, P05h 테스트 계정 8개) — Figma Wizard/Body (너비 704)
-  - 에이전트 20명(로그인 테스트는 계정 수만큼)을 세그먼트 4개에 나눕니다. 합계가 맞아야 다음으로 갑니다.
-  - "다음"에서 세그먼트 인원을 계획에 저장합니다 (PATCH segments). 서버는 세그먼트마다 1명 이상을 받습니다.
+  - 에이전트(기본 10명, 4~20명 · 로그인 테스트는 계정 수만큼)를 세그먼트 4개에 나눕니다.
+    합계가 서버 범위 안이어야 다음으로 갑니다.
+  - 실행 조건에서 시드 횟수(기본 1회, 1~3회)를 고릅니다.
+  - "다음"에서 세그먼트 인원과 바뀐 시드를 계획에 저장합니다 (PATCH segments · limits).
+    서버는 세그먼트마다 1명 이상을 받습니다.
 */
 export default function PersonaStep({
   calibratedLabel,
@@ -68,19 +87,23 @@ export default function PersonaStep({
   onNext,
   saving = false,
 }: PersonaStepProps) {
-  const { plan, segmentCounts, loginMode, accountCount, setSegmentCount } = useNewTestStore(
-    useShallow((state) => ({
-      plan: state.plan,
-      segmentCounts: state.segmentCounts,
-      loginMode: state.loginMode,
-      accountCount: state.accounts.length,
-      setSegmentCount: state.setSegmentCount,
-    })),
-  );
+  const { plan, segmentCounts, seedCount, loginMode, accountCount, setSegmentCount, setSeedCount } =
+    useNewTestStore(
+      useShallow((state) => ({
+        plan: state.plan,
+        segmentCounts: state.segmentCounts,
+        seedCount: state.seedCount,
+        loginMode: state.loginMode,
+        accountCount: state.accounts.length,
+        setSegmentCount: state.setSegmentCount,
+        setSeedCount: state.setSeedCount,
+      })),
+    );
   const [showDetails, setShowDetails] = useState(false);
-  const panel = agentTotal(plan, loginMode, accountCount);
+  const range = agentRange(plan, loginMode, accountCount);
+  const seedRange = plan?.seedRange ?? { min: SEED_DEFAULT, max: SEED_MAX };
   const total = sum(segmentCounts);
-  const mismatch = total !== panel;
+  const mismatch = !inRange(total, range);
   const fromAccounts = loginMode === "account" && accountCount > 0;
 
   return (
@@ -96,8 +119,8 @@ export default function PersonaStep({
           <div className="flex flex-col gap-5">
             <p className="text-caption text-subtle">
               {fromAccounts
-                ? `테스트 계정 ${accountCount}개 → 에이전트 ${panel}명`
-                : `에이전트 ${panel}명 · 로그인 테스트는 계정 수만큼 (최대 20)`}
+                ? `테스트 계정 ${accountCount}개 → 에이전트 ${range.total}명`
+                : `에이전트 ${range.min}~${range.max}명 · 로그인 테스트는 계정 수만큼 (최대 ${range.max})`}
             </p>
             {/* 불러오는 중에는 "보정 전"으로 잘못 보이지 않게 비워 둡니다 */}
             {calibratedLabel !== undefined && (
@@ -124,7 +147,7 @@ export default function PersonaStep({
                   <SegmentStepper
                     label={label}
                     value={count}
-                    max={panel}
+                    max={range.max}
                     onChange={(value) => setSegmentCount(index, value)}
                   />
                 </li>
@@ -140,7 +163,7 @@ export default function PersonaStep({
             </p>
             {mismatch && (
               <p role="alert" className="text-xs text-danger">
-                합계가 {panel}명이 되도록 맞춰주세요 · 지금 {total}명
+                {segmentTotalMessage(total, range)}
               </p>
             )}
           </div>
@@ -152,7 +175,20 @@ export default function PersonaStep({
           실행 조건
         </h2>
         <div className="flex flex-col gap-3">
-          <p className="pl-2 text-xs text-subtle">{RUN_CONDITIONS}</p>
+          <p className="pl-2 text-xs text-subtle">{runConditions(seedCount)}</p>
+          {/* 임시 라벨: Figma 에 시드 선택이 없어 BE 범위(1~3회)만 고르게 둡니다 */}
+          <div className="flex items-center justify-between border-b border-line pb-1 pl-2">
+            <span className="text-sm text-gray-800">시드</span>
+            <SegmentStepper
+              label="시드"
+              value={seedCount}
+              min={seedRange.min}
+              max={seedRange.max}
+              unit="회"
+              valueName="횟수"
+              onChange={setSeedCount}
+            />
+          </div>
           {showDetails && (
             <ul className="flex flex-col gap-1 pl-2 text-xs text-subtle">
               {RUN_CONDITION_DETAILS.map((item) => (

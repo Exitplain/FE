@@ -78,8 +78,12 @@ export type Plan = {
     capabilities: {
       ages: Partial<Record<AgeKey, string>>;
       segment_ids: string[];
+      /* 기준 인원 (로그인 없이 10명, 테스트 계정이면 계정 수) */
       persona_total: number;
-      limits: Record<string, { min: number; max: number }>;
+      /* 확정할 수 있는 인원 범위 (로그인 없이 4~20명, 테스트 계정이면 계정 수 하나) */
+      persona_min?: number;
+      persona_max?: number;
+      limits: Partial<Record<keyof PlanLimits, { min: number; max: number }>>;
       custom_task_limit: number;
     };
   };
@@ -107,6 +111,8 @@ export type PlanPatch = Partial<{
   additional_request: string;
   audience: { context: string; ages: AgeKey[] };
   segments: { id: string; count: number }[];
+  /* 보낸 키만 바뀝니다 (P05b 시드 1~3회) */
+  limits: Partial<PlanLimits>;
 }>;
 
 export type SnapshotSegment = {

@@ -37,19 +37,26 @@ describe("useNewTestStore", () => {
     const { server } = setPlan();
 
     expect(useNewTestStore.getState().taskIds).toEqual(server.task_ids);
-    expect(useNewTestStore.getState().segmentCounts).toEqual([5, 5, 5, 5]);
+    expect(useNewTestStore.getState().segmentCounts).toEqual([3, 3, 2, 2]);
+    expect(useNewTestStore.getState().seedCount).toBe(1);
   });
 
-  it("다시 계획을 받아도 합계가 서버 총원과 같으면 조정한 세그먼트 인원을 유지한다", () => {
+  it("다시 계획을 받아도 합계가 서버 범위(4~20명) 안이면 조정한 세그먼트 인원을 유지한다", () => {
     setPlan();
     useNewTestStore.getState().setSegmentCount(0, 8);
-    useNewTestStore.getState().setSegmentCount(1, 2);
     setPlan();
-    expect(useNewTestStore.getState().segmentCounts).toEqual([8, 2, 5, 5]);
+    expect(useNewTestStore.getState().segmentCounts).toEqual([8, 3, 2, 2]);
 
-    useNewTestStore.getState().setSegmentCount(0, 9);
+    useNewTestStore.getState().setSegmentCount(0, 14);
     setPlan();
-    expect(useNewTestStore.getState().segmentCounts).toEqual([5, 5, 5, 5]);
+    expect(useNewTestStore.getState().segmentCounts).toEqual([3, 3, 2, 2]);
+  });
+
+  it("시드는 처음 계획이면 서버 값으로, 다시 받은 계획이면 고른 값을 유지한다", () => {
+    setPlan();
+    useNewTestStore.getState().setSeedCount(3);
+    setPlan();
+    expect(useNewTestStore.getState().seedCount).toBe(3);
   });
 
   it("세그먼트 인원은 1명 아래로 내려가지 않는다 (서버 최소 1명)", () => {

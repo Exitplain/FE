@@ -2,7 +2,9 @@ import { create } from "zustand";
 
 import {
   evenSplit,
+  inRange,
   panelSize,
+  SEED_DEFAULT,
   sum,
   type TestAccount,
   type WizardPlan,
@@ -34,6 +36,8 @@ type NewTestState = {
   ages: AgeKey[];
   /* P05b 세그먼트별 인원 (서버 계획 segments 순서). 서버 최소값은 1명 */
   segmentCounts: number[];
+  /* P05b 시드 횟수 (서버 계획 limits.seed_count 와 다르면 "다음"에서 저장) */
+  seedCount: number;
 };
 
 type NewTestActions = {
@@ -54,6 +58,7 @@ type NewTestActions = {
   setTargetDescription: (text: string) => void;
   setAges: (ages: AgeKey[]) => void;
   setSegmentCount: (index: number, count: number) => void;
+  setSeedCount: (count: number) => void;
 };
 
 const initialInput = (projectId: string | null, siteUrl: string): NewTestState => ({
@@ -69,6 +74,7 @@ const initialInput = (projectId: string | null, siteUrl: string): NewTestState =
   targetDescription: "",
   ages: ["any"],
   segmentCounts: evenSplit(panelSize("none", 0)),
+  seedCount: SEED_DEFAULT,
 });
 
 /* 패널 인원이 바뀌었을 때만 세그먼트 인원을 새로 나눈 값을 돌려줍니다 */
@@ -92,7 +98,7 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
   /*
     로그인 없이로 돌아가면 입력한 테스트 계정(비밀번호 포함)을 메모리에서도 지웁니다.
     서버에 이미 저장된 계정(id 있음)은 목록을 남기고 비밀번호만 지웁니다 (저장이 기존 계정을 지우지 않게).
-    패널 인원(계정 수 또는 20명)이 실제로 바뀔 때만 세그먼트 인원을 다시 고르게 나눕니다 (P05h).
+    패널 인원(계정 수 또는 10명)이 실제로 바뀔 때만 세그먼트 인원을 다시 고르게 나눕니다 (P05h).
     같은 인원이면 사용자가 조정한 비율을 그대로 둡니다.
   */
   setLoginMode: (loginMode) =>
@@ -110,7 +116,9 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
     set((state) => ({ accounts, ...resplit(state, state.loginMode, accounts.length) })),
   /*
     다시 탐색해도 이전에 고른 과업 중 새 결과에 있는 것은 유지하고, 없으면 서버 계획의 기본 과업(추천)을 고릅니다.
-    세그먼트 인원은 지금 값의 합계가 서버 총원과 같으면 유지하고, 아니면 서버 기본값으로 맞춥니다.
+    세그먼트 인원은 지금 값의 합계가 서버 범위(로그인 없이 4~20명, 테스트 계정이면 계정 수) 안이면 유지하고,
+    아니면 서버 기본값으로 맞춥니다.
+    시드는 처음 받은 계획이면 서버 값으로, 다시 탐색한 계획이면 고른 값을 유지합니다 (다르면 "다음"에서 저장).
   */
   setPlan: (plan, server) =>
     set((state) => {
@@ -120,10 +128,11 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
         plan,
         taskIds: kept.length > 0 ? kept : server.task_ids,
         segmentCounts:
-          sum(state.segmentCounts) === plan.personaTotal &&
+          inRange(sum(state.segmentCounts), { min: plan.personaMin, max: plan.personaMax }) &&
           state.segmentCounts.length === counts.length
             ? state.segmentCounts
             : counts,
+        seedCount: state.plan ? state.seedCount : plan.seedCount,
       };
     }),
   updatePlan: (update) => set((state) => (state.plan ? { plan: update(state.plan) } : state)),
@@ -151,4 +160,5 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
         i === index ? Math.max(1, count) : value,
       ),
     })),
+  setSeedCount: (seedCount) => set({ seedCount }),
 }));

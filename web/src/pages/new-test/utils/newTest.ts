@@ -78,8 +78,14 @@ export type WizardPlan = {
   features: DiscoverFeature[];
   tasks: DiscoverTask[];
   age_options: Partial<Record<AgeKey, string>>;
+  /* 페르소나 인원 — 기준 인원과 확정할 수 있는 범위 (로그인 없이 4~20명, 테스트 계정이면 계정 수) */
   personaTotal: number;
+  personaMin: number;
+  personaMax: number;
   segmentIds: string[];
+  /* 서버 계획에 저장된 시드 횟수와 고를 수 있는 범위 */
+  seedCount: number;
+  seedRange: { min: number; max: number };
   review: PlanReview;
   check: SiteCheck | null;
 };
@@ -99,10 +105,22 @@ export function toWizardPlan(
     features: plan.options.features,
     tasks: plan.options.tasks.map((task) => ({ ...task, funnel_stages: stages.get(task.id) })),
     age_options: plan.options.capabilities.ages,
-    personaTotal: plan.options.capabilities.persona_total,
+    ...personaRange(plan),
     segmentIds: plan.options.capabilities.segment_ids,
+    seedCount: plan.limits.seed_count,
+    seedRange: plan.options.capabilities.limits.seed_count ?? { min: SEED_DEFAULT, max: SEED_MAX },
     review: plan.review,
     check,
+  };
+}
+
+/* 서버 capabilities 의 페르소나 인원 (persona_min·max 가 없으면 기준 인원 하나만) */
+function personaRange(plan: Plan) {
+  const { persona_total, persona_min, persona_max } = plan.options.capabilities;
+  return {
+    personaTotal: persona_total,
+    personaMin: persona_min ?? persona_total,
+    personaMax: persona_max ?? persona_total,
   };
 }
 
@@ -112,7 +130,8 @@ export function withServerPlan(current: WizardPlan, plan: Plan): WizardPlan {
     ...current,
     revision: plan.revision,
     review: plan.review,
-    personaTotal: plan.options.capabilities.persona_total,
+    ...personaRange(plan),
+    seedCount: plan.limits.seed_count,
   };
 }
 
@@ -123,14 +142,22 @@ export const TEXT_MAX = 500;
 export const ACCOUNT_MAX = 20;
 
 /*
-  ─── 패널 (P05b 세그먼트 비율) — 임시: Figma 값 ───
-  개발 서버는 고정 프로필 3개 × 과업으로 세션 수가 정해지고 패널·시드를 받지 않습니다.
-  화면은 Figma 대로 에이전트 20명 · 세그먼트 4개 · 시드 3회로 그리고, 서버가 패널을 받으면 이 값을 요청에 싣습니다.
+  ─── 패널 (P05b 세그먼트 비율) ───
+  BE 기본값: 로그인 없이 에이전트 10명(4~20명에서 조절) · 세그먼트 4개 · 시드 1회(1~3회).
+  계획을 받으면 서버 capabilities·limits 값을 쓰고, 계획이 없을 때만 아래 기본값으로 짐작합니다.
+  (Figma 는 20명 · 시드 3회였으나 실행 비용 때문에 팀에서 기본값을 낮췄습니다)
 */
-export const PANEL_SIZE = 20;
+export const PANEL_DEFAULT = 10;
+export const PANEL_MIN = 4;
+export const PANEL_MAX = 20;
 export const SEGMENT_COUNT = 4;
-export const SEEDS = 3;
-export const RUN_CONDITIONS = `모바일 390 · 동시 5세션 · 시드 ${SEEDS}회 · 스텝 40`;
+export const SEED_DEFAULT = 1;
+export const SEED_MAX = 3;
+/* 실행 기기 — 실행 조건의 맨 앞 항목 (실행 화면도 씁니다) */
+export const RUN_DEVICE = "모바일 390";
+export function runConditions(seedCount: number) {
+  return `${RUN_DEVICE} · 동시 5세션 · 시드 ${seedCount}회 · 스텝 40`;
+}
 /* "항목 6개 더 보기"로 펼치는 실행 조건 */
 export const RUN_CONDITION_DETAILS = [
   "세션당 시간 상한 5분",
@@ -141,26 +168,41 @@ export const RUN_CONDITION_DETAILS = [
   "같은 시드는 같은 행동 순서로 다시 실행해요",
 ];
 
-/* 로그인 테스트는 계정 1개 = 에이전트 1명이라 계정 수만큼(최대 20), 아니면 20명 (Figma P05h) */
+/* 계획이 없을 때 짐작하는 에이전트 수 — 로그인 테스트는 계정 1개 = 에이전트 1명(최대 20), 아니면 10명 (P05h) */
 export function panelSize(loginMode: "none" | "account", accountCount: number) {
   return loginMode === "account" && accountCount > 0
-    ? Math.min(accountCount, PANEL_SIZE)
-    : PANEL_SIZE;
+    ? Math.min(accountCount, PANEL_MAX)
+    : PANEL_DEFAULT;
 }
 
 /*
-  지금 에이전트 수 — 계획이 있으면 서버가 정한 총원(persona_total: 20 또는 서버에 저장된 테스트 계정 수),
-  없으면 화면 입력으로 짐작한 값입니다. 세그먼트 합계 검증·표시는 모두 이 값을 씁니다.
+  확정할 수 있는 에이전트 수 — 계획이 있으면 서버 값(로그인 없이 4~20명, 테스트 계정이면 서버에 저장된 계정 수),
+  없으면 화면 입력으로 짐작한 값입니다. 세그먼트 합계 검증은 모두 이 범위를 씁니다.
 */
-export function agentTotal(
-  plan: Pick<WizardPlan, "personaTotal"> | null,
+export function agentRange(
+  plan: Pick<WizardPlan, "personaTotal" | "personaMin" | "personaMax"> | null,
   loginMode: "none" | "account",
   accountCount: number,
 ) {
-  return plan?.personaTotal ?? panelSize(loginMode, accountCount);
+  if (plan) return { min: plan.personaMin, max: plan.personaMax, total: plan.personaTotal };
+  const total = panelSize(loginMode, accountCount);
+  return loginMode === "account" && accountCount > 0
+    ? { min: total, max: total, total }
+    : { min: PANEL_MIN, max: PANEL_MAX, total };
 }
 
-/* 인원을 세그먼트에 고르게 나눕니다 (나머지는 앞 세그먼트부터 1명씩) — 20 → [5, 5, 5, 5] */
+export function inRange(value: number, range: { min: number; max: number }) {
+  return value >= range.min && value <= range.max;
+}
+
+/* P05e 합계 안내 — BE 422 문구와 같습니다 (범위가 한 값이면 그 인원에 맞추라고 안내) */
+export function segmentTotalMessage(total: number, range: { min: number; max: number }) {
+  return range.min === range.max
+    ? `합계가 ${range.min}명이 되도록 맞춰주세요 · 지금 ${total}명`
+    : `합계를 ${range.min}~${range.max}명 사이로 맞춰주세요 · 지금 ${total}명`;
+}
+
+/* 인원을 세그먼트에 고르게 나눕니다 (나머지는 앞 세그먼트부터 1명씩) — 10 → [3, 3, 2, 2] */
 export function evenSplit(total: number, parts = SEGMENT_COUNT): number[] {
   return Array.from(
     { length: parts },
@@ -254,9 +296,15 @@ export function taskTargetPatch(
   };
 }
 
-/* P05b 세그먼트 인원을 계획에 저장하는 본문 (서버 segment_ids 순서, 4개) */
-export function segmentsPatch(plan: WizardPlan, counts: number[]) {
-  return { segments: plan.segmentIds.map((id, index) => ({ id, count: counts[index] ?? 0 })) };
+/*
+  P05b 세그먼트 인원·시드를 계획에 저장하는 본문 (서버 segment_ids 순서, 4개).
+  시드는 서버 계획 값과 다를 때만 싣습니다 (limits 는 보낸 키만 바뀝니다).
+*/
+export function segmentsPatch(plan: WizardPlan, counts: number[], seedCount = plan.seedCount) {
+  return {
+    segments: plan.segmentIds.map((id, index) => ({ id, count: counts[index] ?? 0 })),
+    ...(seedCount !== plan.seedCount && { limits: { seed_count: seedCount } }),
+  };
 }
 
 /* 서버에 저장한 계정은 id 가 있고, id 가 있으면 비밀번호를 비워 보내도 서버가 유지합니다 */

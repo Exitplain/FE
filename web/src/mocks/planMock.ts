@@ -37,8 +37,12 @@ export class MockPlanError extends Error {
 }
 
 const TTL_MS = 15 * 60 * 1000;
-const PERSONA_TOTAL = 20;
+/* BE plans.catalog — 로그인 없이 기본 10명(4~20명 선택), 테스트 계정이면 계정 수 */
+const PERSONA_TOTAL = 10;
+const PERSONA_MIN = 4;
+const PERSONA_MAX = 20;
 const ACCOUNT_MIN = 4;
+const SEED_RANGE = { min: 1, max: 3 };
 const SEGMENT_IDS = ["segment_1", "segment_2", "segment_3", "segment_4"];
 const AGES: Record<AgeKey, string> = {
   any: "전체",
@@ -157,7 +161,13 @@ export function createDiscovery(projectId: number, body: Record<string, unknown>
   return response as Discovery;
 }
 
-/* 인원을 세그먼트에 고르게 나눕니다 (BE plans.services 기본값) */
+/* 확정할 수 있는 인원 (BE plans.services.persona_range) */
+function personaRange(plan: Plan) {
+  const { persona_total, persona_min, persona_max } = plan.options.capabilities;
+  return { low: persona_min ?? persona_total, high: persona_max ?? persona_total };
+}
+
+/* 인원을 세그먼트에 고르게 나눕니다 (BE plans.services 기본값 — 10명이면 3·3·2·2) */
 function evenSplit(total: number) {
   return SEGMENT_IDS.map((id, index) => ({
     id,
@@ -181,7 +191,8 @@ function review(plan: Plan, discovery: StoredDiscovery): Plan["review"] {
     blocking.push({ step: 2, code: "NO_AUDIENCE", message: "타겟 고객 설명을 입력해주세요." });
   }
   const total = plan.segments.reduce((sum, segment) => sum + segment.count, 0);
-  if (total !== plan.options.capabilities.persona_total) {
+  const range = personaRange(plan);
+  if (total < range.low || total > range.high) {
     blocking.push({ step: 3, code: "SEGMENT_TOTAL", message: "세그먼트 합계가 맞지 않습니다." });
   }
   const names = plan.options.tasks
@@ -242,10 +253,12 @@ export function createPlan(projectId: number, body: Record<string, unknown>): Pl
         ages: AGES,
         segment_ids: SEGMENT_IDS,
         persona_total: discovery.personaTotal,
+        persona_min: discovery.login_mode === "test_account" ? discovery.personaTotal : PERSONA_MIN,
+        persona_max: discovery.login_mode === "test_account" ? discovery.personaTotal : PERSONA_MAX,
         limits: {
           viewport_width: { min: 320, max: 1920 },
           concurrency: { min: 1, max: 5 },
-          seed_count: { min: 1, max: 3 },
+          seed_count: SEED_RANGE,
         },
         custom_task_limit: 5,
       },
@@ -260,7 +273,7 @@ export function createPlan(projectId: number, body: Record<string, unknown>): Pl
       viewport_width: 390,
       concurrency: 5,
       request_interval_seconds: 1,
-      seed_count: 3,
+      seed_count: 1,
       max_steps: 40,
       timeout_seconds: 300,
       cost_cap: null,
@@ -313,7 +326,14 @@ export function patchPlan(
   const plan = state.plans.get(planId);
   if (!plan) throw new MockPlanError(404, "NOT_FOUND", "계획을 찾을 수 없습니다.");
   if (parseRevision(ifMatch) !== plan.revision) throw conflict();
-  const allowed = ["task_ids", "custom_tasks", "additional_request", "audience", "segments"];
+  const allowed = [
+    "task_ids",
+    "custom_tasks",
+    "additional_request",
+    "audience",
+    "segments",
+    "limits",
+  ];
   const keys = Object.keys(body);
   if (keys.length === 0) throw invalid("non_field_errors", "바꿀 필드를 한 개 이상 보내주세요.");
   if (keys.some((key) => !allowed.includes(key)))
@@ -362,15 +382,28 @@ export function patchPlan(
     const low = segments.findIndex((segment) => segment.count < 1);
     if (low >= 0) throw invalid(`segments.${low}.count`, "세그먼트마다 1명 이상 넣어주세요.");
     const total = segments.reduce((sum, segment) => sum + segment.count, 0);
-    const expected = plan.options.capabilities.persona_total;
-    if (total !== expected) {
+    const range = personaRange(plan);
+    if (total < range.low || total > range.high) {
       throw invalid(
         "segments",
-        `합계가 ${expected}명이 되도록 맞춰주세요 · 지금 ${total}명`,
+        range.low === range.high
+          ? `합계가 ${range.low}명이 되도록 맞춰주세요 · 지금 ${total}명`
+          : `합계를 ${range.low}~${range.high}명 사이로 맞춰주세요 · 지금 ${total}명`,
         `지금 ${total}명`,
       );
     }
     next.segments = segments;
+  }
+  if ("limits" in body) {
+    const limits = body.limits as Partial<Plan["limits"]>;
+    const seed = limits.seed_count;
+    if (seed !== undefined && !(seed >= SEED_RANGE.min && seed <= SEED_RANGE.max)) {
+      throw invalid(
+        "limits.seed_count",
+        `${SEED_RANGE.min}~${SEED_RANGE.max} 사이 값을 입력해주세요.`,
+      );
+    }
+    next.limits = { ...plan.limits, ...limits };
   }
   next.revision = plan.revision + 1;
   next.updated_at = new Date().toISOString();
