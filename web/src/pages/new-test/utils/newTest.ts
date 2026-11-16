@@ -58,6 +58,27 @@ export function isDiscoveryExpiredError(error: unknown) {
   );
 }
 
+/*
+  확정(409)을 다시 시도해도 같은 이유로 막히는 오류는 고칠 단계로 보냅니다.
+  - 테스트 계정 수와 페르소나 수가 다름 · 세그먼트 합계 → 3단계(페르소나)
+  - 테스트 계정이 4개보다 적음 → 1단계(사이트 · 테스트 계정)
+  code 나 fields.blocking 에 있는 코드로 찾고, 없으면 null(다시 시도)입니다.
+*/
+const CONFIRM_FIX_STEP: Record<string, StepKey> = {
+  TEST_ACCOUNT_COUNT_MISMATCH: "persona",
+  SEGMENT_TOTAL: "persona",
+  TEST_ACCOUNTS_REQUIRED: "site",
+};
+
+export function confirmFixStep(error: unknown): StepKey | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const blocking = Array.isArray(error.fields?.blocking) ? error.fields.blocking : [];
+  const codes = [error.code, ...blocking].filter((code): code is string => Boolean(code));
+  const steps = codes.map((code) => CONFIRM_FIX_STEP[code]).filter(Boolean);
+  /* 여러 이유가 있으면 앞 단계부터 고칩니다 */
+  return steps.sort((a, b) => STEPS.indexOf(a) - STEPS.indexOf(b))[0] ?? null;
+}
+
 /* 탐색 결과의 만료 시각(expires_at, 15분)이 지났는지 */
 export function isPlanExpired(expiresAt: number, now = Date.now()) {
   return now >= expiresAt;

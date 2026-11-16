@@ -253,6 +253,38 @@ describe("P02~P07 새 테스트", () => {
     expect(await screen.findByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
   });
 
+  it("확정 직전 테스트 계정 수가 바뀌면(409) 다시 시도 대신 3단계로 가는 링크를 보여준다", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+
+    server.use(
+      http.post(
+        "*/api/v1/plans/:planId/confirmations",
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "TEST_ACCOUNT_COUNT_MISMATCH",
+                message: "테스트 계정 수와 페르소나 수가 달라요. 3단계에서 인원을 다시 맞춰주세요.",
+                fields: {},
+              },
+            },
+            { status: 409 },
+          ),
+        { once: true },
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "테스트 계정 수와 페르소나 수가 달라요. 3단계에서 인원을 다시 맞춰주세요.",
+    );
+    expect(screen.queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "변경 · 3단계" }));
+    expect(await screen.findByRole("list", { name: "세그먼트별 인원" })).toBeInTheDocument();
+  });
+
   it("P05a — 과업을 하나도 고르지 않으면 다음으로 가지 않는다", async () => {
     const user = userEvent.setup();
     await renderWizard();
