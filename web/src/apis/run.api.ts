@@ -1,5 +1,5 @@
 import type { Page } from "@/types/api.type";
-import type { RunItem, RunListQuery } from "@/types/run.type";
+import type { RunDetail, RunItem, RunListQuery } from "@/types/run.type";
 
 import axiosInstance from "./axiosInstance";
 
@@ -14,5 +14,11 @@ export async function getRuns(projectId: number, query: RunListQuery = {}): Prom
       kind: kind?.length ? kind.join(",") : undefined,
     },
   });
+  return data;
+}
+
+/* 실행 상태 (P09 진행·P12 리포트 대기 판단) */
+export async function getRunDetail(runId: string): Promise<RunDetail> {
+  const { data } = await axiosInstance.get<RunDetail>(`/api/v1/runs/${encodeURIComponent(runId)}`);
   return data;
 }

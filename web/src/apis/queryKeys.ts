@@ -29,6 +29,14 @@ export const queryKeys = {
   runs: {
     all: ["runs"] as const,
     list: (projectId: number) => [...queryKeys.runs.all, projectId, "list"] as const,
+    detail: (runId: string) => [...queryKeys.runs.all, "detail", runId] as const,
+  },
+  /* 제품 API 리포트. 실행이 끝나면 runs.all 과 함께 무효화합니다 (hooks/usePersonaRun) */
+  reports: {
+    all: ["reports"] as const,
+    byRun: (runId: string) => [...queryKeys.reports.all, "run", runId] as const,
+    shareLinks: (reportId: string) => [...queryKeys.reports.all, reportId, "share-links"] as const,
+    shared: (token: string) => [...queryKeys.reports.all, "shared", token] as const,
   },
   calibration: {
     all: ["calibration"] as const,

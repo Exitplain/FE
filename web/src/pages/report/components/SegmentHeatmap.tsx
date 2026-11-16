@@ -2,11 +2,10 @@ import { useId, useState } from "react";
 
 import Button from "@/components/Button/Button";
 import InfoTip from "@/components/InfoTip/InfoTip";
-import { STAGE_LABELS } from "@/constants/persona";
-import type { ReportTask } from "@/types/persona.type";
+import type { ReportTaskV1 } from "@/types/report.type";
 import { cn } from "@/utils/cn";
 
-import { formatRange, hasHeatmap } from "../utils/reportView";
+import { heatmapV1 } from "../utils/reportData";
 
 /*
   Figma 히트맵 칸 색 (#fafafa → #e0e0e0 → #c7c7c7 → #ababab → #8f8f8f) 을 가장 가까운 회색 토큰으로.
@@ -20,31 +19,25 @@ function heatLevel(value: number, max: number) {
 }
 
 /*
-  P12 세그먼트 × 이탈 구간.
-  접힘: 가장 많이 떠난 칸 한 줄 + "세그먼트 n개 더 보기" / 펼침: 세그먼트 × 구간 히트맵 표 (Figma Section/Heatmap)
-  칸 값은 이탈 인원 범위의 상한(시드 범위가 있으면 "1~2")입니다.
+  P12 세그먼트 × 이탈 단계 (제품 API heatmap).
+  접힘: 가장 많이 떠난 칸 한 줄 + "세그먼트 n개 더 보기" / 펼침: 세그먼트 × 단계 표 (Figma Section/Heatmap)
+  칸 값은 그 단계를 마지막으로 보고 떠난 세션 수(모든 시드 합)입니다. 세그먼트가 없으면 그리지 않습니다.
 */
 export default function SegmentHeatmap({
   task,
   alwaysOpen = false,
 }: {
-  task: ReportTask;
+  task: ReportTaskV1;
   /* P21 공유 리포트처럼 읽기만 하는 화면은 표를 펼친 채로 두고 접기 버튼을 숨깁니다 */
   alwaysOpen?: boolean;
 }) {
   const headingId = useId();
   const [toggled, setOpen] = useState(false);
   const open = alwaysOpen || toggled;
-  const funnel = task.funnel ?? [];
-  const segments = task.segments ?? [];
-  const transitions = funnel
-    .slice(1)
-    .map((stage, index) => `${STAGE_LABELS[funnel[index].stage]}→${STAGE_LABELS[stage.stage]}`);
-  /* 임시 필드라 모양이 어긋나면(구간 수가 다르면) 열이 밀리지 않게 그리지 않습니다 */
-  if (!hasHeatmap(task)) return null;
-  const cells = segments.flatMap((segment) =>
-    segment.dropouts.map((range, index) => ({ segment, index, value: range[1] })),
-  );
+  const { columns, rows } = heatmapV1(task);
+  if (rows.length === 0 || columns.length === 0) return null;
+
+  const cells = rows.flatMap((row) => row.cells.map((value, index) => ({ row, index, value })));
   const max = Math.max(0, ...cells.map((cell) => cell.value));
   const top = cells.find((cell) => cell.value === max && max > 0);
 
@@ -54,12 +47,12 @@ export default function SegmentHeatmap({
         <h2 id={headingId} className="text-base font-medium text-ink">
           세그먼트 × 이탈 구간
         </h2>
-        <InfoTip text="AI 고객 세그먼트별로 어느 구간에서 떠났는지 보여줘요." />
+        <InfoTip text="AI 고객 세그먼트별로 어느 단계에서 떠났는지 보여줘요." />
         {open && <span className="ml-auto text-xs text-muted">칸 = 이탈 인원 · 진할수록 많음</span>}
       </div>
       <p className="text-caption text-subtle">
         {top
-          ? `최다: ${top.segment.name} ${transitions[top.index]} ${top.value}명`
+          ? `최다: ${top.row.name} ${columns[top.index].name} ${top.value}명`
           : "세그먼트별 이탈이 없었어요"}
       </p>
 
@@ -72,35 +65,35 @@ export default function SegmentHeatmap({
                 <th scope="col" className="w-32 text-left text-xs font-medium text-muted">
                   세그먼트
                 </th>
-                {transitions.map((label) => (
+                {columns.map((column) => (
                   <th
-                    key={label}
+                    key={column.key}
                     scope="col"
                     className="text-center text-xs font-medium whitespace-nowrap text-muted"
                   >
-                    {label}
+                    {column.name}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {segments.map((segment) => (
-                <tr key={segment.id}>
+              {rows.map((row) => (
+                <tr key={row.id}>
                   <th scope="row" className="text-left font-medium whitespace-nowrap text-ink">
-                    {segment.name}
+                    {row.name}
                   </th>
-                  {segment.dropouts.map((range, index) => {
-                    const level = heatLevel(range[1], max);
+                  {row.cells.map((value, index) => {
+                    const level = heatLevel(value, max);
                     return (
                       <td
-                        key={transitions[index]}
+                        key={columns[index].key}
                         className={cn(
                           "h-12 min-w-16 rounded text-center text-ink",
                           HEAT[level],
                           level >= 2 && "font-bold",
                         )}
                       >
-                        {formatRange(range)}
+                        {value}
                       </td>
                     );
                   })}
@@ -118,7 +111,7 @@ export default function SegmentHeatmap({
           onClick={() => setOpen((value) => !value)}
           className="-ml-2 self-start"
         >
-          {open ? "접기" : `세그먼트 ${segments.length}개 더 보기`}
+          {open ? "접기" : `세그먼트 ${rows.length}개 더 보기`}
         </Button>
       )}
     </section>
