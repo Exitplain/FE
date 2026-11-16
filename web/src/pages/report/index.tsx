@@ -6,7 +6,7 @@ import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader"
 import RangeBarChart from "@/components/RangeBarChart/RangeBarChart";
 import WorkspaceState from "@/components/Workspace/WorkspaceState";
 import { CAUSE_LABELS, VARIANT_LABELS } from "@/constants/persona";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
 import { ApiError } from "@/types/api.type";
@@ -59,10 +59,10 @@ const CAUSE_PREVIEW = 3;
   - 과업은 주소 ?task= 로 둡니다 (새로 고침·공유해도 같은 과업)
 */
 export default function ReportPage() {
-  const { projectId, runId } = useParams();
-  const project = findSampleProject(projectId);
+  const { runId } = useParams();
+  const project = useCurrentProject();
 
-  if (!project || !runId) {
+  if (!runId) {
     return (
       <section className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
@@ -77,7 +77,7 @@ export default function ReportPage() {
   return <Report key={runId} project={project} runId={runId} />;
 }
 
-function Report({ project, runId }: { project: SampleProject; runId: string }) {
+function Report({ project, runId }: { project: CurrentProject; runId: string }) {
   const report = usePersonaReport(runId);
   const reports = usePersonaReports();
   const currentRun = usePersonaRun();

@@ -17,7 +17,7 @@ import ReportPage from "./index";
 
 function renderReport(runId: string, search = "") {
   return renderWithProviders(<ReportPage />, {
-    route: `${buildPath("report", { projectId: "banchan", runId })}${search}`,
+    route: `${buildPath("report", { projectId: "1", runId })}${search}`,
     path: ROUTES.report.path,
   });
 }
@@ -77,7 +77,7 @@ describe("P12 리포트", () => {
     expect(screen.getByText("캡처된 근거 화면이 없어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "세션 8개 전체 보기" })).toHaveAttribute(
       "href",
-      buildPath("sessionDetail", { projectId: "banchan", runId, sessionId: "P-001_order" }),
+      buildPath("sessionDetail", { projectId: "1", runId, sessionId: "P-001_order" }),
     );
   });
 
@@ -245,7 +245,7 @@ describe("P12 리포트", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "테스트 목록 보기" })).toHaveAttribute(
       "href",
-      "/projects/banchan/tests",
+      "/projects/1/tests",
     );
   });
 
@@ -258,7 +258,7 @@ describe("P12 리포트", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "실행 화면 보기" })).toHaveAttribute(
       "href",
-      buildPath("testRun", { projectId: "banchan", runId: run.id! }),
+      buildPath("testRun", { projectId: "1", runId: run.id! }),
     );
   });
 
@@ -449,7 +449,7 @@ describe("P12 리포트 — 응답 모양별", () => {
     expect(summary).toHaveTextContent("예측 장바구니→가입 · 실측 상품→장바구니");
     expect(within(summary).getByRole("link", { name: "실측 분석 보기" })).toHaveAttribute(
       "href",
-      "/projects/banchan/analytics",
+      "/projects/1/analytics",
     );
   });
 
@@ -483,7 +483,7 @@ describe("P12 리포트 — 응답 모양별", () => {
       expect(summary).toHaveTextContent(title);
       expect(within(summary).getByRole("link", { name: action })).toHaveAttribute(
         "href",
-        "/projects/banchan/analytics",
+        "/projects/1/analytics",
       );
     },
   );

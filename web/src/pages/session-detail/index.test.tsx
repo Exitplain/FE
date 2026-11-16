@@ -34,7 +34,7 @@ function pick(sessions: PersonaSession[], status: SessionStatus) {
 
 function renderSession(runId: string, sessionId: string, search = "") {
   return renderWithProviders(<SessionDetailPage />, {
-    route: `${buildPath("sessionDetail", { projectId: "banchan", runId, sessionId })}${search}`,
+    route: `${buildPath("sessionDetail", { projectId: "1", runId, sessionId })}${search}`,
     path: ROUTES.sessionDetail.path,
   });
 }

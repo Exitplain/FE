@@ -1,12 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
 import { queryKeys } from "@/apis/queryKeys";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import Stepper from "@/components/Stepper/Stepper";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
 import { usePersonaRun } from "@/hooks/usePersonaRun";
@@ -43,19 +43,7 @@ const EXPIRED_NOTICE = "탐색 결과가 만료됐어요. 사이트를 다시 �
   프로젝트가 바뀌면 key 로 위저드를 새로 그려 입력·안내·요청 상태를 모두 처음으로 돌립니다.
 */
 export default function NewTestPage() {
-  const { projectId } = useParams();
-  const project = findSampleProject(projectId);
-
-  if (!project) {
-    return (
-      <section className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
-        <p className="text-sm text-subtle">
-          주소를 확인하거나 사이드바에서 프로젝트를 골라 주세요.
-        </p>
-      </section>
-    );
-  }
+  const project = useCurrentProject();
 
   return <NewTestWizard key={project.id} project={project} />;
 }
@@ -64,7 +52,7 @@ export default function NewTestPage() {
   - 입력은 useNewTestStore 에 두어 단계를 오가도 남습니다. 화면을 떠나면 비밀번호가 남지 않게 지웁니다.
   - 주소로 들어오거나 뒤로가기로 앞 단계 검증을 건너뛰지 못하게, 갈 수 있는 단계까지만 보여주고 주소도 맞춥니다.
 */
-function NewTestWizard({ project }: { project: SampleProject }) {
+function NewTestWizard({ project }: { project: CurrentProject }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

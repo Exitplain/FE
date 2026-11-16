@@ -21,6 +21,9 @@ export const queryKeys = {
   projectsV1: {
     all: ["projectsV1"] as const,
     sample: () => [...queryKeys.projectsV1.all, "sample"] as const,
+    /* 사이드바·C02 목록 (내 프로젝트 + 샘플) */
+    list: () => [...queryKeys.projectsV1.all, "list"] as const,
+    detail: (projectId: number) => [...queryKeys.projectsV1.all, "detail", projectId] as const,
   },
   /* 제품 API 실행. 실행을 만들거나 끝난 뒤에는 runs.all 로 한꺼번에 무효화합니다 */
   runs: {

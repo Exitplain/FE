@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { ProjectInputError } from "@/apis/project.api";
 import { useCreateProject } from "@/hooks/useProjects";
 import type { ProjectInput } from "@/types/project.type";
 import { validateProjectInput } from "@/utils/projectInput";
@@ -33,7 +34,12 @@ export function useProjectForm() {
     submitting.current = true;
     try {
       return await mutation.mutateAsync(result.value);
-    } catch {
+    } catch (error) {
+      /* 서버가 입력칸을 짚은 오류(422 검증·409 중복)는 그 칸 아래에 보여 줍니다 */
+      if (error instanceof ProjectInputError) {
+        setErrors(error.fields);
+        setValidationAttempt((value) => value + 1);
+      }
       return null;
     } finally {
       submitting.current = false;
@@ -49,9 +55,11 @@ export function useProjectForm() {
     ready: validateProjectInput(values).valid,
     pending: mutation.isPending,
     serverError: mutation.isError
-      ? mutation.error instanceof Error
-        ? mutation.error.message
-        : "프로젝트를 만들지 못했어요. 다시 시도해 주세요"
+      ? mutation.error instanceof ProjectInputError
+        ? null
+        : mutation.error instanceof Error
+          ? mutation.error.message
+          : "프로젝트를 만들지 못했어요. 다시 시도해 주세요"
       : null,
   };
 }

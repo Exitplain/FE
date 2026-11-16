@@ -8,6 +8,7 @@ import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/pe
 import { ROUTES } from "@/constants/routes";
 import { server } from "@/mocks/node";
 import { useRetestStore } from "@/stores/useRetestStore";
+import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { PersonaRun } from "@/types/persona.type";
 
@@ -46,7 +47,7 @@ async function advance(times: number) {
 
 function renderRun(runId: string, query = "") {
   return renderWithProviders(<TestRunPage />, {
-    route: `/projects/banchan/runs/${runId}${query}`,
+    route: `/projects/1/runs/${runId}${query}`,
     path: ROUTES.testRun.path,
   });
 }
@@ -168,10 +169,12 @@ describe("P08~P11 실행 화면", () => {
       current = await getPersonaRun();
     renderWithProviders(
       <Routes>
-        <Route path={ROUTES.testRun.path} element={<TestRunPage />} />
-        <Route path={ROUTES.report.path} element={<ReportProbe />} />
+        <Route element={<ProjectRoute />}>
+          <Route path={ROUTES.testRun.path} element={<TestRunPage />} />
+          <Route path={ROUTES.report.path} element={<ReportProbe />} />
+        </Route>
       </Routes>,
-      { route: `/projects/banchan/runs/${run.id}` },
+      { route: `/projects/1/runs/${run.id}` },
     );
 
     expect(await screen.findByText("분석 중")).toBeInTheDocument();
@@ -193,11 +196,13 @@ describe("P08~P11 실행 화면", () => {
       current = await getPersonaRun();
     renderWithProviders(
       <Routes>
-        <Route path={ROUTES.testRun.path} element={<TestRunPage />} />
-        <Route path={ROUTES.report.path} element={<ReportProbe />} />
-        <Route path={ROUTES.retest.path} element={<RetestProbe />} />
+        <Route element={<ProjectRoute />}>
+          <Route path={ROUTES.testRun.path} element={<TestRunPage />} />
+          <Route path={ROUTES.report.path} element={<ReportProbe />} />
+          <Route path={ROUTES.retest.path} element={<RetestProbe />} />
+        </Route>
       </Routes>,
-      { route: `/projects/banchan/runs/${run.id}` },
+      { route: `/projects/1/runs/${run.id}` },
     );
 
     expect(
@@ -215,7 +220,7 @@ describe("P08~P11 실행 화면", () => {
     expect(await screen.findByText("실행이 끝났어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "리포트 보기" })).toHaveAttribute(
       "href",
-      `/projects/banchan/runs/${run.id}/report`,
+      `/projects/1/runs/${run.id}/report`,
     );
   });
 
@@ -242,11 +247,11 @@ describe("P08~P11 실행 화면", () => {
     expect(screen.getByText("실패")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "다시 시도" })).toHaveAttribute(
       "href",
-      "/projects/banchan/tests/new",
+      "/projects/1/tests/new",
     );
     expect(screen.getByRole("link", { name: "설정 수정" })).toHaveAttribute(
       "href",
-      "/projects/banchan/tests/new",
+      "/projects/1/tests/new",
     );
   });
 
@@ -274,7 +279,7 @@ describe("P08~P11 실행 화면", () => {
     expect(screen.getByText("상한 100% · 토큰 1.1M")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "부분 리포트 보기" })).toHaveAttribute(
       "href",
-      "/projects/banchan/runs/fixed-run/report",
+      "/projects/1/runs/fixed-run/report",
     );
   });
 
@@ -305,7 +310,7 @@ describe("P08~P11 실행 화면", () => {
     expect(await screen.findByText("이 실행을 찾을 수 없어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "사전 테스트 목록" })).toHaveAttribute(
       "href",
-      "/projects/banchan/tests",
+      "/projects/1/tests",
     );
   });
   it("받아 둔 실행이 있을 때 다시 받기에 실패하면 화면은 두고 다시 시도를 안내한다", async () => {

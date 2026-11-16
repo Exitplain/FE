@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/Button/buttonVariants";
 import Button from "@/components/Button/Button";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { useRetestStore } from "@/stores/useRetestStore";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
@@ -54,10 +54,10 @@ const DEVICE = RUN_CONDITIONS.split(" · ")[0];
   - P08 준비 → P09 실행 → P10 분석 → 리포트(자동 이동), 실패는 E05, 비용 상한은 E12.
 */
 export default function TestRunPage() {
-  const { projectId, runId } = useParams();
-  const project = findSampleProject(projectId);
+  const { runId } = useParams();
+  const project = useCurrentProject();
 
-  if (!project || !runId) {
+  if (!runId) {
     return (
       <section className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
@@ -70,7 +70,7 @@ export default function TestRunPage() {
   return <RunView project={project} runId={runId} />;
 }
 
-function RunView({ project, runId }: { project: SampleProject; runId: string }) {
+function RunView({ project, runId }: { project: CurrentProject; runId: string }) {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
   const currentRun = usePersonaRun();
@@ -143,7 +143,7 @@ function RunDashboard({
   run,
   missingSession,
 }: {
-  project: SampleProject;
+  project: CurrentProject;
   run: PersonaRun;
   missingSession: boolean;
 }) {
@@ -297,7 +297,7 @@ function useElapsed(createdAt: string | undefined, ticking: boolean) {
 }
 
 /* 주소의 실행이 현재 실행이 아님 — 완료된 실행이면 리포트로, 아니면 목록으로 */
-function RunNotCurrent({ project, runId }: { project: SampleProject; runId: string }) {
+function RunNotCurrent({ project, runId }: { project: CurrentProject; runId: string }) {
   const reports = usePersonaReports();
   const isCompleted = reports.data?.some((report) => report.run_id === runId) ?? false;
   /* 목록을 받기 전에는 "찾을 수 없음"을 먼저 보여주지 않습니다 */

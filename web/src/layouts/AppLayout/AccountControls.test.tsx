@@ -64,7 +64,7 @@ describe("사이드바 로그인", () => {
         <LocationProbe />
         <input aria-label="작업 메모" />
       </>,
-      { route: "/projects/banchan/tests?filter=running" },
+      { route: "/projects/1/tests?filter=running" },
     );
     await user.type(screen.getByRole("textbox", { name: "작업 메모" }), "작성 중");
     await user.click(screen.getByRole("button", { name: "로그인" }));
@@ -72,7 +72,7 @@ describe("사이드바 로그인", () => {
     await user.click(screen.getByRole("button", { name: "로그인 창 닫기" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByLabelText("현재 주소")).toHaveTextContent(
-      "/projects/banchan/tests?filter=running",
+      "/projects/1/tests?filter=running",
     );
     expect(screen.getByRole("textbox", { name: "작업 메모" })).toHaveValue("작성 중");
   });

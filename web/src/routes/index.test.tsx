@@ -18,7 +18,7 @@ function renderAt(path: string) {
   );
 }
 
-const projectId = "banchan";
+const projectId = "1";
 const runId = "run-1";
 
 describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {

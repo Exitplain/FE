@@ -4,6 +4,7 @@ import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { resetCsrfToken } from "@/apis/axiosInstance";
+import { resetProjectMock } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
 import { useRetestStore } from "@/stores/useRetestStore";
@@ -55,6 +56,8 @@ afterEach(() => {
   resetCsrfToken();
   // 페르소나 mock 은 실행 상태를 메모리에 들고 있어 테스트마다 처음으로 돌립니다
   resetPersonaMock();
+  // 만든 프로젝트(제품 API mock)도 테스트마다 비웁니다
+  resetProjectMock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });
   sessionStorage.clear();

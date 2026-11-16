@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/Button/buttonVariants";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
-import type { SampleProject } from "@/constants/projects";
+import type { CurrentProject } from "@/components/Projects/currentProject";
 import { RUN_CONDITIONS } from "@/pages/new-test/utils/newTest";
 import type { PersonaRun, PersonaSession } from "@/types/persona.type";
 
@@ -40,7 +40,7 @@ export default function SessionLive({
   session,
   backSearch,
 }: {
-  project: SampleProject;
+  project: CurrentProject;
   run: PersonaRun;
   session: PersonaSession;
   /* 실행 화면으로 돌아갈 때 유지할 과업·필터 쿼리 */

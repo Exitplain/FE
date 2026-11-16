@@ -6,10 +6,9 @@
 
 export type ConnectionStatus = "unconnected" | "collecting" | "comparable";
 
-/* 프로젝트별 연결 상태 — 반찬로드: 비교 가능(R06), 스튜디오 예약: 수집 중(E09), 그 밖: 미연결(E03) */
+/* 프로젝트별 연결 상태 (제품 API 프로젝트 id) — 샘플 반찬로드(1): 비교 가능(R06), 그 밖: 미연결(E03). 연결 흐름을 마치면 수집 중(E09) */
 export const PROJECT_CONNECTION: Record<string, ConnectionStatus> = {
-  banchan: "comparable",
-  studio: "collecting",
+  "1": "comparable",
 };
 
 export const SCRIPT_SNIPPET =

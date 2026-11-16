@@ -1071,7 +1071,7 @@ export function report(runId: string | null): PersonaReport {
   const tasks = [...new Set(run.sessions.map((s) => s.task_id))].map((id) =>
     buildTask(run, id, seeds),
   );
-  const latestCalibration = CALIBRATIONS.banchan?.[0]?.applied_at ?? null;
+  const latestCalibration = CALIBRATIONS["1"]?.[0]?.applied_at ?? null;
 
   return structuredClone({
     schema_version: "mock-1",

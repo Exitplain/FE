@@ -9,6 +9,8 @@ import { ROUTES } from "@/constants/routes";
 import { personaErrorHandlers } from "@/mocks/handlers/personas";
 import { server } from "@/mocks/node";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import ProjectRoute from "@/components/Projects/ProjectRoute";
+import { createTestProject, waitForProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
 import NewTestPage from "./index";
@@ -18,19 +20,24 @@ function RunProbe() {
   return <p>실행 화면 {runId}</p>;
 }
 
-function renderWizard(step?: string) {
+async function renderWizard(step?: string) {
   const query = step ? `?step=${step}` : "";
-  return renderWithProviders(
+  const result = renderWithProviders(
     <>
       {/* 같은 화면에서 프로젝트만 바뀌는 경우를 확인하려는 링크 */}
-      <Link to="/projects/studio/tests/new">스튜디오 예약 새 테스트</Link>
+      {/* createTestProject 로 만든 첫 프로젝트(101) */}
+      <Link to="/projects/101/tests/new">스튜디오 예약 새 테스트</Link>
       <Routes>
-        <Route path={ROUTES.newTest.path} element={<NewTestPage />} />
-        <Route path={ROUTES.testRun.path} element={<RunProbe />} />
+        <Route element={<ProjectRoute />}>
+          <Route path={ROUTES.newTest.path} element={<NewTestPage />} />
+          <Route path={ROUTES.testRun.path} element={<RunProbe />} />
+        </Route>
       </Routes>
     </>,
-    { route: `/projects/banchan/tests/new${query}` },
+    { route: `/projects/1/tests/new${query}` },
   );
+  await waitForProject();
+  return result;
 }
 
 /* 사이트 확인 → 과업·타겟 입력 → 페르소나 → 시작 전 확인 화면까지 */
@@ -57,8 +64,8 @@ async function checkSite(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => useNewTestStore.getState().reset("", ""));
 
 describe("P02~P07 새 테스트", () => {
-  it("프로젝트 주소를 미리 채우고 4단계 중 첫 단계를 보여준다", () => {
-    renderWizard();
+  it("프로젝트 주소를 미리 채우고 4단계 중 첫 단계를 보여준다", async () => {
+    await renderWizard();
 
     expect(screen.getByRole("heading", { level: 1, name: "새 테스트" })).toBeInTheDocument();
     expect(screen.getByLabelText("제품 URL")).toHaveValue("https://banchanroad.example");
@@ -68,7 +75,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("E07 — 주소 모양이 틀리면 확인하지 않고 안내한다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     await user.clear(screen.getByLabelText("제품 URL"));
     await user.type(screen.getByLabelText("제품 URL"), "banchanroad");
@@ -84,7 +91,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("확인 전에는 안내 띠만 있고, 로그인 연결은 사이트를 확인한 뒤에 나온다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     expect(screen.getByText("URL 형식과 사이트 접근 여부를 먼저 확인해요")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "로그인 연결" })).not.toBeInTheDocument();
@@ -97,7 +104,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("확인 전에 다음을 누르면 사이트를 확인한 뒤 바로 과업·타겟으로 간다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
 
@@ -107,7 +114,7 @@ describe("P02~P07 새 테스트", () => {
   it("E08 — 사이트를 확인하지 못하면 다시 시도할 수 있다", async () => {
     server.use(personaErrorHandlers.discoverUnavailable);
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     await user.click(screen.getByRole("button", { name: "확인" }));
 
@@ -118,7 +125,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("사이트 확인 → 과업·타겟 → 페르소나 → 시작 전 확인 → 페르소나 확인 → 실행 화면으로 이동한다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
@@ -184,7 +191,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("P06 — 만드는 동안 생성 단계와 자리 표시 카드를 보여주고 실행을 막는다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await goToConfirm(user);
     /* 응답을 붙잡아 생성 중 화면에 머물게 합니다 */
     server.use(http.post("*/api/v1/persona-panels", () => delay("infinite")));
@@ -204,7 +211,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("P07 — 이전을 누르면 시작 전 확인으로 돌아간다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await goToConfirm(user);
     await goToReview(user);
 
@@ -215,7 +222,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("페르소나를 만들지 못하면 알리고 다시 시도할 수 있다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await goToConfirm(user);
 
     server.use(
@@ -234,7 +241,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("P05a — 과업을 하나도 고르지 않으면 다음으로 가지 않는다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
 
@@ -250,7 +257,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("P05e — 세그먼트 합계가 20명이 아니면 안내하고 다음을 막는다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
@@ -269,7 +276,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("P05h — 테스트 계정으로 테스트하면 계정 수만큼 에이전트를 나눈다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     act(() => {
       useNewTestStore.getState().setLoginMode("account");
@@ -289,7 +296,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("타겟 고객 설명이 비어 있으면 다음으로 가지 않는다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
     await user.click(await screen.findByRole("button", { name: "다음: 페르소나" }));
@@ -299,7 +306,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("탐색 계획이 만료되면(400) 사이트 확인 단계로 돌아간다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
@@ -316,15 +323,15 @@ describe("P02~P07 새 테스트", () => {
     expect(screen.getByRole("button", { name: "확인" })).toBeInTheDocument();
   });
 
-  it("사이트를 확인하지 않고 다른 단계 주소로 들어오면 첫 단계를 보여준다", () => {
-    renderWizard("confirm");
+  it("사이트를 확인하지 않고 다른 단계 주소로 들어오면 첫 단계를 보여준다", async () => {
+    await renderWizard("confirm");
 
     expect(screen.getByRole("button", { name: "확인" })).toBeInTheDocument();
   });
 
   it("P04 — 테스트 계정을 붙여넣고 중복을 알려준 뒤 저장한다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
 
     await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
@@ -348,7 +355,7 @@ describe("P02~P07 새 테스트", () => {
   });
   it("다른 단계 주소로 들어와 사이트를 확인해도 과업·타겟부터 다시 입력한다", async () => {
     const user = userEvent.setup();
-    renderWizard("confirm");
+    await renderWizard("confirm");
 
     await checkSite(user);
 
@@ -362,7 +369,7 @@ describe("P02~P07 새 테스트", () => {
   it("P02b — 사이트를 확인하는 동안에는 주소를 바꿀 수 없다", async () => {
     server.use(http.post("*/api/personas/discover", () => new Promise<Response>(() => {})));
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     await user.click(screen.getByRole("button", { name: "확인" }));
 
@@ -373,7 +380,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("다른 실행이 진행 중이면(409) 실행 중이라고 알리고 페르소나 확인 화면에 머문다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await goToConfirm(user);
     await goToReview(user);
 
@@ -394,13 +401,13 @@ describe("P02~P07 새 테스트", () => {
     // 현재 실행을 다시 받아 그 실행으로 가는 링크를 보여줍니다
     expect(await screen.findByRole("link", { name: "실행 화면 보기" })).toHaveAttribute(
       "href",
-      `/projects/banchan/runs/${other.id}`,
+      `/projects/1/runs/${other.id}`,
     );
   });
 
   it("만료가 아닌 입력 오류(400)는 페르소나 확인 화면에서 알리고 사이트 단계로 보내지 않는다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await goToConfirm(user);
     await goToReview(user);
 
@@ -417,7 +424,8 @@ describe("P02~P07 새 테스트", () => {
 
   it("같은 화면에서 프로젝트가 바뀌면 입력과 안내를 처음으로 돌린다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    expect(await createTestProject()).toBe("101");
+    await renderWizard();
     await checkSite(user);
 
     await user.click(screen.getByRole("link", { name: "스튜디오 예약 새 테스트" }));
@@ -429,7 +437,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("로그인 없이 테스트로 되돌리면 입력한 테스트 계정을 지운다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     act(() => {
       useNewTestStore.getState().setLoginMode("account");
@@ -440,8 +448,8 @@ describe("P02~P07 새 테스트", () => {
 
     expect(useNewTestStore.getState().accounts).toEqual([]);
   });
-  it("화면을 떠나면 입력한 테스트 계정(비밀번호)을 지운다", () => {
-    const { unmount } = renderWizard();
+  it("화면을 떠나면 입력한 테스트 계정(비밀번호)을 지운다", async () => {
+    const { unmount } = await renderWizard();
     act(() => {
       useNewTestStore.getState().setLoginMode("account");
       useNewTestStore.getState().setAccounts([{ username: "a@x.example", password: "pw" }]);
@@ -454,7 +462,7 @@ describe("P02~P07 새 테스트", () => {
 
   it("다시 확인이 실패하면 이전 결과로 다음 단계에 가지 않는다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
 
     server.use(personaErrorHandlers.discoverUnavailable);
@@ -472,7 +480,7 @@ describe("P02 · P05b 리뷰 보완", () => {
   it("확인에 실패한 뒤 주소를 고치면 이전 오류 안내를 지운다", async () => {
     server.use(personaErrorHandlers.discoverUnavailable);
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await user.click(screen.getByRole("button", { name: "확인" }));
     expect(await screen.findByText(/사이트 응답 없음/)).toBeInTheDocument();
 
@@ -487,7 +495,7 @@ describe("P02 · P05b 리뷰 보완", () => {
     server.use(personaErrorHandlers.personasNetworkError);
     server.use(http.post("*/api/personas/discover", () => HttpResponse.error()));
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
 
     await user.click(screen.getByRole("button", { name: "확인" }));
 
@@ -497,7 +505,7 @@ describe("P02 · P05b 리뷰 보완", () => {
 
   it("직접 추가한 과업은 빈 입력에서 Backspace 로 마지막 것부터 지운다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await renderWizard();
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
 
@@ -517,8 +525,10 @@ describe("P02 · P05b 리뷰 보완", () => {
 
   it("보정 이력이 없는 프로젝트는 보정 전으로 보여준다", async () => {
     const user = userEvent.setup();
-    renderWizard();
+    await createTestProject();
+    await renderWizard();
     await user.click(screen.getByRole("link", { name: "스튜디오 예약 새 테스트" }));
+    await waitForProject();
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
