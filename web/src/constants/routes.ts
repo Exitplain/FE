@@ -93,6 +93,8 @@ export const ROUTES = {
     screens: "P20~P21",
     owner: "팀원",
   },
+  /* 구글 로그인 공개 게시용 개인정보처리방침 (Figma 화면 없음) */
+  privacy: { path: "/privacy", title: "개인정보처리방침", screens: "-", owner: "고명준" },
   analytics: {
     path: "/projects/:projectId/analytics",
     title: "실측 분석",

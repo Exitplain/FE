@@ -12,6 +12,7 @@ import IssuesPage from "@/pages/issues";
 import LoginPage from "@/pages/login";
 import NewTestPage from "@/pages/new-test";
 import NotFoundPage from "@/pages/not-found";
+import PrivacyPage from "@/pages/privacy";
 import ProjectDetailPage from "@/pages/project-detail";
 import ProjectHistoryPage from "@/pages/project-history";
 import ProjectIssuesPage from "@/pages/project-issues";
@@ -55,6 +56,8 @@ export const routes: RouteObject[] = [
       { path: ROUTES.report.path, element: <ReportPage /> },
       { path: ROUTES.sessionDetail.path, element: <SessionDetailPage /> },
       { path: ROUTES.retest.path, element: <RetestPage /> },
+      /* 개인정보처리방침은 로그인 없이도 봅니다 (구글 로그인 동의 화면·사이드바 하단에서 연결) */
+      { path: ROUTES.privacy.path, element: <PrivacyPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
