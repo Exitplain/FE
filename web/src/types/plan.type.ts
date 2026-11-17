@@ -151,11 +151,13 @@ export type PlanSnapshot = {
 
 /*
   GET /api/v1/plan-revisions/{id} — 확정 계획 (BE plans.services.snapshot_dict).
-  data 는 확정할 때의 계획 전체라, 화면에서 쓰는 값만 적어 둡니다 (재테스트 P17: 페르소나·시드 수)
+  data 는 확정할 때의 계획 전체라, 화면에서 쓰는 값만 적어 둡니다 (재테스트 P17: 페르소나·시드 수·과업 이름)
 */
 export type PlanRevisionDetail = PlanSnapshot & {
   data: {
     personas?: { code: string }[];
+    /* 실행 이름("4차·첫 주문 외 1개")을 만들 때 씁니다 */
+    tasks?: { id: string; name?: string | null }[];
     limits?: { seed_count?: number };
     total_sessions?: number;
   };

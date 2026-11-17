@@ -85,6 +85,12 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
   const report = useRunReport(runId);
   const run = useRunDetail(runId);
   const runs = useRunList(project.v1Id);
+  /* 재테스트가 받을 차수 — BE 처럼 프로젝트의 가장 큰 차수 + 1 (목록은 최신순) */
+  const latestSequence = Math.max(
+    run.data?.sequence_no ?? 0,
+    ...(runs.data?.pages.flatMap((page) => page.items.map((item) => item.sequence_no)) ?? []),
+  );
+  const nextSequenceNo = latestSequence > 0 ? latestSequence + 1 : undefined;
   const openLogin = useDemoSessionStore((state) => state.openLogin);
   const [params, setParams] = useSearchParams();
   const [shareOpen, setShareOpen] = useState(false);
@@ -201,6 +207,7 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
           projectId={project.id}
           runId={runId}
           sequenceNo={run.data?.sequence_no}
+          nextSequenceNo={nextSequenceNo}
           planRevisionId={report.data.plan_revision_id}
         />
       )}

@@ -42,9 +42,22 @@ function conditionsOf(revision: PlanRevisionDetail | undefined) {
 }
 
 /*
+  BE runs/naming.build_run_name 과 같은 규칙 — "4차·첫 주문 완료" · 과업이 여럿이면 "4차·첫 주문 완료 외 1개"
+  재테스트 이름은 BE 가 실행을 만들 때 이 규칙으로 정합니다 (차수 = 프로젝트의 가장 큰 차수 + 1)
+*/
+function expectedRunName(sequenceNo: number, revision: PlanRevisionDetail | undefined) {
+  const names = (revision?.data.tasks ?? [])
+    .map((task) => String(task.name || task.id).slice(0, 60))
+    .filter(Boolean);
+  if (names.length === 0) return `${sequenceNo}차`;
+  if (names.length === 1) return `${sequenceNo}차·${names[0]}`;
+  return `${sequenceNo}차·${names[0]} 외 ${names.length - 1}개`;
+}
+
+/*
   Figma P17 수정 후 재테스트 — 같은 확정 계획(페르소나·시드)으로 다시 실행합니다.
   POST /api/v1/runs { plan_revision_id, base_run_id, change_note } 후 새 실행 화면(P08)으로 갑니다. 이전 실행은 남습니다.
-  - 테스트 이름은 BE 가 정해 읽기 전용으로 둡니다
+  - 테스트 이름은 BE 가 정해서, 시작하면 붙을 이름을 미리 보여 주고 바꾸지는 못하게 둡니다
   - 보정 줄·"끝나면 자동으로 비교하기" 는 BE 보정·비교 API 가 없어 두지 않습니다
   - 시작 요청 중에는 닫지 않습니다 (닫아도 실행은 만들어지고 화면이 이동해 혼란스러움)
 */
@@ -54,6 +67,7 @@ export default function RetestModal({
   projectId,
   runId,
   sequenceNo,
+  nextSequenceNo,
   planRevisionId,
 }: {
   open: boolean;
@@ -61,6 +75,8 @@ export default function RetestModal({
   projectId: string;
   runId: string;
   sequenceNo: number | undefined;
+  /* 새 실행이 받을 차수 (실행 목록의 가장 큰 차수 + 1) */
+  nextSequenceNo: number | undefined;
   planRevisionId: string;
 }) {
   const navigate = useNavigate();
@@ -150,8 +166,19 @@ export default function RetestModal({
       }
     >
       <form id="retest-form" onSubmit={submit} className="flex flex-col gap-4">
-        <Field label="테스트 이름" help="실행을 시작하면 자동으로 정해져요">
-          {(control) => <Input {...control} readOnly disabled placeholder="자동으로 정해져요" />}
+        <Field label="테스트 이름" help="이 이름으로 실행돼요 · 바꿀 수 없어요">
+          {(control) => (
+            <Input
+              {...control}
+              readOnly
+              value={
+                loading || !nextSequenceNo
+                  ? ""
+                  : `${expectedRunName(nextSequenceNo, revision.data)} (재테스트)`
+              }
+              placeholder="불러오는 중…"
+            />
+          )}
         </Field>
         <Field label="무엇을 고쳤나요" hint="선택">
           {(control) => (

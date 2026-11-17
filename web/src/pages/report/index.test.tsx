@@ -197,6 +197,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
               code: `P-${String(i + 1).padStart(3, "0")}`,
             })),
             limits: { seed_count: 3 },
+            tasks: [{ id: "order", name: "첫 주문" }],
           },
         }),
       ),
@@ -215,7 +216,10 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     const dialog = screen.getByRole("dialog", { name: "수정 후 재테스트" });
     expect(await within(dialog).findByText("1차와 동일 · P-001~P-020")).toBeInTheDocument();
     expect(within(dialog).getByText("1차와 동일 · 3회")).toBeInTheDocument();
-    expect(within(dialog).getByRole("textbox", { name: "테스트 이름" })).toBeDisabled();
+    /* BE 이름 규칙(가장 큰 차수 + 1 · 과업 이름)으로 시작하면 붙을 이름을 보여 줍니다 */
+    const name = within(dialog).getByRole("textbox", { name: "테스트 이름" });
+    expect(name).toHaveValue("2차·첫 주문 (재테스트)");
+    expect(name).toHaveAttribute("readonly");
     await user.type(
       within(dialog).getByRole("textbox", { name: /무엇을 고쳤나요/ }),
       "가입 입력 줄임",
