@@ -21,9 +21,15 @@ describe("buildPath", () => {
     expect(buildPath("testRun", { projectId, runId })).toBe("/projects/banchan/runs/run-1");
     expect(buildPath("report", { projectId, runId })).toBe("/projects/banchan/runs/run-1/report");
     expect(buildPath("retest", { projectId, runId })).toBe("/projects/banchan/runs/run-1/retest");
-    expect(buildPath("sessionDetail", { projectId, runId, sessionId: "quick_order" })).toBe(
-      "/projects/banchan/runs/run-1/sessions/quick_order",
-    );
+    expect(
+      buildPath("sessionDetail", {
+        projectId,
+        runId,
+        taskId: "order",
+        seed: "2",
+        personaId: "P-001",
+      }),
+    ).toBe("/projects/banchan/runs/run-1/sessions/order/2/P-001");
   });
 
   it("외부 공유 링크는 프로젝트 밖에 그대로 둔다", () => {

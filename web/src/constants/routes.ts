@@ -76,7 +76,7 @@ export const ROUTES = {
     owner: "팀원",
   },
   sessionDetail: {
-    path: "/projects/:projectId/runs/:runId/sessions/:sessionId",
+    path: "/projects/:projectId/runs/:runId/sessions/:taskId/:seed/:personaId",
     title: "세션 상세",
     screens: "P15~P16",
     owner: "팀원",

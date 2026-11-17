@@ -1,7 +1,9 @@
 import { useId } from "react";
+import { Link } from "react-router-dom";
 
 import Icon from "@/components/Icon/Icon";
 import InfoTip from "@/components/InfoTip/InfoTip";
+import { buildPath } from "@/constants/routes";
 import type { ReportTaskV1, ReportTechnicalFailure } from "@/types/report.type";
 
 /*
@@ -11,10 +13,15 @@ import type { ReportTaskV1, ReportTechnicalFailure } from "@/types/report.type";
 export default function TechnicalFailures({
   failures,
   tasks,
+  projectId,
+  runId,
 }: {
   failures: ReportTechnicalFailure[];
   /* 과업 id → 이름 */
   tasks: Pick<ReportTaskV1, "task_id" | "name">[];
+  /* 행을 누르면 그 세션의 상세(E06)로 갑니다 */
+  projectId: string;
+  runId: string;
 }) {
   const headingId = useId();
   if (failures.length === 0) return null;
@@ -30,16 +37,24 @@ export default function TechnicalFailures({
       </div>
       <ul className="flex flex-col gap-4">
         {failures.map((failure) => (
-          <li
-            key={`${failure.task_id}-${failure.seed}-${failure.persona_id}`}
-            className="flex items-center gap-2 text-caption"
-          >
-            <Icon name="status-error" className="text-danger" />
-            <span className="w-32 font-medium text-ink">
-              {failure.persona_id} · 시드 {failure.seed}
-            </span>
-            <span className="w-24 text-subtle">{taskName(failure.task_id)}</span>
-            <span className="text-gray-800">{failure.reason ?? failure.status}</span>
+          <li key={`${failure.task_id}-${failure.seed}-${failure.persona_id}`}>
+            <Link
+              to={buildPath("sessionDetail", {
+                projectId,
+                runId,
+                taskId: failure.task_id,
+                seed: String(failure.seed),
+                personaId: failure.persona_id,
+              })}
+              className="flex items-center gap-2 rounded text-caption hover:bg-gray-50"
+            >
+              <Icon name="status-error" className="text-danger" />
+              <span className="w-32 font-medium text-ink underline-offset-4 hover:underline">
+                {failure.persona_id} · 시드 {failure.seed}
+              </span>
+              <span className="w-24 text-subtle">{taskName(failure.task_id)}</span>
+              <span className="text-gray-800">{failure.reason ?? failure.status}</span>
+            </Link>
           </li>
         ))}
       </ul>

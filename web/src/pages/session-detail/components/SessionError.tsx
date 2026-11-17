@@ -6,6 +6,15 @@ import type { StepRow } from "../utils/sessionView";
 
 const LAST_RECORDS = 2;
 
+/* 기술 오류 종류별 안내 (BE runs.Session 기술 상태 5종) */
+const ERROR_MESSAGES: Partial<Record<PersonaSession["status"], string>> = {
+  agent_failure: "브라우저가 30초 동안 응답하지 않아 세션을 끝냈어요",
+  budget_exceeded: "실행당 비용 상한에 닿아 세션을 멈췄어요",
+  site_failure: "사이트에 접속하지 못해 세션을 끝냈어요",
+  blocked_auth: "로그인 단계에서 막혀 세션을 끝냈어요",
+  cancelled: "실행을 중지해 세션이 끝났어요",
+};
+
 /*
   Figma E06 세션 오류 — 기술 오류로 끝난 세션. 탭 없이 오류 안내와 멈추기 전 기록만 보여줍니다.
   임시: 오류 문구는 Figma 예시("브라우저가 30초 동안 응답하지 않아…")이고, 서버가 준 사유는 아래에 함께 씁니다.
@@ -17,8 +26,9 @@ export default function SessionError({
   session: PersonaSession;
   steps: StepRow[];
 }) {
-  const budget = session.status === "budget_exceeded";
   const records = steps.slice(-LAST_RECORDS);
+  /* 응답 없이 멈춘 경우(실행 오류)만 마지막 기록에 "응답 없음" 을 붙입니다 */
+  const noResponse = session.status === "agent_failure";
 
   return (
     <div className="flex flex-col gap-10">
@@ -31,9 +41,7 @@ export default function SessionError({
         </h2>
         <p className="flex items-center gap-2 pl-2 text-caption font-bold text-ink">
           <Icon name="status-error" className="size-5 text-danger" />
-          {budget
-            ? "실행당 비용 상한에 닿아 세션을 멈췄어요"
-            : "브라우저가 30초 동안 응답하지 않아 세션을 끝냈어요"}
+          {ERROR_MESSAGES[session.status] ?? ERROR_MESSAGES.agent_failure}
         </p>
         {session.reason && <p className="pl-9 text-xs text-muted">기록된 사유: {session.reason}</p>}
         <p className="text-caption text-subtle">기술 오류라 이탈률·원인 계산에서 빠져요</p>
@@ -56,7 +64,7 @@ export default function SessionError({
                   <span className="text-subtle">{STAGE_LABELS[row.stage]}</span>
                   <span className="text-ink">
                     {row.action ?? "기록 없음"}
-                    {last && !budget ? " → 응답 없음" : ""}
+                    {last && noResponse ? " → 응답 없음" : ""}
                   </span>
                 </li>
               );

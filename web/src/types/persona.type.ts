@@ -142,6 +142,8 @@ export type TracePoint = {
   crossed: boolean;
   url: string;
   artifact_id: string | null;
+  /* 제품 API: 이 스텝 화면 캡처 주소 (/api/v1/observations/{id}/screenshot) */
+  screenshot_url?: string | null;
   model_version?: string;
   /* 이번 스텝에서 관측한 신호 (새 입력 칸, 되돌아감, 예상 밖 비용 등) */
   signals?: Record<string, number | boolean>;
@@ -192,6 +194,8 @@ export type PersonaSession = PersonaProfile & {
   elapsed_ms?: number;
   /* 제품 API: 최근(없으면 마지막) 화면 스크린샷 주소 (/api/v1/observations/{id}/screenshot) */
   screenshot_url?: string | null;
+  /* 제품 API: 서버가 붙인 주 이탈 원인 이름 (예: "입력 부담") */
+  cause_name?: string | null;
   tokens?: number;
   cost_usd?: number;
 };

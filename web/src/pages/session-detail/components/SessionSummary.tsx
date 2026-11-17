@@ -3,15 +3,8 @@ import { STAGE_LABELS } from "@/constants/persona";
 import type { PersonaSession } from "@/types/persona.type";
 import { cn } from "@/utils/cn";
 
-import {
-  evidenceQuote,
-  sessionKpis,
-  stageFlow,
-  type StepRow,
-  suggestedQuestions,
-} from "../utils/sessionView";
+import { evidenceQuote, sessionKpis, stageFlow, type StepRow } from "../utils/sessionView";
 
-import AskBox from "./AskBox";
 import FrustrationChart from "./FrustrationChart";
 import StageFlow from "./StageFlow";
 
@@ -19,20 +12,17 @@ const RECENT = 3;
 
 /*
   Figma P15(이탈) · P16(완료) 요약 탭.
-  위: KPI 4칸 / 왼쪽: 근거 발화 · 단계 흐름 · 좌절 점수 변화 / 오른쪽: 최근 스텝 · 질문하기
+  위: KPI 4칸 / 왼쪽: 근거 발화 · 단계 흐름 · 좌절 점수 변화 / 오른쪽: 최근 스텝
+  질문하기는 BE 세션 질문 API(POST /api/v1/sessions/{id}/questions)가 아직 없어 숨깁니다.
 */
 export default function SessionSummary({
   session,
   steps,
   onShowTimeline,
-  onAsk,
-  asking,
 }: {
   session: PersonaSession;
   steps: StepRow[];
   onShowTimeline: () => void;
-  onAsk: (question: string) => void;
-  asking: boolean;
 }) {
   const kpis = sessionKpis(session);
   const quote = evidenceQuote(session);
@@ -111,16 +101,6 @@ export default function SessionSummary({
             >
               스텝 {steps.length}개 전체 보기
             </button>
-          </section>
-
-          <section aria-labelledby="ask-title" className="flex flex-col gap-3">
-            <div>
-              <h2 id="ask-title" className="text-lg font-bold text-ink">
-                이 세션에 질문하기
-              </h2>
-              <p className="text-xs text-muted">기록 기반 답변이에요</p>
-            </div>
-            <AskBox questions={suggestedQuestions(session)} onAsk={onAsk} pending={asking} />
           </section>
         </aside>
       </div>

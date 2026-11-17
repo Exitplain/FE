@@ -187,7 +187,7 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
         ) : (
           <ReportNoTasks />
         ))}
-      {report.data && <ReportFooter report={report.data} />}
+      {report.data && <ReportFooter report={report.data} projectId={project.id} runId={runId} />}
       {report.data && (
         <ShareModal
           open={shareOpen}
@@ -253,11 +253,19 @@ function ReportNoTasks() {
 }
 
 /* 기술 실패·해석의 한계는 과업과 상관없이 실행 전체 기준이라 늘 아래에 둡니다 */
-function ReportFooter({ report }: { report: RunReport }) {
+function ReportFooter({
+  report,
+  projectId,
+  runId,
+}: {
+  report: RunReport;
+  projectId: string;
+  runId: string;
+}) {
   const { technical_failures: failures, tasks, notes } = report.data;
   return (
     <>
-      <TechnicalFailures failures={failures} tasks={tasks} />
+      <TechnicalFailures failures={failures} tasks={tasks} projectId={projectId} runId={runId} />
       {notes.length > 0 && (
         <ul aria-label="결과 해석의 한계" className="flex flex-col gap-1 text-xs text-muted">
           {notes.map((text) => (

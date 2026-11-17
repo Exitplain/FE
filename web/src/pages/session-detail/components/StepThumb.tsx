@@ -1,4 +1,5 @@
-import { artifactUrl } from "@/apis/persona.api";
+import { useState } from "react";
+
 import Icon from "@/components/Icon/Icon";
 import { cn } from "@/utils/cn";
 
@@ -6,7 +7,7 @@ import type { StepRow } from "../utils/sessionView";
 
 /*
   스텝 화면 캡처 (P15c 썸네일 · P15b 크게 보기 공용).
-  캡처가 없으면(mock 은 항상 없음) 이미지 아이콘 자리표시를 그립니다.
+  캡처가 없거나 불러오지 못하면 이미지 아이콘 자리표시를 그립니다.
   임시: 문제 요소 위치(좌표) 필드가 아직 없어, 이탈 스텝에는 가운데에 빨간 박스만 표시합니다.
 */
 export default function StepThumb({
@@ -18,6 +19,9 @@ export default function StepThumb({
   large?: boolean;
   fit?: boolean;
 }) {
+  /* 실패한 주소를 기억해 두어, 다른 스텝(주소)으로 바뀌면 다시 불러옵니다 */
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const src = step.screenshotUrl !== failedUrl ? step.screenshotUrl : null;
   return (
     <span
       className={cn(
@@ -25,9 +29,10 @@ export default function StepThumb({
         large ? "h-120 w-full" : "h-25 w-40",
       )}
     >
-      {step.artifactId ? (
+      {src ? (
         <img
-          src={artifactUrl(step.artifactId)}
+          src={src}
+          onError={() => setFailedUrl(src)}
           alt={`스텝 ${step.step} 화면`}
           className={cn(fit || !large ? "size-full object-contain" : "max-w-none")}
         />
