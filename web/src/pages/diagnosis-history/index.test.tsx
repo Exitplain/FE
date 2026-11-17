@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import { createTestProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
 import DiagnosisHistoryPage from ".";
@@ -9,9 +10,13 @@ import DiagnosisHistoryPage from ".";
 describe("워크스페이스 진단 기록", () => {
   it("프로젝트와 상태를 함께 필터링하고 빈 결과에서 초기화한다", async () => {
     const user = userEvent.setup();
+    await createTestProject();
     renderWithProviders(<DiagnosisHistoryPage />, { route: "/history" });
     await screen.findByRole("link", { name: "1차 · 예약 완료" });
-    await user.selectOptions(screen.getByRole("combobox", { name: "프로젝트 필터" }), "studio");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "프로젝트 필터" }),
+      await screen.findByRole("option", { name: "프로젝트 · 스튜디오 예약" }),
+    );
     await user.selectOptions(screen.getByRole("combobox", { name: "상태 필터" }), "failed");
     expect(screen.getByText("조건에 맞는 실행이 없어요")).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "필터 모두 해제" })[0]);

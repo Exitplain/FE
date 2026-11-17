@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { useToastStore } from "@/stores/useToastStore";
 
@@ -32,22 +32,11 @@ import {
   - 조정안이 없으면 E11, 사람 관측 입력은 ?view=observe (K04)
 */
 export default function CalibrationPage() {
-  const { projectId } = useParams();
-  const project = findSampleProject(projectId);
-  if (!project) {
-    return (
-      <section className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
-        <p className="text-sm text-subtle">
-          주소를 확인하거나 사이드바에서 프로젝트를 골라 주세요.
-        </p>
-      </section>
-    );
-  }
+  const project = useCurrentProject();
   return <Calibration key={project.id} project={project} />;
 }
 
-function Calibration({ project }: { project: SampleProject }) {
+function Calibration({ project }: { project: CurrentProject }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view");
   const appliedAt = useCalibrationMockStore((state) => state.appliedAt[project.id]);

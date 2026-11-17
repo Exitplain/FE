@@ -8,7 +8,7 @@ import { create } from "zustand";
 */
 
 /* 조정안이 있는 프로젝트 (그 밖은 E11 보정할 차이 없음) */
-export const PROPOSAL_PROJECTS = ["banchan"];
+export const PROPOSAL_PROJECTS = ["1"];
 
 export const PROPOSAL_BASIS = "3차 vs 실측 7일 · 오차 4.5%p · 차이 구간 장바구니";
 

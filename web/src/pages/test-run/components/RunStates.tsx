@@ -8,7 +8,7 @@ import { buildPath } from "@/constants/routes";
 import type { PersonaRun } from "@/types/persona.type";
 import { cn } from "@/utils/cn";
 
-import { countSessions, failureSummary, formatTokens } from "../utils/runView";
+import { countSessions, failureSummary } from "../utils/runView";
 
 type CheckState = "done" | "running" | "next";
 
@@ -56,14 +56,17 @@ export function PreparingChecklist({ run, panelSize }: { run: PersonaRun; panelS
   const ready =
     run.prepare?.browsers_ready ??
     run.sessions.filter((session) => session.status !== "queued").length;
-  const seeds = run.seeds?.total ?? 1;
-
   return (
     <PhaseChecklist
       label="실행 준비"
       steps={[
         {
-          label: `페르소나 ${panelSize}명 · 시드 ${seeds}개 불러오기`,
+          /* 제품 API 는 시드 수를 주지 않아 있을 때만 붙입니다 */
+          label: run.seeds
+            ? `페르소나 ${panelSize}명 · 시드 ${run.seeds.total}개 불러오기`
+            : panelSize > 0
+              ? `페르소나 ${panelSize}명 불러오기`
+              : "페르소나 불러오기",
           state: "완료",
           status: "done",
         },
@@ -91,8 +94,11 @@ export function AnalyzingChecklist({ run }: { run: PersonaRun }) {
     status === "done" ? "완료" : status === "running" ? "진행 중" : "다음";
 
   const steps = [
-    `세션 ${run.sessions.length * seeds}개 종료 (시드 ${seeds}회)`,
-    `이탈 원인 ${Math.max(causes, 1)}종 분류`,
+    /* 제품 API 세션 목록에는 모든 시드의 세션이 들어 있고 원인 분류 값이 없습니다 */
+    run.seeds
+      ? `세션 ${run.sessions.length * seeds}개 종료 (시드 ${seeds}회)`
+      : `세션 ${run.sessions.length}개 종료`,
+    causes > 0 ? `이탈 원인 ${causes}종 분류` : "이탈 원인 분류",
     "리포트 생성 · 범위 계산",
   ].map((text, index) => ({ label: text, state: label(stateOf(index)), status: stateOf(index) }));
 
@@ -100,7 +106,16 @@ export function AnalyzingChecklist({ run }: { run: PersonaRun }) {
 }
 
 /* 이미 끝난 실행을 열었을 때 — 결과를 요약하고 리포트로 연결 (분석 화면을 보던 중이면 자동 이동) */
-export function RunCompleted({ run, projectId }: { run: PersonaRun; projectId: string }) {
+export function RunCompleted({
+  run,
+  projectId,
+  partial = false,
+}: {
+  run: PersonaRun;
+  projectId: string;
+  /* 제품 API partially_completed — 일부 세션만 끝난 부분 결과 (임시 문구) */
+  partial?: boolean;
+}) {
   const counts = countSessions(run.sessions);
   return (
     <section
@@ -115,6 +130,7 @@ export function RunCompleted({ run, projectId }: { run: PersonaRun; projectId: s
           세션 {counts.all}개 · 완료 {counts.success} · 이탈 {counts.dropout} · 오류 {counts.error}
           {counts.error > 0 && " (오류는 이탈률에 넣지 않아요)"}
         </p>
+        {partial && <p className="text-caption text-subtle">일부 세션만 끝난 부분 결과예요</p>}
       </div>
       {run.id && (
         <Link to={buildPath("report", { projectId, runId: run.id })} className={buttonVariants()}>
@@ -126,7 +142,16 @@ export function RunCompleted({ run, projectId }: { run: PersonaRun; projectId: s
 }
 
 /* E05 실행 실패 — 모든 세션이 기술 실패로 끝남 (다시 시도 · 설정 수정은 새 테스트에서) */
-export function RunFailed({ run, projectId }: { run: PersonaRun; projectId: string }) {
+export function RunFailed({
+  run,
+  projectId,
+  message,
+}: {
+  run: PersonaRun;
+  projectId: string;
+  /* 제품 API 실행 오류(run.error.message). 있으면 세션 사유 대신 보여 줍니다 */
+  message?: string | null;
+}) {
   const summary = failureSummary(run.sessions);
   return (
     <section
@@ -138,7 +163,7 @@ export function RunFailed({ run, projectId }: { run: PersonaRun; projectId: stri
         실행을 끝내지 못했어요
       </h2>
       <p className="text-sm text-subtle">
-        {summary.reason} · 끝난 세션 {summary.finishedNormally} / {summary.total}
+        {message || summary.reason} · 끝난 세션 {summary.finishedNormally} / {summary.total}
       </p>
       <Link
         to={buildPath("newTest", { projectId })}
@@ -161,61 +186,41 @@ export function RunFailed({ run, projectId }: { run: PersonaRun; projectId: stri
   );
 }
 
-/* E12 비용 상한 도달 — 멈춘 시점과 부분 결과 */
-export function RunStopped({ run, projectId }: { run: PersonaRun; projectId: string }) {
-  const stopped = run.stopped!;
-  const seeds = run.seeds?.total ?? 3;
-  const rows = [
-    [
-      "끝난 세션",
-      `${stopped.finished} / ${stopped.total} (${
-        stopped.seed > 1 ? `시드 ${stopped.seed - 1} 전체 + ` : ""
-      }시드 ${stopped.seed} 일부)`,
-    ],
-    [
-      "쓴 비용",
-      `상한 ${Math.round(stopped.cost_ratio * 100)}% · 토큰 ${formatTokens(stopped.tokens)}`,
-    ],
-    ["결과", `범위 계산에 시드 ${seeds}회가 필요해 부분 결과만 볼 수 있어요`],
-  ];
+/* 제품 API: 중지한 실행 (임시 문구 — Figma 확인 필요). 끝난 세션까지의 리포트가 있으면 연결합니다 */
+export function RunCancelled({
+  projectId,
+  reportRunId,
+}: {
+  projectId: string;
+  reportRunId: string | null;
+}) {
   return (
-    <div className="flex flex-col gap-12">
-      <p
-        role="alert"
-        className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption font-bold text-ink"
-      >
-        <Icon name="status-error" className="size-5 text-danger" />
-        실행당 LLM 비용 상한에 닿아 시드 {stopped.seed} / {seeds}에서 멈췄어요
-      </p>
-      <section aria-labelledby="run-stopped-title" className="flex flex-col gap-4">
-        <h2 id="run-stopped-title" className="text-lg font-bold text-ink">
-          멈춘 시점
+    <section
+      aria-labelledby="run-cancelled-title"
+      className="flex items-center justify-between gap-6 rounded-xl bg-gray-50 p-6"
+    >
+      <div className="flex flex-col gap-2">
+        <h2 id="run-cancelled-title" className="text-lg font-bold text-ink">
+          테스트를 중지했어요
         </h2>
-        <dl className="flex flex-col">
-          {rows.map(([label, value]) => (
-            <div
-              key={label}
-              className="flex justify-between gap-6 border-b border-line py-3 text-caption last:border-b-0"
-            >
-              <dt className="text-subtle">{label}</dt>
-              <dd className="text-right text-ink">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="flex justify-end gap-2">
-          <Link to={buildPath("settings")} className={buttonVariants({ variant: "secondary" })}>
-            상한 확인
+        <p className="text-sm text-subtle">끝난 세션까지만 기록돼요</p>
+      </div>
+      <div className="flex gap-2">
+        {reportRunId && (
+          <Link
+            to={buildPath("report", { projectId, runId: reportRunId })}
+            className={buttonVariants()}
+          >
+            리포트 보기
           </Link>
-          {run.id && (
-            <Link
-              to={buildPath("report", { projectId, runId: run.id })}
-              className={buttonVariants()}
-            >
-              부분 리포트 보기
-            </Link>
-          )}
-        </div>
-      </section>
-    </div>
+        )}
+        <Link
+          to={buildPath("newTest", { projectId })}
+          className={buttonVariants({ variant: "secondary" })}
+        >
+          새 테스트 시작하기
+        </Link>
+      </div>
+    </section>
   );
 }

@@ -1,15 +1,9 @@
-import { useParams } from "react-router-dom";
-
 import ProjectContextHeader from "@/components/Projects/ProjectContextHeader";
-import ProjectUnavailable from "@/components/Projects/ProjectUnavailable";
-import { useProjects } from "@/hooks/useProjects";
+import { useCurrentProject } from "@/components/Projects/currentProject";
 import DiagnosisHistoryPage from "@/pages/diagnosis-history";
 
 export default function ProjectHistoryPage() {
-  const { projectId } = useParams();
-  const query = useProjects();
-  const project = query.data?.find((item) => item.id === projectId);
-  if (!project) return <ProjectUnavailable />;
+  const project = useCurrentProject().record;
   return (
     <DiagnosisHistoryPage
       key={project.id}

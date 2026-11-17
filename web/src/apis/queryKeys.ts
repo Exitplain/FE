@@ -21,12 +21,27 @@ export const queryKeys = {
   projectsV1: {
     all: ["projectsV1"] as const,
     sample: () => [...queryKeys.projectsV1.all, "sample"] as const,
+    /* 사이드바·C02 목록 (내 프로젝트 + 샘플) */
+    list: () => [...queryKeys.projectsV1.all, "list"] as const,
+    detail: (projectId: number) => [...queryKeys.projectsV1.all, "detail", projectId] as const,
   },
   /* 제품 API 실행. 실행을 만들거나 끝난 뒤에는 runs.all 로 한꺼번에 무효화합니다 */
   runs: {
     all: ["runs"] as const,
     list: (projectId: number) => [...queryKeys.runs.all, projectId, "list"] as const,
+    detail: (runId: string) => [...queryKeys.runs.all, "detail", runId] as const,
+    sessions: (runId: string) => [...queryKeys.runs.all, "sessions", runId] as const,
+    events: (runId: string) => [...queryKeys.runs.all, "events", runId] as const,
   },
+  /* 제품 API 리포트. 리포트 화면은 실행이 끝나는 순간(useRunDetail) 다시 받습니다 */
+  reports: {
+    all: ["reports"] as const,
+    byRun: (runId: string) => [...queryKeys.reports.all, "run", runId] as const,
+    shareLinks: (reportId: string) => [...queryKeys.reports.all, reportId, "share-links"] as const,
+    shared: (token: string) => [...queryKeys.reports.all, "shared", token] as const,
+  },
+  /* 프로젝트 테스트 계정 (P04). 저장하면 응답으로 바로 채웁니다 */
+  testAccounts: (projectId: number) => ["testAccounts", projectId] as const,
   calibration: {
     all: ["calibration"] as const,
     history: (projectId: string) => [...queryKeys.calibration.all, projectId, "history"] as const,

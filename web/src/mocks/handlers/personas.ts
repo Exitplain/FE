@@ -1,10 +1,9 @@
-import { delay, http, HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 
 import {
   confirm,
   discover,
   explain,
-  generatePanel,
   human,
   MockApiError,
   report,
@@ -47,9 +46,6 @@ function handleRaw(run: () => Response) {
 
 const runIdOf = (request: Request) => new URL(request.url).searchParams.get("run_id");
 
-/* P06 생성 중 화면이 브라우저에서 잠깐 보이도록 늦춥니다 (테스트는 바로 응답) */
-const PANEL_DELAY_MS = import.meta.env.MODE === "test" ? 0 : 1500;
-
 /* 화면 확인용 빈 PDF (실제 내용 없음) */
 const MOCK_PDF = new TextEncoder().encode("%PDF-1.4\n% mock report\n%%EOF\n");
 
@@ -70,11 +66,6 @@ export const personaHandlers = [
   http.post("*/api/personas/explain", ({ request }) =>
     handle(async () => explain(await request.json())),
   ),
-  /* 임시 v1: 페르소나 패널 생성 (P06·P07). BE 가 구현하면 이 핸들러만 지웁니다 */
-  http.post("*/api/v1/persona-panels", async ({ request }) => {
-    await delay(PANEL_DELAY_MS);
-    return handle(async () => generatePanel(await request.json()), 201);
-  }),
   http.post("*/api/personas/human", ({ request }) =>
     handle(async () => human(await request.json())),
   ),

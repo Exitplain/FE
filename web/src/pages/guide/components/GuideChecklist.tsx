@@ -50,7 +50,7 @@ export default function GuideChecklist() {
             ) : index === 3 ? (
               <Link
                 className={buttonVariants({ variant: "outline" })}
-                to={buildPath("analytics", { projectId: "banchan" })}
+                to={buildPath("analytics", { projectId: "1" })}
               >
                 실측 데이터 연결하기
               </Link>

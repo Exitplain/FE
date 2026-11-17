@@ -13,6 +13,9 @@ export const STAGE_LABELS: Record<Stage, string> = {
   coupon: "쿠폰",
   account: "내 정보",
   subscription: "구독",
+  browse: "탐색",
+  detail: "상세",
+  payment: "결제 정보",
   other: "기타",
 };
 

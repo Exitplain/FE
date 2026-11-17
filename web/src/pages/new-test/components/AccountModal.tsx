@@ -20,26 +20,42 @@ type AccountModalProps = {
   open: boolean;
   onClose: () => void;
   onSave: (accounts: TestAccount[]) => void;
+  /* 서버에 저장하는 중 (PUT /api/v1/projects/{id}/test-accounts) */
+  saving?: boolean;
+  /* 저장하지 못한 이유 (서버 message) */
+  error?: string | null;
+  /* 계정 보관 기간 (서버 retention_days, 기본 90일) */
+  retentionDays?: number;
 };
 
 const EMPTY_ROW: TestAccount = { username: "", password: "" };
-const isFilled = (row: TestAccount) => row.username.trim() !== "" && row.password !== "";
+/* 서버에 저장된 계정(id 있음)은 비밀번호를 비워 두면 서버가 기존 비밀번호를 유지합니다 */
+const isFilled = (row: TestAccount) =>
+  row.username.trim() !== "" && (row.password !== "" || Boolean(row.id));
 const isBlank = (row: TestAccount) => row.username.trim() === "" && row.password === "";
 
 /*
   P04 테스트 계정 등록 모달 (P04b 10개 입력, P04c 중복, P04d 붙여넣기) — 퍼블리싱 단계.
-  BE 개발 서버에 로그인 연결(원격 브라우저·lease)이 없어, 입력한 계정은 화면 상태에만 저장하고
-  실행 요청에는 보내지 않습니다. 비밀번호는 저장소(localStorage 등)에 남기지 않습니다.
+  저장하면 프로젝트 테스트 계정으로 서버에 보냅니다 (PUT /api/v1/projects/{id}/test-accounts).
+  비밀번호는 서버가 암호화해서 저장하고 응답·브라우저 저장소(localStorage 등)에는 남기지 않습니다.
+  저장에 실패하면(예: 503 암호화 서비스 연결 실패) 모달과 입력을 그대로 두고 서버 안내를 보여 다시 저장하게 합니다.
+  서버 에이전트가 아직 로그인 상태 실행을 지원하지 않아, 실행에는 계정 수(=에이전트 수)만 반영됩니다.
   Figma 의 원격 브라우저 단계(1. 브라우저 열기 ~ 3. 시작 화면 지정)와 P04c "로그인 확인"은
   서버 기능이 생기면 이 모달에 이어서 붙입니다.
 */
-export default function AccountModal({ open, onClose, onSave }: AccountModalProps) {
+export default function AccountModal({ open, ...props }: AccountModalProps) {
   /* 열 때마다 저장된 계정으로 다시 시작하도록 닫혀 있으면 내용을 그리지 않습니다 */
   if (!open) return null;
-  return <AccountDialog onClose={onClose} onSave={onSave} />;
+  return <AccountDialog {...props} />;
 }
 
-function AccountDialog({ onClose, onSave }: Omit<AccountModalProps, "open">) {
+function AccountDialog({
+  onClose,
+  onSave,
+  saving = false,
+  error = null,
+  retentionDays = 90,
+}: Omit<AccountModalProps, "open">) {
   const baseId = useId();
   const [mode, setMode] = useState<"manual" | "paste">("manual");
   const [rows, setRows] = useState<TestAccount[]>(() => {
@@ -93,8 +109,8 @@ function AccountDialog({ onClose, onSave }: Omit<AccountModalProps, "open">) {
       title="테스트 계정 등록"
       description={`계정 1개로 에이전트 1명이 로그인해요 · 최대 ${ACCOUNT_MAX}개`}
       footer={
-        <Button disabled={!canSave} onClick={() => onSave(rows.filter(isFilled))}>
-          계정 저장
+        <Button disabled={!canSave || saving} onClick={() => onSave(rows.filter(isFilled))}>
+          {saving ? "저장 중…" : "계정 저장"}
         </Button>
       }
     >
@@ -236,9 +252,19 @@ function AccountDialog({ onClose, onSave }: Omit<AccountModalProps, "open">) {
         <p className="text-xs text-muted">계정을 더 넣으면 최대 {ACCOUNT_MAX}명까지 늘어나요</p>
       </div>
       <p className="text-xs text-subtle">
-        실제 개인정보·결제 정보가 없는 테스트 계정만 넣어주세요 · 비밀번호는 이 화면에만 두고
-        새로고침하면 지워져요 · 지금 개발 서버는 로그인 상태 실행을 지원하지 않아 저장만 해요
+        실제 개인정보·결제 정보가 없는 테스트 계정만 넣어주세요 · 지금은 로그인 상태 실행을 지원하지
+        않아 저장만 해요
       </p>
+      {/* BE 요청 문구 (/privacy 와 같음) — 보관 기간은 서버 retention_days */}
+      <p className="text-xs text-subtle">
+        입력한 비밀번호는 암호화해서 저장하고, 화면에 다시 보여주지 않아요. 마지막으로 사용하거나
+        수정한 뒤 {retentionDays}일이 지나면 자동으로 삭제돼요.
+      </p>
+      {error && (
+        <p role="alert" className="text-caption font-medium text-danger">
+          {error}
+        </p>
+      )}
     </Modal>
   );
 }

@@ -10,6 +10,7 @@ import { ROUTES } from "@/constants/routes";
 import { projectErrorHandlers } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { finishPersonaMock } from "@/mocks/personaMock";
+import { createTestProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { RunItem } from "@/types/run.type";
 
@@ -17,7 +18,7 @@ import TestListPage from "./index";
 
 const queryClientRef: { current: QueryClient | null } = { current: null };
 
-function renderPage(projectId = "banchan") {
+function renderPage(projectId = "1") {
   const result = renderWithProviders(<TestListPage />, {
     route: `/projects/${projectId}/tests`,
     path: ROUTES.testList.path,
@@ -75,7 +76,7 @@ describe("P01 사전 테스트 목록", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "반찬로드" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "새 테스트 시작하기" })).toHaveAttribute(
       "href",
-      "/projects/banchan/tests/new",
+      "/projects/1/tests/new",
     );
   });
 
@@ -103,13 +104,13 @@ describe("P01 사전 테스트 목록", () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByRole("link")).toHaveAttribute(
       "href",
-      expect.stringMatching(/^\/projects\/banchan\/runs\/mock-run-\d+$/),
+      expect.stringMatching(/^\/projects\/1\/runs\/mock-run-\d+$/),
     );
     /* 막 시작한 실행은 브라우저 준비 단계 (모든 세션 대기) */
     expect(within(rows[0]).getByText("준비 중")).toBeInTheDocument();
     expect(within(rows[1]).getByRole("link")).toHaveAttribute(
       "href",
-      expect.stringMatching(/^\/projects\/banchan\/runs\/mock-run-\d+\/report$/),
+      expect.stringMatching(/^\/projects\/1\/runs\/mock-run-\d+\/report$/),
     );
     expect(within(rows[1]).getByText("완료")).toBeInTheDocument();
   });
@@ -143,23 +144,21 @@ describe("P01 사전 테스트 목록", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(2);
   });
 
-  it("제품 API 에 없는 프로젝트는 실행 목록을 묻지 않고 빈 상태와 안내를 보여준다", async () => {
-    let runRequests = 0;
+  it("내 프로젝트는 주소의 프로젝트 id 로 실행 목록을 묻는다", async () => {
+    const runPaths: string[] = [];
     server.use(
-      http.get("*/api/v1/projects/:projectId/runs", () => {
-        runRequests += 1;
+      http.get("*/api/v1/projects/:projectId/runs", ({ request }) => {
+        runPaths.push(new URL(request.url).pathname);
         return HttpResponse.json({ items: [], next_cursor: null, total: 0 });
       }),
     );
-    renderPage("studio");
+    renderPage(await createTestProject());
 
     expect(
-      await screen.findByText("지금 개발 서버는 반찬로드 모의 쇼핑몰만 실행해요."),
+      await screen.findByRole("heading", { name: "아직 진행 중인 테스트가 없어요" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "아직 진행 중인 테스트가 없어요" }),
-    ).toBeInTheDocument();
-    expect(runRequests).toBe(0);
+    expect(screen.getByRole("heading", { level: 1, name: "스튜디오 예약" })).toBeInTheDocument();
+    expect(runPaths).toEqual(["/api/v1/projects/101/runs"]);
   });
 
   it("반찬로드는 샘플 프로젝트 1번의 실행 목록을 보고 개발 API 는 부르지 않는다", async () => {
@@ -268,17 +267,18 @@ describe("P01 사전 테스트 목록", () => {
     expect(within(cancelled).queryByRole("link")).not.toBeInTheDocument();
     expect(within(completed).getByRole("link", { name: "1차" })).toHaveAttribute(
       "href",
-      "/projects/banchan/runs/run-1/report",
+      "/projects/1/runs/run-1/report",
     );
     expect(within(completed).getByText("42%")).toBeInTheDocument();
   });
 
-  it("샘플 프로젝트를 받지 못하면 다시 시도해 복구할 수 있다", async () => {
-    server.use(projectErrorHandlers.sampleProjectsNetworkError);
+  it("프로젝트를 받지 못하면 다시 시도해 복구할 수 있다", async () => {
+    server.use(http.get("*/api/v1/projects/:projectId", () => HttpResponse.error()));
     const user = userEvent.setup();
     renderPage();
 
-    const retry = await screen.findByRole("button", { name: "다시 시도" });
+    /* 네트워크 오류는 한 번 더 물은 뒤(약 1초) 오류를 보여 줍니다 */
+    const retry = await screen.findByRole("button", { name: "다시 시도" }, { timeout: 3000 });
     server.resetHandlers();
     await user.click(retry);
 

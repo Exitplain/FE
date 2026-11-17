@@ -1,12 +1,16 @@
 import type { WorkspaceSettings, WorkspaceSnapshot } from "@/types/workspace.type";
 
-/* Figma 예시 전용 데이터입니다. persona mock과 실행 저장소를 공유하지 않습니다. */
+/*
+  Figma 예시 전용 데이터입니다. persona mock과 실행 저장소를 공유하지 않습니다.
+  projectId 는 제품 API 프로젝트 id 입니다: 1 = 샘플 반찬로드, 101·102 = mock 에서 처음 만든 두 프로젝트
+  (스튜디오 예약·중고폰 매입, mocks/handlers/projects.ts). projects 는 화면이 쓰지 않고 API 목록으로 바뀝니다.
+*/
 export const workspaceFixture: WorkspaceSnapshot = {
   asOf: "2026-11-08T14:41:00+09:00",
   recentGoals: [
     {
       id: "sample-banchan-3",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       title: "3차 · 첫 주문 완료 외 1개",
       type: "사전 테스트",
@@ -17,7 +21,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-studio-completed",
-      projectId: "studio",
+      projectId: "101",
       projectName: "스튜디오 예약",
       title: "1차 · 예약 완료",
       type: "사전 테스트",
@@ -28,7 +32,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-banchan-2",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       title: "2차 · 첫 주문 완료 외 1개",
       type: "사전 테스트",
@@ -39,7 +43,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-phone-1",
-      projectId: "phone",
+      projectId: "102",
       projectName: "중고폰 매입",
       title: "1차 · 매입 신청",
       type: "사전 테스트",
@@ -57,7 +61,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
   },
   projects: [
     {
-      id: "banchan",
+      id: "1",
       name: "반찬로드",
       url: "https://banchanroad.example",
       stage: 7,
@@ -69,7 +73,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       actionTarget: "calibration",
     },
     {
-      id: "studio",
+      id: "101",
       name: "스튜디오 예약",
       url: "https://studio.example",
       stage: 1,
@@ -81,7 +85,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       actionTarget: "testList",
     },
     {
-      id: "phone",
+      id: "102",
       name: "중고폰 매입",
       url: "https://phonebuy.example",
       stage: 4,
@@ -96,7 +100,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
   runs: [
     {
       id: "sample-studio-1",
-      projectId: "studio",
+      projectId: "101",
       projectName: "스튜디오 예약",
       title: "1차 · 예약 완료",
       type: "사전 테스트",
@@ -107,7 +111,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-banchan-4",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       title: "4차 · 첫 주문 완료 외 1개",
       type: "사전 테스트",
@@ -118,7 +122,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-banchan-replay",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       title: "장바구니 구간 재현",
       type: "원인 재현",
@@ -129,7 +133,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-banchan-3",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       title: "3차 · 첫 주문 완료 외 1개",
       type: "사전 테스트",
@@ -143,7 +147,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-banchan-2",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       title: "2차 · 첫 주문 완료 외 1개",
       type: "사전 테스트",
@@ -157,7 +161,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     },
     {
       id: "sample-phone-1",
-      projectId: "phone",
+      projectId: "102",
       projectName: "중고폰 매입",
       title: "1차 · 매입 신청",
       type: "사전 테스트",
@@ -172,7 +176,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-input",
       cause: "입력 부담",
       stage: "가입 단계",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       task: "첫 주문 완료",
       impact: [5, 7],
@@ -186,7 +190,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-cost",
       cause: "비용 충격",
       stage: "결제 정보 단계",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       task: "첫 주문 완료",
       impact: [3, 4],
@@ -200,7 +204,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-search",
       cause: "탐색 실패",
       stage: "상세 단계",
-      projectId: "banchan",
+      projectId: "1",
       projectName: "반찬로드",
       task: "첫 주문 완료",
       impact: [2, 3],
@@ -213,7 +217,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-error",
       cause: "기술 오류·지연",
       stage: "랜딩 단계",
-      projectId: "phone",
+      projectId: "102",
       projectName: "중고폰 매입",
       task: "매입 신청",
       impact: [2, 3],
@@ -227,7 +231,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-trust",
       cause: "신뢰 부족",
       stage: "결제 단계",
-      projectId: "studio",
+      projectId: "101",
       projectName: "스튜디오 예약",
       task: "예약 완료",
       impact: [2, 2],
@@ -240,7 +244,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-value",
       cause: "가치 불명확",
       stage: "랜딩 단계",
-      projectId: "phone",
+      projectId: "102",
       projectName: "중고폰 매입",
       task: "매입 신청",
       impact: [1, 2],
@@ -253,7 +257,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       id: "issue-access",
       cause: "접근성 장벽",
       stage: "탐색 단계",
-      projectId: "studio",
+      projectId: "101",
       projectName: "스튜디오 예약",
       task: "예약 완료",
       impact: [0, 1],
@@ -266,7 +270,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
   ],
   activeRun: {
     id: "sample-banchan-4",
-    projectId: "banchan",
+    projectId: "1",
     name: "반찬로드 4차",
     seed: "시드 1/3",
     total: 20,

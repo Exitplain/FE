@@ -19,7 +19,7 @@ export default function SummaryCards({ data }: { data: WorkspaceSnapshot }) {
             <p className="text-3xl font-bold">{data.summary.pendingCalibration}개</p>
             <div className="flex flex-wrap justify-between gap-2 text-xs">
               <span>반찬로드</span>
-              <Link className="underline" to={buildPath("calibration", { projectId: "banchan" })}>
+              <Link className="underline" to={buildPath("calibration", { projectId: "1" })}>
                 조정안 확인
               </Link>
             </div>

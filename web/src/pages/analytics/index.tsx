@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { useToastStore } from "@/stores/useToastStore";
 
@@ -57,22 +57,11 @@ const dayFormat = new Intl.DateTimeFormat("ko-KR", {
   - 연결됨: 실측 퍼널(R06·R07) → 예측 vs 실측(R08) → 원인 재현(R09~R11) → 보정(K01)
 */
 export default function AnalyticsPage() {
-  const { projectId } = useParams();
-  const project = findSampleProject(projectId);
-  if (!project) {
-    return (
-      <section className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
-        <p className="text-sm text-subtle">
-          주소를 확인하거나 사이드바에서 프로젝트를 골라 주세요.
-        </p>
-      </section>
-    );
-  }
+  const project = useCurrentProject();
   return <Analytics key={project.id} project={project} />;
 }
 
-function Analytics({ project }: { project: SampleProject }) {
+function Analytics({ project }: { project: CurrentProject }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const status = useConnectionStatus(project.id);

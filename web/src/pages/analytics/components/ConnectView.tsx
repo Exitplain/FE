@@ -55,7 +55,7 @@ export default function ConnectView({
   useEffect(() => {
     if (install !== "checking") return;
     const timer = window.setTimeout(() => {
-      const fails = !["banchan", "studio"].includes(projectId) && !failedOnce;
+      const fails = !["1"].includes(projectId) && !failedOnce;
       if (fails) useAnalyticsMockStore.getState().markFailed(projectId);
       setInstall(fails ? "failed" : "done");
     }, CHECK_MS);

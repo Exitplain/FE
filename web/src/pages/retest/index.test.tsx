@@ -26,7 +26,7 @@ async function completeRun(variant: Variant, tasks = ["order", "coupon"]) {
 
 function renderRetest(runId: string, search = "") {
   return renderWithProviders(<RetestPage />, {
-    route: `${buildPath("retest", { projectId: "banchan", runId })}${search}`,
+    route: `${buildPath("retest", { projectId: "1", runId })}${search}`,
     path: ROUTES.retest.path,
   });
 }
@@ -65,11 +65,11 @@ describe("P18 재테스트 전후 비교", () => {
 
     expect(screen.getByRole("link", { name: "리포트 A 열기" })).toHaveAttribute(
       "href",
-      buildPath("report", { projectId: "banchan", runId: a }),
+      buildPath("report", { projectId: "1", runId: a }),
     );
     expect(screen.getByRole("link", { name: "리포트 B 열기" })).toHaveAttribute(
       "href",
-      buildPath("report", { projectId: "banchan", runId: b }),
+      buildPath("report", { projectId: "1", runId: b }),
     );
   });
 
@@ -118,7 +118,7 @@ describe("P18 재테스트 전후 비교", () => {
     expect(screen.getByText("같은 패널·시드로 재테스트하면 비교할 수 있어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "수정 후 재테스트" })).toHaveAttribute(
       "href",
-      `${buildPath("report", { projectId: "banchan", runId: a })}?retest=1`,
+      `${buildPath("report", { projectId: "1", runId: a })}?retest=1`,
     );
   });
 });
