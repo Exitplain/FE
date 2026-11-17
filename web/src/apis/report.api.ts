@@ -1,4 +1,10 @@
-import type { RunReport, ShareLink, SharedReport } from "@/types/report.type";
+import type {
+  ReportSessionDetail,
+  ReportSessionKey,
+  RunReport,
+  ShareLink,
+  SharedReport,
+} from "@/types/report.type";
 
 import axiosInstance from "./axiosInstance";
 
@@ -12,6 +18,21 @@ export async function getRunReport(runId: string): Promise<RunReport> {
   const { data } = await axiosInstance.get<RunReport>(
     `/api/v1/runs/${encodeURIComponent(runId)}/reports`,
   );
+  return data;
+}
+
+/*
+  P15 세션 상세 — 리포트의 세션 한 줄(task_id · seed · persona_id)로 타임라인·좌절 점수를 받습니다.
+  리포트에 없는 세션은 404, 세션 기록이 지워졌으면 409 SESSION_FILES_MISSING
+*/
+export async function getReportSession(
+  reportId: string,
+  { taskId, seed, personaId }: ReportSessionKey,
+): Promise<ReportSessionDetail> {
+  const path = [reportId, "sessions", taskId, String(seed), personaId]
+    .map(encodeURIComponent)
+    .join("/");
+  const { data } = await axiosInstance.get<ReportSessionDetail>(`/api/v1/reports/${path}`);
   return data;
 }
 

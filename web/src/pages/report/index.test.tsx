@@ -161,6 +161,11 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     expect(failures).toHaveTextContent("P-007 · 시드 2");
     expect(failures).toHaveTextContent("첫 주문");
     expect(failures).toHaveTextContent("화면을 읽지 못했어요");
+    /* 행을 누르면 그 세션 상세(E06)로 갑니다 */
+    expect(within(failures).getByRole("link", { name: /P-007 · 시드 2/ })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/runs\/[^/]+\/sessions\/order\/2\/P-007$/),
+    );
     expect(screen.getByRole("list", { name: "결과 해석의 한계" })).toHaveTextContent(
       "실제 사용자 이탈률이 아닙니다",
     );

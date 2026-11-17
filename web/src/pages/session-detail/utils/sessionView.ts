@@ -2,8 +2,8 @@ import { CAUSE_LABELS, STAGE_LABELS } from "@/constants/persona";
 import { actionLabel, formatTokens, sessionSegment } from "@/pages/test-run/utils/runView";
 import type { PersonaSession, SessionStatus, Stage } from "@/types/persona.type";
 
-/* 세션 상세 탭 (?tab=). 잘못된 값은 요약으로 봅니다 */
-export const SESSION_TABS = ["summary", "timeline", "questions"] as const;
+/* 세션 상세 탭 (?tab=). 잘못된 값은 요약으로 봅니다. 질문 탭(P15d)은 BE 질문 API 가 생기면 다시 엽니다 */
+export const SESSION_TABS = ["summary", "timeline"] as const;
 export type SessionTab = (typeof SESSION_TABS)[number];
 
 export function parseTab(value: string | null): SessionTab {
@@ -12,9 +12,16 @@ export function parseTab(value: string | null): SessionTab {
     : "summary";
 }
 
-/* 기술 오류(실행 오류·한도 도달)는 이탈·원인 계산에서 빠지는 세션이라 E06 으로 보여줍니다 */
+/* 기술 오류는 이탈·원인 계산에서 빠지는 세션이라 E06 으로 보여줍니다 (BE runs.Session.TECHNICAL_STATUSES) */
+const TECHNICAL_STATUSES: readonly SessionStatus[] = [
+  "agent_failure",
+  "budget_exceeded",
+  "site_failure",
+  "blocked_auth",
+  "cancelled",
+];
 export function isTechnical(status: SessionStatus) {
-  return status === "agent_failure" || status === "budget_exceeded";
+  return TECHNICAL_STATUSES.includes(status);
 }
 
 /* "3분 05초" — Figma 세션 상세 표기 (초를 두 자리로). 1분 미만은 "45초" */
@@ -57,7 +64,8 @@ export type StepRow = {
   utterance: string | null;
   score: number;
   threshold: number;
-  artifactId: string | null;
+  /* 스텝 화면 캡처 주소 (없으면 null) */
+  screenshotUrl: string | null;
   /* 이탈한 마지막 스텝 */
   exit: boolean;
 };
@@ -76,7 +84,7 @@ export function mergeSteps(session: PersonaSession): StepRow[] {
       utterance: utterances.get(point.step)?.text ?? null,
       score: point.score,
       threshold: point.threshold,
-      artifactId: point.artifact_id,
+      screenshotUrl: point.screenshot_url ?? null,
       exit: session.status === "simulated_dropout" && point.step === lastStep,
     };
   });
@@ -128,7 +136,9 @@ export function sessionKpis(session: PersonaSession): Kpi[] {
       { label: "이탈 단계", value: stageLabel, emphasis: true },
       {
         label: "이탈 원인",
-        value: session.issue ? CAUSE_LABELS[session.issue.category] : "원인 불명",
+        value:
+          session.cause_name ??
+          (session.issue ? CAUSE_LABELS[session.issue.category] : "원인 불명"),
       },
       { label: "좌절 점수", value: `${last?.score ?? 0} / 임계치 ${threshold}` },
       { label: "종료 사유", value: "임계치 초과 → 이탈" },
@@ -149,14 +159,8 @@ export function sessionKpis(session: PersonaSession): Kpi[] {
       value: session.elapsed_ms != null ? formatDurationPadded(session.elapsed_ms) : "—",
     },
     { label: "최고 좌절 점수", value: `${peak} / 임계치 ${threshold}` },
-    { label: "종료 사유", value: session.status === "success" ? "목표 달성" : "진행 중" },
+    { label: "종료 사유", value: session.status === "success" ? "목표 달성" : "미완료" },
   ];
-}
-
-/* 질문 칩 — Figma P15 "왜 멈췄나요?", P16 "어디서 망설였나요?", P15d "마지막 행동은 왜 했나요?" */
-export function suggestedQuestions(session: PersonaSession, full = false) {
-  const first = session.status === "simulated_dropout" ? "왜 멈췄나요?" : "어디서 망설였나요?";
-  return full ? [first, "마지막 행동은 왜 했나요?", "개선하려면?"] : [first, "개선하려면?"];
 }
 
 /* 근거 발화 — 이탈이면 마지막 발화(이탈 문장), 아니면 없음 */

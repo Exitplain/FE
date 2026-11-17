@@ -39,6 +39,9 @@ export const queryKeys = {
     byRun: (runId: string) => [...queryKeys.reports.all, "run", runId] as const,
     shareLinks: (reportId: string) => [...queryKeys.reports.all, reportId, "share-links"] as const,
     shared: (token: string) => [...queryKeys.reports.all, "shared", token] as const,
+    /* P15 세션 상세 (리포트 revision 마다 내용이 정해져 있어 다시 받지 않아도 됩니다) */
+    session: (reportId: string, taskId: string, seed: number, personaId: string) =>
+      [...queryKeys.reports.all, reportId, "session", taskId, seed, personaId] as const,
   },
   /* 프로젝트 테스트 계정 (P04). 저장하면 응답으로 바로 채웁니다 */
   testAccounts: (projectId: number) => ["testAccounts", projectId] as const,

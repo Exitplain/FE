@@ -1,36 +1,37 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { explainPersonaSession, getPersonaSession } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
+import { getReportSession } from "@/apis/report.api";
+import { useRunReport } from "@/pages/report/hooks/useRunReport";
 import { ApiError } from "@/types/api.type";
-import type { PersonaSession } from "@/types/persona.type";
+import type { ReportSessionKey } from "@/types/report.type";
 
-const MAX_ANSWERS = 20;
+import { toPersonaSession } from "../utils/sessionAdapter";
 
-/* 세션 상세(P15·P16). 없는 세션(404)은 다시 시도하지 않고, 그 밖의 오류는 앱 기본값처럼 한 번만 */
-export function useSessionDetail(runId: string, sessionId: string) {
-  return useQuery({
-    queryKey: queryKeys.personas.session(runId, sessionId),
-    queryFn: () => getPersonaSession(runId, sessionId),
-    retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 1,
+/*
+  세션 상세(P15·P16). 주소에는 실행 id 와 세션 키(과업·시드·페르소나)만 있어,
+  실행의 최신 리포트(GET /api/v1/runs/{id}/reports)로 리포트 id 를 먼저 얻습니다.
+  없음·로그인 필요·권한 없음·기록 없음(409)은 다시 물어도 같아서 바로 보여 줍니다.
+*/
+export function useSessionDetail(runId: string, key: ReportSessionKey) {
+  const report = useRunReport(runId);
+  const reportId = report.data?.report_id;
+  const session = useQuery({
+    queryKey: queryKeys.reports.session(reportId ?? "", key.taskId, key.seed, key.personaId),
+    queryFn: () => getReportSession(reportId!, key),
+    enabled: reportId != null,
+    /* 리포트 revision 이 바뀌어도 새 세션을 받는 동안 이전 화면을 둡니다 (로딩 깜빡임 방지) */
+    placeholderData: keepPreviousData,
+    select: toPersonaSession,
+    retry: (count, error) =>
+      !(error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) && count < 1,
   });
-}
-
-/* P15d 질문 — 받은 답을 세션 answers 에 바로 붙여 질문 탭에 보여줍니다 */
-export function useAskSession(runId: string, sessionId: string) {
-  const queryClient = useQueryClient();
-  const queryKey = queryKeys.personas.session(runId, sessionId);
-  return useMutation({
-    mutationFn: (question: string) =>
-      explainPersonaSession({ run_id: runId, session_id: sessionId, question }),
-    /* 질문 중에 늦게 도착한 조회가 방금 붙인 답을 덮어쓰지 않게 진행 중인 조회를 멈춥니다 */
-    onMutate: () => queryClient.cancelQueries({ queryKey }),
-    onSuccess: (answer) => {
-      queryClient.setQueryData<PersonaSession>(queryKey, (session) => {
-        if (!session || session.answers?.some((item) => item.id === answer.id)) return session;
-        /* 서버처럼 최근 20개까지 */
-        return { ...session, answers: [...(session.answers ?? []), answer].slice(-MAX_ANSWERS) };
-      });
-    },
-  });
+  /* 리포트를 못 받으면 세션도 볼 수 없어 리포트 오류를 그대로 씁니다 */
+  const failed = report.isError ? report : session.isError ? session : null;
+  return {
+    data: session.data,
+    isPending: !failed && !session.data,
+    error: failed?.error ?? null,
+    refetch: () => void (report.isError ? report.refetch() : session.refetch()),
+  };
 }

@@ -7,19 +7,18 @@ import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
-import { usePersonaReports } from "@/hooks/usePersonaReports";
-import { runOrder } from "@/pages/report/utils/reportView";
+import { useRunDetail } from "@/pages/report/hooks/useRunReport";
 import { sessionCode } from "@/pages/test-run/utils/runView";
 import { ApiError } from "@/types/api.type";
 import type { PersonaSession } from "@/types/persona.type";
+import type { ReportSessionKey } from "@/types/report.type";
 import { cn } from "@/utils/cn";
 
 import ScreenModal from "./components/ScreenModal";
 import SessionError from "./components/SessionError";
-import SessionQuestions from "./components/SessionQuestions";
 import SessionSummary from "./components/SessionSummary";
 import StepTimeline from "./components/StepTimeline";
-import { useAskSession, useSessionDetail } from "./hooks/useSessionDetail";
+import { useSessionDetail } from "./hooks/useSessionDetail";
 import {
   describeSession,
   isTechnical,
@@ -27,75 +26,69 @@ import {
   parseTab,
   type SessionTab,
   type StepRow,
-  suggestedQuestions,
 } from "./utils/sessionView";
 
 /*
-  P15 세션 상세(이탈) · P16(완료) · P15b 화면 크게 보기 · P15c 스텝 타임라인 · P15d 질문 · E06 세션 오류.
-  - 탭은 주소 ?tab=summary|timeline|questions 로 둡니다 (새로 고침·공유해도 같은 탭)
-  - 임시: 세션은 mock 전용 GET /api/personas/session 으로 받습니다 (서버 명세 대기)
+  P15 세션 상세(이탈) · P16(완료) · P15b 화면 크게 보기 · P15c 스텝 타임라인 · E06 세션 오류.
+  - 주소: /runs/:runId/sessions/:taskId/:seed/:personaId (리포트 세션 목록 한 줄의 키)
+  - 탭은 주소 ?tab=summary|timeline 로 둡니다 (새로 고침·공유해도 같은 탭)
+  - P15d 질문은 BE 질문 API 가 없어 숨깁니다
 */
 export default function SessionDetailPage() {
-  const { runId, sessionId } = useParams();
+  const { runId, taskId, seed, personaId } = useParams();
   const project = useCurrentProject();
+  const seedNo = Number(seed);
 
-  if (!runId || !sessionId) {
+  if (!runId || !taskId || !personaId || !Number.isInteger(seedNo)) {
     return (
       <section className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
-        <p className="text-sm text-subtle">
-          주소를 확인하거나 사이드바에서 프로젝트를 골라 주세요.
-        </p>
+        <h1 className="text-2xl font-bold text-ink">세션을 찾을 수 없어요</h1>
+        <p className="text-sm text-subtle">주소를 확인하거나 리포트에서 세션을 다시 골라 주세요.</p>
       </section>
     );
   }
 
+  const sessionKey = { taskId, seed: seedNo, personaId };
   return (
     <SessionDetail
-      key={`${runId}/${sessionId}`}
+      key={`${runId}/${taskId}/${seedNo}/${personaId}`}
       project={project}
       runId={runId}
-      sessionId={sessionId}
+      sessionKey={sessionKey}
     />
   );
 }
 
 function statusBadge(session: PersonaSession) {
+  if (isTechnical(session.status)) {
+    return <StatusBadge icon="status-error" label="오류" tone="alert" />;
+  }
   switch (session.status) {
     case "simulated_dropout":
       return <StatusBadge icon="status-exit" label="이탈" tone="alert" />;
     case "success":
       return <StatusBadge icon="check" label="완료" />;
-    case "agent_failure":
-    case "budget_exceeded":
-      return <StatusBadge icon="status-error" label="오류" tone="alert" />;
     default:
-      return <StatusBadge icon="status-running" label="진행 중" tone="strong" />;
+      return <StatusBadge icon="status-running" label="미완료" tone="strong" />;
   }
 }
 
 function SessionDetail({
   project,
   runId,
-  sessionId,
+  sessionKey,
 }: {
   project: CurrentProject;
   runId: string;
-  sessionId: string;
+  sessionKey: ReportSessionKey;
 }) {
-  const detail = useSessionDetail(runId, sessionId);
-  const ask = useAskSession(runId, sessionId);
-  const reports = usePersonaReports();
+  const detail = useSessionDetail(runId, sessionKey);
+  const run = useRunDetail(runId);
   const [params, setParams] = useSearchParams();
-  const [focusStep, setFocusStep] = useState<number | null>(null);
   const [screen, setScreen] = useState<StepRow | null>(null);
-  /* 요약에서 질문해 질문 탭으로 넘어온 경우 (질문 탭 제목으로 포커스) */
-  const [focusQuestions, setFocusQuestions] = useState(false);
 
   const tab = parseTab(params.get("tab"));
   const changeTab = (next: SessionTab) => {
-    setFocusStep(null);
-    setFocusQuestions(false);
     setParams(
       (previous) => {
         const query = new URLSearchParams(previous);
@@ -107,18 +100,11 @@ function SessionDetail({
   };
 
   const session = detail.data;
-  const order = runOrder(reports.data ?? [], runId);
+  const order = run.data?.sequence_no;
   const steps = session ? mergeSteps(session) : [];
   const technical = session ? isTechnical(session.status) : false;
   const status = detail.error instanceof ApiError ? detail.error.status : null;
   const reportPath = buildPath("report", { projectId: project.id, runId });
-
-  /* 요약의 질문 칩·입력은 질문 탭으로 옮겨 답을 보여줍니다 */
-  const askFromSummary = (question: string) => {
-    ask.mutate(question);
-    changeTab("questions");
-    setFocusQuestions(true);
-  };
 
   return (
     <div className="flex flex-col gap-10">
@@ -143,22 +129,30 @@ function SessionDetail({
       />
 
       {detail.isPending && <WorkspaceState kind="loading" title="세션 기록을 불러오고 있어요" />}
-      {detail.isError && !session && (
+      {detail.error && !session && (
         <WorkspaceState
           kind="error"
-          title={status === 404 ? "세션을 찾을 수 없어요" : "세션 기록을 불러오지 못했어요"}
+          title={
+            status === 404
+              ? "세션을 찾을 수 없어요"
+              : status === 409
+                ? "세션 기록이 남아 있지 않아요"
+                : "세션 기록을 불러오지 못했어요"
+          }
           description={
             status === 404
               ? "끝난 실행의 세션만 볼 수 있어요. 리포트에서 다시 골라 주세요."
-              : "잠시 뒤 다시 시도해 주세요."
+              : status === 409
+                ? "보관 기간이 지나 기록이 지워졌을 수 있어요."
+                : "잠시 뒤 다시 시도해 주세요."
           }
           action={
-            status === 404 ? (
+            status === 404 || status === 409 ? (
               <Link to={reportPath} className={buttonVariants({ variant: "secondary" })}>
                 리포트로 돌아가기
               </Link>
             ) : (
-              <WorkspaceRetry onClick={() => void detail.refetch()} />
+              <WorkspaceRetry onClick={detail.refetch} />
             )
           }
         />
@@ -181,36 +175,16 @@ function SessionDetail({
                 session={session}
                 steps={steps}
                 onShowTimeline={() => changeTab("timeline")}
-                onAsk={askFromSummary}
-                asking={ask.isPending}
               />
             )}
             {tab === "timeline" && (
-              <StepTimeline steps={steps} focusStep={focusStep} onOpenScreen={setScreen} />
-            )}
-            {tab === "questions" && (
-              <SessionQuestions
-                answers={session.answers ?? []}
-                questions={suggestedQuestions(session, true)}
-                onAsk={(question) => ask.mutate(question)}
-                pending={ask.isPending}
-                failed={ask.isError}
-                focusOnMount={focusQuestions}
-                onEvidence={(step) => {
-                  changeTab("timeline");
-                  setFocusStep(step);
-                }}
-              />
+              <StepTimeline steps={steps} focusStep={null} onOpenScreen={setScreen} />
             )}
           </div>
         </>
       )}
 
-      <ScreenModal
-        step={screen}
-        issueFields={session?.issue?.observed_fields || null}
-        onClose={() => setScreen(null)}
-      />
+      <ScreenModal step={screen} issueFields={null} onClose={() => setScreen(null)} />
     </div>
   );
 }
@@ -218,10 +192,9 @@ function SessionDetail({
 const TAB_LABELS: Record<SessionTab, string> = {
   summary: "요약",
   timeline: "스텝 타임라인",
-  questions: "질문",
 };
 
-/* Figma 밑줄 탭 (요약 · 스텝 타임라인 n · 질문). 화살표·Home·End 로 옮겨 다닙니다 */
+/* Figma 밑줄 탭 (요약 · 스텝 타임라인 n). 화살표·Home·End 로 옮겨 다닙니다 */
 function SessionTabs({
   value,
   onChange,

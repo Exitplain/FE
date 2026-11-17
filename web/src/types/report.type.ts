@@ -180,3 +180,59 @@ export type ShareLink = {
   expires_at: string;
   revoked_at: string | null;
 };
+
+/*
+  GET /api/v1/reports/{id}/sessions/{task_id}/{seed}/{persona_id} — 세션 상세 (P15·P16·E06)
+  기준: BE backend/reports/services.session_detail · sessions.load_session_from_db
+*/
+export type ReportSessionStep = {
+  /* "step_003" */
+  step_id: string;
+  /* 0부터 */
+  index: number;
+  url: string;
+  /* 퍼널 단계 (landing·browse·detail·cart·signup·payment·complete). 모르면 null */
+  stage: string | null;
+  stage_name: string | null;
+  frustration_score: number | null;
+  frustration_threshold: number | null;
+  required_fields: number | null;
+  /* /api/v1/observations/{id}/screenshot (캡처가 없으면 null) */
+  screenshot: string | null;
+  frictions: { category: string; name: string; contribution: number | null }[];
+  /* 이 화면에서 한 다음 행동 */
+  action: { kind: string; target_id: string | null; explanation: string | null } | null;
+};
+
+export type ReportSessionDetail = {
+  report_id: string;
+  run_ref: string;
+  task: { id: string; name: string | null };
+  seed: number;
+  persona: {
+    code: string;
+    segment_id: string | null;
+    segment_name: string | null;
+    variables: unknown;
+    context: string | null;
+  };
+  session_id: string;
+  /* /api/v1/sessions/{id}/final-screenshot (없으면 null) */
+  final_screenshot: string | null;
+  /* 끝나지 않은 세션은 "incomplete" */
+  status: string;
+  reason: string | null;
+  steps: number;
+  duration_seconds: number | null;
+  terminal_stage: string | null;
+  primary_cause: { key: string; name: string } | null;
+  causes: { key: string; name: string }[];
+  timeline: ReportSessionStep[];
+  chart: {
+    threshold: number | null;
+    points: { index: number; stage: string | null; score: number }[];
+  };
+};
+
+/* 세션 상세 주소의 세 값 (리포트 세션 목록 한 줄의 task_id · seed · persona_id) */
+export type ReportSessionKey = { taskId: string; seed: number; personaId: string };
