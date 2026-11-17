@@ -1,39 +1,41 @@
 import { useState } from "react";
 
-import { getPersonaReportMarkdown, getPersonaReportPdf } from "@/apis/persona.api";
+import { exportReportMarkdown, exportReportPdf } from "@/apis/report.api";
 import Button from "@/components/Button/Button";
 import DropdownMenu from "@/components/DropdownMenu/DropdownMenu";
 import { useToastStore } from "@/stores/useToastStore";
 import { ApiError } from "@/types/api.type";
-import type { PersonaReport } from "@/types/persona.type";
+import type { RunReport } from "@/types/report.type";
 
 import { downloadFile } from "../utils/downloadFile";
 
 /*
-  P13 내보내기 메뉴 — PDF · Markdown · 결과 JSON.
-  - PDF 는 서버가 한 번에 1건만 만들어서, 만드는 동안 버튼을 막고 429 면 잠시 뒤 다시 시도하라고 알립니다.
-  - JSON 은 이미 받은 리포트 응답을 그대로 저장합니다 (원본 실행 기록 · 개발·분석용).
+  P13 내보내기 메뉴 — PDF · Markdown · 결과 JSON (GET /api/v1/reports/{id}/export.pdf|md).
+  - 파일 이름은 서버가 정한 이름(Content-Disposition)을 쓰고, 없으면 리포트 id 로 만듭니다.
+  - PDF 를 만들 수 없으면(503 PDF_UNAVAILABLE) Markdown 으로 받으라고 안내합니다.
+  - JSON 은 이미 받은 리포트 응답을 그대로 저장합니다 (원본 집계 · 개발·분석용).
 */
-export default function ExportMenu({ report }: { report: PersonaReport }) {
+export default function ExportMenu({ report }: { report: RunReport }) {
   const show = useToastStore((state) => state.show);
   const dismiss = useToastStore((state) => state.dismiss);
   const [pdfPending, setPdfPending] = useState(false);
-  const base = `dropspot-report-${report.run_id}`;
+  const base = `exitplain-report-${report.report_id}`;
 
   const exportPdf = async () => {
     setPdfPending(true);
     /* 생성 안내는 끝나면 지우고 결과 알림으로 바꿉니다 (오래 걸려 자동으로 사라져도 결과는 알림) */
     const pending = show("PDF를 만들고 있어요. 끝나면 자동으로 내려받아요", "status-wait");
     try {
-      downloadFile(await getPersonaReportPdf(report.run_id), `${base}.pdf`);
+      const file = await exportReportPdf(report.report_id);
+      downloadFile(file.blob, file.fileName ?? `${base}.pdf`);
       dismiss(pending);
       show("PDF를 내려받았어요");
     } catch (error) {
       dismiss(pending);
-      const busy = error instanceof ApiError && error.status === 429;
+      const unavailable = error instanceof ApiError && error.code === "PDF_UNAVAILABLE";
       show(
-        busy
-          ? "다른 PDF를 만드는 중이에요. 잠시 뒤 다시 시도해 주세요"
+        unavailable
+          ? "지금은 PDF를 만들 수 없어요. Markdown으로 내려받아 주세요"
           : "PDF를 만들지 못했어요. 다시 시도해 주세요",
         "status-error",
       );
@@ -44,8 +46,8 @@ export default function ExportMenu({ report }: { report: PersonaReport }) {
 
   const exportMarkdown = async () => {
     try {
-      const text = await getPersonaReportMarkdown(report.run_id);
-      downloadFile(new Blob([text], { type: "text/markdown;charset=utf-8" }), `${base}.md`);
+      const file = await exportReportMarkdown(report.report_id);
+      downloadFile(file.blob, file.fileName ?? `${base}.md`);
     } catch {
       show("Markdown을 내려받지 못했어요. 다시 시도해 주세요", "status-error");
     }

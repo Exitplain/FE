@@ -1,19 +1,19 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
-import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/persona.api";
-import { queryKeys } from "@/apis/queryKeys";
+import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { buildPath, ROUTES } from "@/constants/routes";
-import { personaErrorHandlers } from "@/mocks/handlers/personas";
+import { reportErrorHandlers, runDetailOf } from "@/mocks/handlers/reports";
 import { server } from "@/mocks/node";
-import { finishPersonaMock } from "@/mocks/personaMock";
-import { useRetestStore } from "@/stores/useRetestStore";
+import { finishPersonaMock, runList } from "@/mocks/personaMock";
+import { useDemoSessionStore } from "@/stores/useDemoSessionStore";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import type { DropCause, PersonaReport, ReportActual } from "@/types/persona.type";
+import type { RunReport } from "@/types/report.type";
 
 import ReportPage from "./index";
+import { cannedReport, orderTask } from "./reportFixture";
 
 function renderReport(runId: string, search = "") {
   return renderWithProviders(<ReportPage />, {
@@ -22,7 +22,7 @@ function renderReport(runId: string, search = "") {
   });
 }
 
-async function startRun(features: string[], tasks: string[]) {
+async function startRun(features = ["shopping", "coupon"], tasks = ["order", "coupon"]) {
   const plan = await discoverPersonaPlan({ variant: "problem" });
   return confirmPersonaRun({
     plan_id: plan.plan_id,
@@ -35,210 +35,182 @@ async function startRun(features: string[], tasks: string[]) {
 }
 
 /* mock 은 조회할 때마다 진행하므로 테스트에서는 끝까지 바로 돌립니다 */
-async function completeRun(features = ["shopping", "coupon"], tasks = ["order", "coupon"]) {
-  await startRun(features, tasks);
+async function completeRun() {
+  await startRun();
   return finishPersonaMock().id!;
 }
 
-describe("P12 리포트", () => {
-  it("첫 과업의 요약·예측 퍼널·원인·개선 Top 3 를 보여준다", async () => {
+/* 리포트가 아직 없다고(404) 답합니다 */
+function noReportYet() {
+  server.use(
+    http.get("*/api/v1/runs/:runId/reports", () =>
+      HttpResponse.json(
+        { error: { code: "NOT_FOUND", message: "이 실행의 리포트가 아직 없습니다.", fields: {} } },
+        { status: 404 },
+      ),
+    ),
+  );
+}
+
+/* mock 의 실행 상태(GET /api/v1/runs/{id})를 그대로 만들어 일부만 바꿀 때 씁니다 */
+function mockRunDetail(runId: string) {
+  return runDetailOf(runList({ progress: false }).find((item) => item.id === runId)!);
+}
+
+/* 정해 둔 리포트를 돌려줍니다 (실행 상태는 mock 실행 목록을 그대로 씀) */
+function serveReport(report: RunReport = cannedReport()) {
+  server.use(http.get("*/api/v1/runs/:runId/reports", () => HttpResponse.json(report)));
+}
+
+describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
+  it("끝난 실행의 리포트를 받아 첫 과업과 차수를 제목으로 보여준다", async () => {
     const runId = await completeRun();
     renderReport(runId);
 
     expect(
       await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
     ).toBeInTheDocument();
-    /* 패널 20명 · 시드 3회 · 최근 보정(11월 5일) */
-    expect(screen.getByText(/20명 × 시드 3회 · 보정 11월 5일/)).toBeInTheDocument();
-    /* 시드별 완료자 중앙 소요 시간의 범위 */
-    expect(screen.getByText("완료자 중앙 소요 시간").nextElementSibling).toHaveTextContent(
-      "1분 26초~1분 35초",
-    );
+    expect(screen.getByText(/AI 고객 \d+명 × 시드 \d+회/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "예측 퍼널" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "과업" })).toHaveTextContent("쿠폰");
+  });
 
-    /* 퍼널 마지막 도달 8~13명 / 첫 단계 20명 */
-    expect(screen.getByText("40~65%")).toBeInTheDocument();
-    expect(screen.getByText("완료 8~13명 / 20명")).toBeInTheDocument();
-    /* 가입 단계 이탈이 가장 많음 → 직전 단계(장바구니)에서 가입으로 가는 구간 */
+  it("요약 4칸: 시드별 달성률 범위·최대 이탈 구간·중앙 소요 시간·기록 세션", async () => {
+    serveReport();
+    renderReport(await completeRun());
+
+    expect(await screen.findByText("45~55%")).toBeInTheDocument();
+    expect(screen.getByText("완료 30명 / 58명 · 시드 합계")).toBeInTheDocument();
+    /* 가입 단계에서 14명이 떠남 (장바구니 44명 대비 32%) */
     expect(screen.getByText("장바구니 → 가입")).toBeInTheDocument();
+    expect(screen.getByText("이 구간 이탈 14명 · 32%")).toBeInTheDocument();
+    expect(screen.getByText("중앙 소요 시간").nextElementSibling).toHaveTextContent("1분 26초");
+    expect(screen.getByText("기록 세션").nextElementSibling).toHaveTextContent("60/60개");
+    expect(screen.getByText("기술 실패 2 · 결과 없음 0")).toBeInTheDocument();
+    /* 머리말 설명: 세션 목록의 페르소나 20명 × 시드 3회 */
+    expect(screen.getByText("11월 7일 · AI 고객 20명 × 시드 3회")).toBeInTheDocument();
+  });
+
+  it("예측 퍼널은 시드별 도달 범위와 유효 세션 대비 비율을 보여준다", async () => {
+    serveReport();
+    renderReport(await completeRun());
+
+    const funnel = await screen.findByRole("table", { name: "예측 퍼널" });
+    expect(within(funnel).getAllByRole("row")).toHaveLength(7);
+    expect(within(funnel).getByRole("row", { name: /랜딩/ })).toHaveTextContent("19~20명");
+    expect(within(funnel).getByRole("row", { name: /가입/ })).toHaveTextContent("9~11명 · 52%");
+  });
+
+  it("지나가지 않는 단계(가입 0명 뒤에 결제)는 퍼널·최대 이탈 구간에서 뺀다", async () => {
+    serveReport();
+    const user = userEvent.setup();
+    renderReport(await completeRun());
+
+    await user.click(await screen.findByRole("radio", { name: "쿠폰으로 주문" }));
 
     const funnel = screen.getByRole("table", { name: "예측 퍼널" });
     expect(within(funnel).getAllByRole("row")).toHaveLength(6);
-    expect(within(funnel).getByRole("row", { name: /첫 화면/ })).toHaveTextContent("20명 (100%)");
-    expect(within(funnel).getByRole("row", { name: /가입/ })).toHaveTextContent(
-      "10~15명 · 이탈 5~8",
-    );
-
-    expect(screen.getByRole("table", { name: "이탈 원인 분포" })).toHaveTextContent(
-      "입력 부담80%비용 충격20%",
-    );
-
-    const issue = screen.getByRole("button", { name: /입력 부담 · 가입 단계/ });
-    expect(issue).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("캡처된 근거 화면이 없어요")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "세션 8개 전체 보기" })).toHaveAttribute(
-      "href",
-      buildPath("sessionDetail", { projectId: "1", runId, sessionId: "P-001_order" }),
-    );
-  });
-
-  it("세그먼트 × 이탈 구간: 최다 구간을 한 줄로 보여주고 펼치면 히트맵 표가 나온다", async () => {
-    const runId = await completeRun();
-    renderReport(runId);
-
-    const section = await screen.findByRole("region", { name: "세그먼트 × 이탈 구간" });
-    /* 빠른 구매형이 장바구니 → 가입 구간에서 가장 많이 떠남 (상한 기준) */
-    expect(section).toHaveTextContent("최다: 빠른 구매형 장바구니→가입 5명");
-
-    await userEvent.click(within(section).getByRole("button", { name: "세그먼트 4개 더 보기" }));
-    const table = within(section).getByRole("table", { name: "세그먼트 × 이탈 구간 히트맵" });
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
-    expect(within(table).getAllByRole("row")).toHaveLength(5);
-    expect(within(table).getByRole("row", { name: /빠른 구매형/ })).toHaveTextContent(
-      "빠른 구매형002~500",
-    );
-
-    await userEvent.click(within(section).getByRole("button", { name: "접기" }));
-    expect(within(section).queryByRole("table")).not.toBeInTheDocument();
-  });
-
-  it("공유 링크 복사(P20): 모달에서 읽기 전용 링크를 복사한다", async () => {
-    const user = userEvent.setup();
-    const runId = await completeRun();
-    renderReport(runId);
-
-    await user.click(await screen.findByRole("button", { name: "공유 링크 복사" }));
-    const dialog = screen.getByRole("dialog", { name: "공유 링크" });
-    const link = within(dialog).getByRole("textbox", { name: "링크" });
-    expect(link).toHaveValue(`${window.location.origin}/share/${runId}?task=order`);
-
-    await user.click(within(dialog).getByRole("button", { name: "복사" }));
-    expect(await navigator.clipboard.readText()).toBe(
-      `${window.location.origin}/share/${runId}?task=order`,
-    );
-  });
-
-  it("목업 비교(P12b): 관측 화면과 개선 목업이 없으면 만들지 않고 없다고 보여준다", async () => {
-    const runId = await completeRun();
-    renderReport(runId);
-
-    await userEvent.click(await screen.findByRole("button", { name: "목업 비교" }));
-    const dialog = screen.getByRole("dialog", { name: "현재 화면과 개선 가설 비교" });
-    expect(dialog).toHaveTextContent("Top 3 · 1 입력 부담 · 가입 단계");
-    expect(dialog).toHaveTextContent("캡처된 관측 화면이 없어요");
-    expect(dialog).toHaveTextContent("아직 만든 개선 목업이 없어요");
-    expect(within(dialog).getByRole("button", { name: "크게 보기" })).toBeDisabled();
-
-    /* 아래 "닫기" 버튼 (오른쪽 위 X 아이콘도 이름이 "닫기") */
-    await userEvent.click(within(dialog).getAllByRole("button", { name: "닫기" })[0]);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("수정 후 재테스트(P17): 같은 과업·타겟으로 개선 버전을 실행하고 비교 대상을 기억한다", async () => {
-    const user = userEvent.setup();
-    useRetestStore.setState({ byRunId: {} });
-    const runId = await completeRun();
-    renderReport(runId);
-
-    await user.click(await screen.findByRole("button", { name: "수정 후 재테스트" }));
-    const dialog = screen.getByRole("dialog", { name: "수정 후 재테스트" });
-    expect(within(dialog).getByLabelText("테스트 이름")).toHaveValue(
-      "첫 주문 외 1개 · 2차 (재테스트)",
-    );
-    expect(dialog).toHaveTextContent("패널1차와 동일 · P-001~P-020");
-    expect(dialog).toHaveTextContent("시드1차와 동일 · 3회");
-    expect(dialog).toHaveTextContent("보정ON · 보정 적용됨(11월 5일)");
+    expect(within(funnel).queryByRole("row", { name: /가입/ })).not.toBeInTheDocument();
+    expect(screen.getByText("상세 → 장바구니")).toBeInTheDocument();
+    /* 이 과업은 세그먼트 기록이 없어 히트맵과 섹션 이동 항목을 숨깁니다 */
+    expect(screen.queryByRole("heading", { name: "세그먼트 × 이탈 구간" })).not.toBeInTheDocument();
     expect(
-      within(dialog).getByRole("checkbox", { name: "끝나면 1차와 자동으로 비교하기" }),
-    ).toBeChecked();
-
-    await user.type(within(dialog).getByLabelText(/무엇을 고쳤나요/), "가입 필수 입력 줄임");
-    await user.click(within(dialog).getByRole("button", { name: "재테스트 시작" }));
-
-    const run = await getPersonaRun();
-    expect(run).toMatchObject({ status: "running", variant: "fixed" });
-    expect(run.tasks.map((task) => task.id)).toEqual(["order", "coupon"]);
-    expect(useRetestStore.getState().byRunId[run.id!]).toEqual({
-      baseRunId: runId,
-      name: "첫 주문 외 1개 · 2차 (재테스트)",
-      note: "가입 필수 입력 줄임",
-      autoCompare: true,
-    });
+      within(screen.getByRole("navigation", { name: "리포트 영역" })).queryByRole("link", {
+        name: "히트맵",
+      }),
+    ).not.toBeInTheDocument();
   });
 
-  it("재테스트는 실행 중인 테스트가 있으면 시작하지 않고 알린다 · ?retest=1 이면 바로 연다", async () => {
+  it("원인은 주 원인으로 떠난 세션이 있는 것만, 3종 먼저 보여주고 더 보기로 펼친다", async () => {
+    serveReport();
     const user = userEvent.setup();
-    const runId = await completeRun();
-    await startRun(["shopping"], ["order"]);
-    renderReport(runId, "?retest=1");
+    renderReport(await completeRun());
 
-    const dialog = await screen.findByRole("dialog", { name: "수정 후 재테스트" });
-    await user.click(within(dialog).getByRole("button", { name: "재테스트 시작" }));
+    const causes = await screen.findByRole("table", { name: "이탈 원인 분포" });
+    expect(within(causes).getAllByRole("row")).toHaveLength(3);
+    expect(causes).toHaveTextContent("입력 부담50% · 14명");
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "이미 실행 중인 테스트가 있어요",
-    );
+    await user.click(screen.getByRole("button", { name: "원인 1종 더 보기" }));
+    expect(within(causes).getAllByRole("row")).toHaveLength(4);
+    /* 주 원인으로 떠난 세션이 없는 원인(가치 불명확)은 넣지 않습니다 */
+    expect(causes).not.toHaveTextContent("가치 불명확");
   });
 
-  it("과업 칩으로 다른 과업 리포트로 바꾼다", async () => {
-    const runId = await completeRun();
-    renderReport(runId);
+  it("세그먼트 × 이탈 구간: 최다 칸을 한 줄로 보여주고 펼치면 표가 나온다", async () => {
+    serveReport();
+    const user = userEvent.setup();
+    renderReport(await completeRun());
 
-    await userEvent.click(await screen.findByRole("radio", { name: "쿠폰으로 주문" }));
+    expect(await screen.findByText("최다: 알뜰 탐색형 장바구니 9명")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "세그먼트 2개 더 보기" }));
 
+    const table = screen.getByRole("table", { name: "세그먼트 × 이탈 구간 히트맵" });
     expect(
-      screen.getByRole("heading", { level: 1, name: "쿠폰으로 주문 · 1차" }),
-    ).toBeInTheDocument();
-    /* 과업을 바꿔도 그 과업의 첫 문제가 펼쳐져 있어야 합니다 */
-    expect(screen.getByRole("button", { name: /탐색 실패 · 장바구니 단계/ })).toHaveAttribute(
-      "aria-expanded",
-      "true",
+      within(table)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["세그먼트", "랜딩", "탐색", "상세", "장바구니", "가입", "결제 정보", "완료"]);
+    expect(within(table).getByRole("row", { name: /바쁜 직장인/ })).toHaveTextContent("2355000");
+  });
+
+  it("기술 실패 세션과 결과 해석의 한계를 실행 전체 기준으로 아래에 보여준다", async () => {
+    serveReport();
+    renderReport(await completeRun());
+
+    const failures = await screen.findByRole("region", { name: "기술 실패 · 한도 초과" });
+    expect(failures).toHaveTextContent("P-007 · 시드 2");
+    expect(failures).toHaveTextContent("첫 주문");
+    expect(failures).toHaveTextContent("화면을 읽지 못했어요");
+    expect(screen.getByRole("list", { name: "결과 해석의 한계" })).toHaveTextContent(
+      "실제 사용자 이탈률이 아닙니다",
     );
   });
 
-  it("주소의 ?task= 로 과업을 고른다", async () => {
-    const runId = await completeRun();
-    renderReport(runId, "?task=coupon");
+  it("v1 리포트에 없는 개선 Top 3·실측 비교·재테스트는 보여주지 않는다", async () => {
+    serveReport();
+    renderReport(await completeRun());
+
+    await screen.findByRole("table", { name: "예측 퍼널" });
+    expect(screen.queryByRole("heading", { name: /개선 Top 3/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/실측 비교/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "수정 후 재테스트" })).not.toBeInTheDocument();
+  });
+
+  it("주소의 ?task= 로 과업을 고르고, 과업 칩으로 바꾼다", async () => {
+    serveReport();
+    const user = userEvent.setup();
+    renderReport(await completeRun(), "?task=coupon");
 
     expect(
       await screen.findByRole("heading", { level: 1, name: "쿠폰으로 주문 · 1차" }),
     ).toBeInTheDocument();
-  });
-
-  it("기술 실패 세션은 따로 보여주고 이탈률 계산에서 뺐다고 알린다", async () => {
-    const runId = await completeRun(["delivery"], ["delivery"]);
-    renderReport(runId);
-
-    const section = await screen.findByRole("region", { name: "기술 실패 · 한도 초과" });
-    expect(section).toHaveTextContent("이탈률·원인 계산에서 제외");
-    expect(section).toHaveTextContent("P-001");
-    expect(section).toHaveTextContent("접속 불가 · 응답 시간 초과 3회");
+    await user.click(screen.getByRole("radio", { name: "첫 주문" }));
+    expect(screen.getByRole("heading", { level: 1, name: "첫 주문 · 1차" })).toBeInTheDocument();
   });
 
   it("실행 선택(P12c)에서 다른 완료 실행으로 이동하고, 진행 중 실행은 고를 수 없다", async () => {
     const first = await completeRun();
-    const second = await completeRun();
-    await startRun(["shopping"], ["order"]);
-    renderReport(second);
+    await completeRun();
+    await startRun();
+    const user = userEvent.setup();
+    renderReport(first);
 
-    await userEvent.click(await screen.findByRole("button", { name: /2차 · .* · 완료/ }));
+    await user.click(await screen.findByRole("button", { name: /1차 · .* · 완료/ }));
     const menu = screen.getByRole("menu", { name: "실행 선택" });
-
-    expect(within(menu).getByRole("menuitemradio", { name: /2차/ })).toBeChecked();
+    expect(within(menu).getAllByRole("menuitemradio")).toHaveLength(3);
     expect(within(menu).getByRole("menuitemradio", { name: /3차/ })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-
-    await userEvent.click(within(menu).getByRole("menuitemradio", { name: /1차/ }));
+    await user.click(within(menu).getByRole("menuitemradio", { name: /2차/ }));
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
+      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 2차" }),
     ).toBeInTheDocument();
-    expect(first).not.toBe(second);
   });
 
   it("없는 실행이면 E18 을 보여준다", async () => {
-    renderReport("mock-run-없음");
+    renderReport("mock-run-999");
 
     expect(
       await screen.findByRole("heading", { name: "실행 기록을 찾을 수 없어요" }),
@@ -249,8 +221,8 @@ describe("P12 리포트", () => {
     );
   });
 
-  it("아직 끝나지 않은 실행이면 과거 결과 대신 실행 화면으로 안내한다", async () => {
-    const run = await startRun(["shopping"], ["order"]);
+  it("아직 끝나지 않은 실행이면 실행 화면으로 안내하고, 끝나면 리포트를 다시 받는다", async () => {
+    const run = await startRun();
     renderReport(run.id!);
 
     expect(
@@ -258,272 +230,135 @@ describe("P12 리포트", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "실행 화면 보기" })).toHaveAttribute(
       "href",
-      buildPath("testRun", { projectId: "1", runId: run.id! }),
+      `/projects/1/runs/${run.id}`,
     );
+
+    finishPersonaMock();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }, { timeout: 4000 }),
+    ).toBeInTheDocument();
   });
 
-  it("불러오지 못하면 E20 을 보여주고 다시 시도할 수 있다", async () => {
+  it("실패·취소로 끝난 실행은 리포트가 없다고 알린다", async () => {
     const runId = await completeRun();
-    server.use(personaErrorHandlers.reportNetworkError);
+    noReportYet();
+    server.use(
+      http.get("*/api/v1/runs/:runId", () =>
+        HttpResponse.json({ ...mockRunDetail(runId), status: "failed", phase: "failed" }),
+      ),
+    );
     renderReport(runId);
 
     expect(
-      await screen.findByRole("heading", { name: "리포트를 불러오지 못했어요" }, { timeout: 3000 }),
+      await screen.findByRole("heading", { name: "이 실행에는 리포트가 없어요" }),
     ).toBeInTheDocument();
+  });
 
+  it("끝난 실행인데 리포트가 아직 없으면 만드는 중이라고 알리고 다시 받을 수 있다", async () => {
+    const runId = await completeRun();
+    noReportYet();
+    const user = userEvent.setup();
+    renderReport(runId);
+
+    expect(
+      await screen.findByRole("heading", { name: "리포트를 만들고 있어요" }),
+    ).toBeInTheDocument();
     server.resetHandlers();
-    await userEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    await user.click(screen.getByRole("button", { name: "다시 시도" }));
 
     expect(
       await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
     ).toBeInTheDocument();
   });
-});
 
-/* mock 실행으로 만들기 어려운 응답(과업 없음·퍼널 없음·원인 여러 종·사람 관측)은 직접 돌려줍니다 */
-function cannedReport(overrides: Partial<PersonaReport> = {}): PersonaReport {
-  const finding = (id: string, category: DropCause, affected: number) => ({
-    id,
-    task_id: "order",
-    stage: "signup" as const,
-    category,
-    title: "",
-    affected_sessions: affected,
-    task_sessions: 10,
-    evidence: [],
-    interpretation: "",
-    recommendation: `${id} 개선안`,
-    mockup: null,
-  });
-  return {
-    schema_version: "test",
-    run_id: "canned",
-    created_at: "2026-11-07T03:00:00+00:00",
-    target: "",
-    variant: "fixed",
-    audience: {},
-    policy: "",
-    model_calls: 0,
-    summary: {
-      sessions: 10,
-      success: 4,
-      simulated_dropout: 6,
-      technical: 0,
-      findings: 4,
-      missing_evidence: 0,
-    },
-    tasks: [{ id: "order", name: "첫 주문", total: 10, success: 4, dropout: 6, technical: 0 }],
-    findings: [
-      finding("f1", "input_burden", 3),
-      finding("f2", "cost", 1),
-      finding("f3", "navigation", 1),
-      finding("f4", "trust", 1),
-    ],
-    evidence: [],
-    technical_failures: [],
-    alignment: {
-      participants: 3,
-      observations: 3,
-      metrics: {
-        outcome: { matched: 2, total: 3 },
-        stage: { matched: 2, total: 3 },
-        cause: { matched: 1, total: 3 },
-      },
-      status: "partial",
-    },
-    limitations: ["테스트용 한계 문구"],
-    ...overrides,
-  };
-}
+  it("로그인하지 않았으면(401) 로그인 창을 열 수 있고, 남의 프로젝트(403)면 권한이 없다고 알린다", async () => {
+    const runId = await completeRun();
+    server.use(reportErrorHandlers.reportUnauthorized);
+    const user = userEvent.setup();
+    const { unmount } = renderReport(runId);
 
-/* 실측 비교는 과업마다 있어 첫 과업에 넣습니다 */
-function withActual(actual: ReportActual) {
-  const report = cannedReport();
-  return { ...report, tasks: [{ ...report.tasks[0], actual }] };
-}
+    await user.click(await screen.findByRole("button", { name: "로그인" }));
+    expect(useDemoSessionStore.getState().dialog).toBe("login");
+    unmount();
 
-function serveReport(report: PersonaReport) {
-  server.use(http.get("*/api/personas/report", () => HttpResponse.json(report)));
-}
-
-describe("P12 리포트 — 응답 모양별", () => {
-  it("퍼널이 없는 과업은 완료 / (전체 - 기술 실패) 로 달성률을 보여준다", async () => {
-    serveReport(cannedReport());
-    renderReport("canned");
-
-    expect(await screen.findByText("40%")).toBeInTheDocument();
-    expect(screen.getByText("완료 4명 / 10명")).toBeInTheDocument();
-    expect(screen.getByText("이 과업은 단계별 예측 기록이 없어요.")).toBeInTheDocument();
-    expect(screen.getByText("최대 이탈 구간").nextElementSibling).toHaveTextContent("이탈 없음");
-  });
-
-  it("예측에 이탈이 없으면 실측 비교도 최대 이탈 구간을 지어내지 않는다", async () => {
-    serveReport(
-      withActual({
-        status: "comparable",
-        mean_error_pp: 1.2,
-        gap_stages: [],
-        max_drop: { predicted: null, actual: ["product", "cart"] },
-      }),
-    );
-    renderReport("canned");
-
-    const summary = await screen.findByRole("region", { name: "실측 비교 요약" });
-    expect(summary).toHaveTextContent("차이 구간없음");
-    expect(summary).toHaveTextContent("최대 이탈 구간예측과 불일치");
-    expect(summary).toHaveTextContent("예측 이탈 없음 · 실측 상품→장바구니");
-  });
-
-  it("세그먼트 칸 수가 퍼널 구간과 다르면 히트맵과 섹션 이동 항목을 숨긴다", async () => {
-    const base = cannedReport().tasks[0];
-    serveReport(
-      cannedReport({
-        tasks: [
-          {
-            ...base,
-            funnel: [
-              { stage: "landing", reached: [10, 10], dropout: [0, 0] },
-              { stage: "cart", reached: [6, 6], dropout: [4, 4] },
-            ],
-            segments: [
-              {
-                id: "quick",
-                name: "빠른 구매",
-                dropouts: [
-                  [1, 1],
-                  [2, 2],
-                ],
-              },
-            ],
-          },
-        ],
-      }),
-    );
-    renderReport("canned");
-
-    await screen.findByRole("heading", { level: 1, name: "첫 주문" });
-    expect(screen.queryByRole("region", { name: "세그먼트 × 이탈 구간" })).not.toBeInTheDocument();
+    server.use(reportErrorHandlers.reportForbidden);
+    renderReport(runId);
     expect(
-      within(screen.getByRole("navigation", { name: "리포트 영역" })).queryByRole("link", {
-        name: "히트맵",
-      }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("heading", { name: "이 리포트를 볼 권한이 없어요" }),
+    ).toBeInTheDocument();
   });
 
-  it("원인이 4종 이상이면 3종만 먼저 보여주고 더 보기·접기로 펼친다", async () => {
-    serveReport(cannedReport());
-    renderReport("canned");
+  it("불러오지 못하면 E20 을 보여주고 다시 시도할 수 있다", async () => {
+    const runId = await completeRun();
+    server.use(reportErrorHandlers.reportNetworkError);
+    const user = userEvent.setup();
+    renderReport(runId);
 
-    const table = await screen.findByRole("table", { name: "이탈 원인 분포" });
-    expect(within(table).getAllByRole("row")).toHaveLength(3);
-    /* 분모는 과업 이탈 세션 6 */
-    expect(within(table).getByRole("row", { name: /입력 부담/ })).toHaveTextContent("50%");
+    const retry = await screen.findByRole("button", { name: "다시 시도" }, { timeout: 3000 });
+    server.resetHandlers();
+    await user.click(retry);
 
-    await userEvent.click(screen.getByRole("button", { name: "원인 1종 더 보기" }));
     expect(
-      within(screen.getByRole("table", { name: "이탈 원인 분포" })).getAllByRole("row"),
-    ).toHaveLength(4);
-    await userEvent.click(screen.getByRole("button", { name: "접기" }));
-    expect(
-      within(screen.getByRole("table", { name: "이탈 원인 분포" })).getAllByRole("row"),
-    ).toHaveLength(3);
+      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
+    ).toBeInTheDocument();
   });
-
-  it("실측과 비교할 수 있으면 평균 오차·차이 구간·최대 이탈 구간·사람 관측을 보여준다", async () => {
-    serveReport(
-      withActual({
-        status: "comparable",
-        mean_error_pp: 4.5,
-        gap_stages: ["cart"],
-        max_drop: { predicted: ["cart", "signup"], actual: ["product", "cart"] },
-      }),
-    );
-    renderReport("canned");
-
-    const summary = await screen.findByRole("region", { name: "실측 비교 요약" });
-    expect(summary).toHaveTextContent("비교 가능");
-    expect(summary).toHaveTextContent("평균 오차4.5%p");
-    expect(summary).toHaveTextContent("차이 구간1곳 · 장바구니");
-    expect(summary).toHaveTextContent("최대 이탈 구간예측과 불일치");
-    expect(summary).toHaveTextContent("3건 · 결과 2/3 일치");
-    expect(summary).toHaveTextContent("예측 장바구니→가입 · 실측 상품→장바구니");
-    expect(within(summary).getByRole("link", { name: "실측 분석 보기" })).toHaveAttribute(
-      "href",
-      "/projects/1/analytics",
-    );
-  });
-
-  it.each([
-    [
-      { status: "unconnected" as const },
-      "미연결",
-      "실측 데이터가 아직 없어요",
-      "실측 데이터 연결하기",
-    ],
-    [
-      { status: "collecting" as const, stages_ready: 3, stages_total: 7 },
-      "수집 중",
-      "표본을 모으는 중이에요 · 7개 단계 중 3개 충족",
-      "실측 퍼널 보기",
-    ],
-    [
-      { status: "stale" as const, last_event_at: "2026-11-06T03:00:00+00:00" },
-      "수집 중단",
-      "최근 24시간 동안 이벤트가 없어요 · 마지막 수신 11월 6일",
-      "설치 다시 확인",
-    ],
-  ])(
-    "실측 상태(P14) %# — %s 배지와 안내, 다음 행동을 보여준다",
-    async (actual, badge, title, action) => {
-      serveReport(withActual(actual));
-      renderReport("canned");
-
-      const summary = await screen.findByRole("region", { name: "실측 비교 요약" });
-      expect(summary).toHaveTextContent(badge);
-      expect(summary).toHaveTextContent(title);
-      expect(within(summary).getByRole("link", { name: action })).toHaveAttribute(
-        "href",
-        "/projects/1/analytics",
-      );
-    },
-  );
 
   it("과업 결과가 없어도 빈 화면이 아니라 안내와 실행 전체 기록을 보여준다", async () => {
-    serveReport(
-      cannedReport({
-        tasks: [],
-        findings: [],
-        technical_failures: [
-          {
-            session_id: "patient_delivery",
-            persona_name: "여유 있는 탐색",
-            task_name: "배송 지역 확인",
-            status: "agent_failure",
-            reason: "브라우저 실행 오류",
-          },
-        ],
-      }),
-    );
-    renderReport("canned");
+    serveReport(cannedReport([]));
+    renderReport(await completeRun());
 
     expect(
       await screen.findByRole("heading", { name: "이 실행에는 과업 결과가 없어요" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "기술 실패 · 한도 초과" })).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "결과 해석의 한계" })).toHaveTextContent(
-      "테스트용 한계 문구",
-    );
   });
 
-  it("받아 둔 리포트가 있으면 다시 받기에 실패해도 오류 화면과 겹치지 않는다", async () => {
-    serveReport(cannedReport());
-    const { queryClient } = renderReport("canned");
-    await screen.findByRole("heading", { level: 1, name: "첫 주문" });
+  it("유효 세션이 없으면 달성률을 지어내지 않는다", async () => {
+    serveReport(
+      cannedReport([
+        orderTask({
+          valid_sessions: 0,
+          success: 0,
+          dropout: 0,
+          seed_ranges: {
+            success: { min: 0, max: 0 },
+            dropout: { min: 0, max: 0 },
+            achievement_rate: { min: 0, max: 0 },
+          },
+        }),
+      ]),
+    );
+    renderReport(await completeRun());
 
-    server.use(personaErrorHandlers.reportNetworkError);
-    await queryClient.refetchQueries({ queryKey: queryKeys.personas.report("canned") });
+    expect(await screen.findByText("완료 0명 / 0명 · 시드 합계")).toBeInTheDocument();
+    expect(screen.getByText("목표 달성률").nextElementSibling).toHaveTextContent("—");
+  });
+});
 
-    expect(screen.getByRole("heading", { level: 1, name: "첫 주문" })).toBeInTheDocument();
-    expect(screen.queryByText("리포트를 불러오지 못했어요")).not.toBeInTheDocument();
+describe("P20 공유 링크", () => {
+  it("쓸 수 있는 링크가 없으면 만들고, 다시 열면 같은 링크를 쓴다", async () => {
+    let created = 0;
+    const runId = await completeRun();
+    const user = userEvent.setup();
+    renderReport(runId, "?task=order");
+    const count = ({ request }: { request: Request }) => {
+      if (request.method === "POST" && request.url.includes("/share-links")) created += 1;
+    };
+    server.events.on("request:start", count);
+    onTestFinished(() => server.events.removeListener("request:start", count));
+
+    await user.click(await screen.findByRole("button", { name: "공유 링크 복사" }));
+    const dialog = screen.getByRole("dialog", { name: "공유 링크" });
+    const link = await within(dialog).findByRole("textbox", { name: "링크" });
+    expect(link).toHaveValue(`${window.location.origin}/share/mock-share-1?task=order`);
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "공유 링크 복사" }));
+    expect(
+      await within(screen.getByRole("dialog", { name: "공유 링크" })).findByRole("textbox", {
+        name: "링크",
+      }),
+    ).toHaveValue(`${window.location.origin}/share/mock-share-1?task=order`);
+    expect(created).toBe(1);
   });
 });

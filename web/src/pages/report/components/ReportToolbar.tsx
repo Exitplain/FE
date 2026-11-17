@@ -4,77 +4,84 @@ import ChoiceChip from "@/components/ChoiceChip/ChoiceChip";
 import DropdownMenu, { type DropdownMenuItem } from "@/components/DropdownMenu/DropdownMenu";
 import Icon from "@/components/Icon/Icon";
 import { buildPath } from "@/constants/routes";
-import type { PersonaReportSummary, PersonaRun, ReportTask } from "@/types/persona.type";
+import type { ReportTaskV1 } from "@/types/report.type";
+import { ACTIVE_RUN_STATUSES, type RunItem, type RunStatus } from "@/types/run.type";
 
 import { formatDay } from "../utils/reportView";
 
 type ReportToolbarProps = {
   projectId: string;
   runId: string;
-  /* 지금 리포트의 차수와 실행일 (드롭다운 버튼 글자) */
-  order: number | null;
+  /* 지금 리포트의 실행 (차수·상태). 아직 받지 못했으면 undefined */
+  run: Pick<RunItem, "sequence_no" | "status"> | undefined;
   createdAt: string;
-  reports: PersonaReportSummary[];
-  currentRun: PersonaRun | undefined;
-  tasks: ReportTask[];
+  /* 프로젝트 실행 목록 (GET /api/v1/projects/{id}/runs, 최신순) */
+  runs: RunItem[];
+  tasks: Pick<ReportTaskV1, "task_id" | "name">[];
   taskId: string | undefined;
   onTaskChange: (taskId: string) => void;
 };
 
+const STATUS_LABEL: Partial<Record<RunStatus, string>> = {
+  completed: "완료",
+  partially_completed: "부분 완료",
+};
+
 /*
   P12 머리말 아래 줄: 실행 선택(P12c) + 과업 칩.
-  - 실행 목록은 완료 실행(최신순)이고, 진행 중인 실행은 보이기만 하고 고를 수 없습니다.
+  - 실행 목록은 리포트가 있는 실행(최신순)이고, 진행 중인 실행은 보이기만 하고 고를 수 없습니다.
+  - 실패·취소로 리포트가 없는 실행은 넣지 않습니다.
   - 다른 실행을 고르면 그 실행 리포트로 이동합니다(과업 선택은 처음으로).
 */
 export default function ReportToolbar({
   projectId,
   runId,
-  order,
+  run,
   createdAt,
-  reports,
-  currentRun,
+  runs,
   tasks,
   taskId,
   onTaskChange,
 }: ReportToolbarProps) {
   const navigate = useNavigate();
-  const running =
-    currentRun?.status === "running" &&
-    currentRun.id &&
-    !reports.some((report) => report.run_id === currentRun.id)
-      ? currentRun
-      : null;
 
-  const items: DropdownMenuItem[] = [
-    ...(running
-      ? [
-          {
-            key: running.id!,
-            label: `${reports.length + 1}차 · ${formatDay(running.created_at)}`,
-            description: "실행 중 · 완료 후 선택할 수 있어요",
-            disabled: true,
-            selected: false,
-            onSelect: () => {},
-          },
-        ]
-      : []),
-    ...reports.map((report, index) => ({
-      key: report.run_id,
-      label: `${reports.length - index}차 · ${formatDay(report.created_at)}`,
-      description: `완료 · 세션 ${report.sessions}개`,
-      selected: report.run_id === runId,
-      /* 보고 있는 실행을 다시 고르면 기록만 쌓이고 ?task= 가 사라지므로 이동하지 않습니다 */
-      onSelect: () => {
-        if (report.run_id !== runId) {
-          navigate(buildPath("report", { projectId, runId: report.run_id }));
-        }
+  const items: DropdownMenuItem[] = runs.flatMap((item): DropdownMenuItem[] => {
+    const label = `${item.sequence_no}차 · ${formatDay(item.created_at)}`;
+    if (ACTIVE_RUN_STATUSES.includes(item.status)) {
+      return [
+        {
+          key: item.id,
+          label,
+          description: "실행 중 · 완료 후 선택할 수 있어요",
+          disabled: true,
+          selected: false,
+          onSelect: () => {},
+        },
+      ];
+    }
+    if (!item.report) return [];
+    return [
+      {
+        key: item.id,
+        label,
+        description: `${STATUS_LABEL[item.status] ?? "완료"} · ${item.name}`,
+        selected: item.id === runId,
+        /* 보고 있는 실행을 다시 고르면 기록만 쌓이고 ?task= 가 사라지므로 이동하지 않습니다 */
+        onSelect: () => {
+          if (item.id !== runId) navigate(buildPath("report", { projectId, runId: item.id }));
+        },
       },
-    })),
-  ];
+    ];
+  });
 
   /* Figma: "첫 주문 완료 · 3차 · 11월 7일 · 완료" */
-  const taskName = tasks.find((task) => task.id === taskId)?.name;
-  const runLabel = [taskName, order ? `${order}차` : null, formatDay(createdAt), "완료"]
+  const taskName = tasks.find((task) => task.task_id === taskId)?.name;
+  const runLabel = [
+    taskName,
+    run ? `${run.sequence_no}차` : null,
+    formatDay(createdAt),
+    run ? STATUS_LABEL[run.status] : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -110,10 +117,10 @@ export default function ReportToolbar({
           <div role="radiogroup" aria-label="과업" className="flex flex-wrap gap-2">
             {tasks.map((task) => (
               <ChoiceChip
-                key={task.id}
+                key={task.task_id}
                 kind="radio"
-                selected={task.id === taskId}
-                onClick={() => onTaskChange(task.id)}
+                selected={task.task_id === taskId}
+                onClick={() => onTaskChange(task.task_id)}
               >
                 {task.name}
               </ChoiceChip>

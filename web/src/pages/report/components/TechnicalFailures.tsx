@@ -2,15 +2,23 @@ import { useId } from "react";
 
 import Icon from "@/components/Icon/Icon";
 import InfoTip from "@/components/InfoTip/InfoTip";
-import type { TechnicalFailure } from "@/types/persona.type";
+import type { ReportTaskV1, ReportTechnicalFailure } from "@/types/report.type";
 
 /*
   P12 기술 실패 · 한도 초과 — 이탈이 아니라 실행 문제라 이탈률·원인 계산에서 뺀 세션.
-  Figma: 제목 16px Medium + 정보 + 바로 옆 12px 설명, 행은 경고 아이콘 · 세션 · 과업 · 사유
+  Figma: 제목 16px Medium + 정보 + 바로 옆 12px 설명, 행은 경고 아이콘 · 페르소나 · 과업 · 사유
 */
-export default function TechnicalFailures({ failures }: { failures: TechnicalFailure[] }) {
+export default function TechnicalFailures({
+  failures,
+  tasks,
+}: {
+  failures: ReportTechnicalFailure[];
+  /* 과업 id → 이름 */
+  tasks: Pick<ReportTaskV1, "task_id" | "name">[];
+}) {
   const headingId = useId();
   if (failures.length === 0) return null;
+  const taskName = (id: string) => tasks.find((task) => task.task_id === id)?.name ?? id;
   return (
     <section id="technical" aria-labelledby={headingId} className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
@@ -22,11 +30,16 @@ export default function TechnicalFailures({ failures }: { failures: TechnicalFai
       </div>
       <ul className="flex flex-col gap-4">
         {failures.map((failure) => (
-          <li key={failure.session_id} className="flex items-center gap-2 text-caption">
+          <li
+            key={`${failure.task_id}-${failure.seed}-${failure.persona_id}`}
+            className="flex items-center gap-2 text-caption"
+          >
             <Icon name="status-error" className="text-danger" />
-            <span className="w-32 font-medium text-ink">{failure.persona_name}</span>
-            <span className="w-24 text-subtle">{failure.task_name}</span>
-            <span className="text-gray-800">{failure.reason}</span>
+            <span className="w-32 font-medium text-ink">
+              {failure.persona_id} · 시드 {failure.seed}
+            </span>
+            <span className="w-24 text-subtle">{taskName(failure.task_id)}</span>
+            <span className="text-gray-800">{failure.reason ?? failure.status}</span>
           </li>
         ))}
       </ul>

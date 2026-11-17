@@ -28,6 +28,8 @@ export function usePersonaRun({ enabled = true }: { enabled?: boolean } = {}) {
     if (previousStatus.current === "running" && status === "completed") {
       void queryClient.invalidateQueries({ queryKey: queryKeys.personas.reports() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
+      /* 끝난 실행의 리포트(제품 API)도 새로 받습니다 */
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
     }
     previousStatus.current = status;
   }, [query.data?.status, queryClient]);

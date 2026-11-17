@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { resetCsrfToken } from "@/apis/axiosInstance";
 import { resetProjectMock } from "@/mocks/handlers/projects";
+import { resetReportMock } from "@/mocks/handlers/reports";
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
 import { useRetestStore } from "@/stores/useRetestStore";
@@ -58,6 +59,7 @@ afterEach(() => {
   resetPersonaMock();
   // 만든 프로젝트(제품 API mock)도 테스트마다 비웁니다
   resetProjectMock();
+  resetReportMock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });
   sessionStorage.clear();

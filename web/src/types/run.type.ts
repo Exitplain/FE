@@ -67,3 +67,25 @@ export type RunListQuery = {
   limit?: number;
   cursor?: string;
 };
+
+/* GET /api/v1/runs/{id} — 실행 상태 (샘플은 로그인 없이, 그 밖에는 소유자만) */
+export type RunDetail = RunItem & {
+  project_id: number;
+  phase: "preparing" | "running" | "analyzing" | "done" | "failed" | "cancelled";
+  cancel_requested: boolean;
+  error: { code: string; message: string } | null;
+  progress: {
+    expected_sessions: number;
+    started_sessions: number;
+    finished_sessions: number;
+    sessions_by_status: Record<string, number>;
+    task_runs: {
+      total: number;
+      queued: number;
+      running: number;
+      succeeded: number;
+      failed: number;
+      cancelled: number;
+    };
+  };
+};

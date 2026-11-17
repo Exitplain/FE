@@ -57,7 +57,7 @@ export function ReportNotFound({ projectId }: { projectId: string }) {
   );
 }
 
-/* 아직 끝나지 않은 실행 (409) — 과거 결과로 대체하지 않고 실행 화면으로 안내 */
+/* 아직 끝나지 않은 실행 — 리포트가 없고(404) 실행이 진행 중이면 실행 화면으로 안내 */
 export function ReportPending({ projectId, runId }: { projectId: string; runId: string }) {
   return (
     <WorkspaceState
@@ -94,6 +94,64 @@ export function ReportError({ projectId, onRetry }: { projectId: string; onRetry
           </Link>
         </div>
       }
+    />
+  );
+}
+
+/* 실패·취소로 끝나 리포트가 만들어지지 않은 실행 */
+export function ReportUnavailable({ projectId }: { projectId: string }) {
+  return (
+    <WorkspaceState
+      kind="empty"
+      title="이 실행에는 리포트가 없어요"
+      description="실패했거나 취소된 실행이에요"
+      action={
+        <Link
+          to={buildPath("testList", { projectId })}
+          className={buttonVariants({ variant: "secondary" })}
+        >
+          테스트 목록 보기
+        </Link>
+      }
+    />
+  );
+}
+
+/* 리포트는 로그인한 프로젝트 소유자만 볼 수 있습니다 (401) — 샘플 프로젝트도 같습니다 */
+export function ReportLoginRequired({ onLogin }: { onLogin: () => void }) {
+  return (
+    <WorkspaceState
+      kind="notice"
+      title="로그인이 필요해요"
+      description="리포트는 로그인한 뒤 내 프로젝트에서 볼 수 있어요"
+      action={
+        <button type="button" onClick={onLogin} className={buttonVariants()}>
+          로그인
+        </button>
+      }
+    />
+  );
+}
+
+/* 남의 프로젝트 리포트 (403) */
+export function ReportForbidden() {
+  return (
+    <WorkspaceState
+      kind="empty"
+      title="이 리포트를 볼 권한이 없어요"
+      description="프로젝트를 만든 계정으로 로그인했는지 확인해 주세요"
+    />
+  );
+}
+
+/* 실행은 끝났는데 리포트가 아직 없음 (404) — 서버가 리포트를 만드는 중이거나 늦어진 경우 */
+export function ReportGenerating({ onRetry }: { onRetry: () => void }) {
+  return (
+    <WorkspaceState
+      kind="notice"
+      title="리포트를 만들고 있어요"
+      description="잠시 뒤 다시 시도해 주세요"
+      action={<WorkspaceRetry onClick={onRetry} />}
     />
   );
 }
