@@ -5,12 +5,15 @@ import { buildPath } from "@/constants/routes";
 import type { WorkspaceProject } from "@/types/workspace.type";
 import { cn } from "@/utils/cn";
 
+import type { ProjectLoop } from "../utils/dashboardData";
+
 export default function ProjectLoops({
   projects,
   beforeTest = false,
   onStart,
 }: {
-  projects: WorkspaceProject[];
+  /* actionHref 가 있으면 다음 행동을 그 주소로 보냅니다 (실행 화면처럼 실행 id 가 필요한 곳) */
+  projects: (WorkspaceProject | ProjectLoop)[];
   beforeTest?: boolean;
   onStart?: () => void;
 }) {
@@ -82,7 +85,11 @@ export default function ProjectLoops({
                   ) : (
                     <Link
                       className="inline-flex items-center justify-end gap-1 whitespace-nowrap hover:underline"
-                      to={buildPath(project.actionTarget, { projectId: project.id })}
+                      to={
+                        "actionHref" in project
+                          ? project.actionHref
+                          : buildPath(project.actionTarget, { projectId: project.id })
+                      }
                     >
                       {project.action === "표본 모으는 중" && (
                         <Icon name="status-wait" className="text-muted" />

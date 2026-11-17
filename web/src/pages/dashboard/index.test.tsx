@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { useLocation } from "react-router-dom";
@@ -28,7 +28,7 @@ async function openStartModal(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("W01 대시보드 (제품 API 실행 목록)", () => {
-  it("실행 중 카드·최근 문제·최근 달성률을 실행 목록으로 그리고 보정·실측 카드는 숨긴다", async () => {
+  it("실행 중 카드·최근 문제·최근 달성률·루프 위치를 실행 목록으로 그리고 투두리스트는 Figma 3칸", async () => {
     const now = new Date().toISOString();
     const base = {
       kind: "pretest",
@@ -96,8 +96,16 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
     expect(screen.getByRole("link", { name: "문제 1개 전체 보기" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /반찬로드 1차/ })).toHaveTextContent("30%");
     expect(screen.getByText("이번 주 완료 테스트").nextElementSibling).toHaveTextContent("1개");
-    expect(screen.queryByText("보정 조정안 대기")).not.toBeInTheDocument();
-    expect(screen.queryByText("실측 비교 가능")).not.toBeInTheDocument();
+    /* 보정·실측은 BE 에 아직 없어 실제 값 0 */
+    expect(screen.getByText("보정 조정안 대기").nextElementSibling).toHaveTextContent("0개");
+    expect(screen.getByText("실측 비교 가능").nextElementSibling).toHaveTextContent(/^0 \/ \d+/);
+    /* 반찬로드는 2차가 진행 중이라 사전 테스트 1/7, 다음 행동은 그 실행의 실시간 보기 */
+    const row = screen.getByRole("row", { name: /^반찬로드/ });
+    expect(row).toHaveTextContent("1 / 7 · 테스트 실행 중");
+    expect(within(row).getByRole("link", { name: "실시간 보기" })).toHaveAttribute(
+      "href",
+      "/projects/1/runs/run-2",
+    );
   });
 });
 
