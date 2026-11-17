@@ -1,9 +1,11 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { buildPath } from "@/constants/routes";
+import { server } from "@/mocks/node";
 import { createTestQueryClient } from "@/test/renderWithProviders";
 
 import { routes } from "./index";
@@ -100,5 +102,34 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("읽기 전용")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "대시보드" })).not.toBeInTheDocument();
+  });
+
+  it("개인정보처리방침은 세션 조회가 401이어도 공통 레이아웃 안에서 연다", async () => {
+    server.use(
+      http.get("*/api/v1/auth/session", () =>
+        HttpResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }),
+      ),
+    );
+    renderAt(buildPath("privacy"));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "개인정보처리방침" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "exitplain@gmail.com" })).toHaveAttribute(
+      "href",
+      "mailto:exitplain@gmail.com",
+    );
+    // 문구는 BE 원문 그대로여야 합니다
+    for (const text of [
+      "이메일, 이름(구글 로그인 시 구글 계정 이름)",
+      "로그인과 서비스 이용자 확인",
+      "서비스 종료 또는 삭제 요청 시까지",
+      "입력한 비밀번호는 암호화해서 저장하고, 화면에 다시 보여주지 않아요. 마지막으로 사용하거나 수정한 뒤 90일이 지나면 자동으로 삭제돼요.",
+    ]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+    // 로그인 안내 창을 띄우지 않고 사이드바(로그인 버튼 포함)와 함께 보여줍니다
+    expect(screen.getByRole("link", { name: "대시보드" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

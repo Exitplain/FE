@@ -389,7 +389,14 @@ export default function Sidebar() {
         </Link>
       </nav>
 
-      <div className="mt-auto pt-8">
+      <div className="mt-auto flex flex-col gap-3 pt-8">
+        {/* 구글 로그인 심사: 홈에서 개인정보처리방침으로 갈 수 있어야 합니다 */}
+        <Link
+          to={ROUTES.privacy.path}
+          className="ml-2 inline-flex min-h-6 items-center self-start rounded px-1 text-xs text-muted underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ink"
+        >
+          개인정보처리방침
+        </Link>
         <AccountControls />
       </div>
     </aside>

@@ -144,3 +144,16 @@ describe("Sidebar 선택 표시 모서리 크기", () => {
     expect(indicator.dataset.size).toBe("sub");
   });
 });
+
+describe("Sidebar 하단 개인정보처리방침 링크", () => {
+  it("로그아웃 상태에서도 로그인 버튼 위에 /privacy 링크를 둔다", () => {
+    renderAt("/");
+
+    const link = screen.getByRole("link", { name: "개인정보처리방침" });
+    expect(link).toHaveAttribute("href", "/privacy");
+    expect(
+      link.compareDocumentPosition(screen.getByRole("button", { name: "로그인" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
