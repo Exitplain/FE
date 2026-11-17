@@ -143,15 +143,16 @@ describe("P02~P07 새 테스트", () => {
         /\/product/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/과업 2개 선택 · 20명 × 2개 × 시드 3회/)).toBeInTheDocument();
+    expect(screen.getByText(/과업 2개 선택 · 10명 × 2개 × 시드 1회/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "30대" }));
     await user.type(screen.getByLabelText("타겟 고객 설명"), "퇴근 후 첫 주문");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
-    // P05b: 세그먼트 4개 × 5명, 보정 적용일
+    // P05b: 세그먼트 4개 (기본 10명 = 3·3·2·2), 보정 적용일
     const segments = await screen.findByRole("list", { name: "세그먼트별 인원" });
     expect(within(segments).getAllByRole("listitem")).toHaveLength(4);
-    expect(screen.getByLabelText("세그먼트 1 인원")).toHaveTextContent("5명");
+    expect(screen.getByLabelText("세그먼트 1 인원")).toHaveTextContent("3명");
+    expect(screen.getByLabelText("세그먼트 4 인원")).toHaveTextContent("2명");
     expect(
       await screen.findByText("이 프로젝트 보정값으로 예측해요 · 11월 5일 적용"),
     ).toBeInTheDocument();
@@ -164,7 +165,7 @@ describe("P02~P07 새 테스트", () => {
       within(summary).getByText("사이트 분석으로 자동 결정 · 과업별 7단계"),
     ).toBeInTheDocument();
     expect(
-      within(summary).getByText("에이전트 20명 · 과업 2개 · 보정 11월 5일"),
+      within(summary).getByText("에이전트 10명 · 과업 2개 · 보정 11월 5일"),
     ).toBeInTheDocument();
     expect(within(summary).getAllByRole("link", { name: /변경/ }).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
@@ -177,15 +178,15 @@ describe("P02~P07 새 테스트", () => {
     const cards = await screen.findByRole("list", { name: "페르소나 세그먼트" });
     expect(within(cards).getAllByRole("listitem", { name: /형$/ })).toHaveLength(4);
     const quick = within(cards).getByRole("listitem", { name: "빠른 구매형" });
-    expect(quick).toHaveTextContent("5명");
+    expect(quick).toHaveTextContent("3명");
     expect(quick).toHaveTextContent("대표 P-001");
-    expect(quick).toHaveTextContent("P-001~005");
+    expect(quick).toHaveTextContent("P-001~003");
     expect(within(quick).getByRole("meter", { name: "인내심 22" })).toHaveAttribute(
       "aria-valuenow",
       "22",
     );
     expect(
-      screen.getByText("첫 주문 외 1개 · 모바일 390 · 20명 × 시드 3회 (1/3)"),
+      screen.getByText("첫 주문 외 1개 · 모바일 390 · 10명 × 시드 1회 (1/1)"),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "실행 시작" }));
 
@@ -208,7 +209,7 @@ describe("P02~P07 새 테스트", () => {
     expect(within(steps).getAllByRole("listitem")).toHaveLength(4);
     expect(within(steps).getAllByRole("listitem")[0]).toHaveTextContent("타겟 고객 설명 분석완료");
     expect(steps).toHaveTextContent("세그먼트 4종 추출");
-    expect(steps).toHaveTextContent("20명 샘플링 · P-001~P-020 코드 부여");
+    expect(steps).toHaveTextContent("10명 샘플링 · P-001~P-010 코드 부여");
     expect(screen.getByRole("button", { name: "실행 시작" })).toBeDisabled();
   });
 
@@ -252,6 +253,57 @@ describe("P02~P07 새 테스트", () => {
     expect(await screen.findByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
   });
 
+  it("확정 직전 서버의 테스트 계정 수가 바뀌면(409) 1단계에서 계정을 다시 받고 인원 기준을 맞춘다", async () => {
+    const user = userEvent.setup();
+    const accounts = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({ username: `u${i}@x.example`, password: "pw" }));
+    /* 서버에 저장된 계정 8개를 위저드가 받아 옵니다 */
+    await putTestAccounts(1, { accounts: accounts(8) });
+    await renderWizard();
+    await checkSite(user);
+    expect(await screen.findByText(/테스트 계정 8개 등록/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+    expect(await screen.findByText("테스트 계정 8개 → 에이전트 8명")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 시작 전 확인" }));
+    await screen.findByRole("list", { name: "입력 요약" });
+
+    /* 다른 탭에서 계정을 5개로 바꿨습니다 */
+    await putTestAccounts(1, { accounts: accounts(5) });
+    server.use(
+      http.post(
+        "*/api/v1/plans/:planId/confirmations",
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "TEST_ACCOUNT_COUNT_MISMATCH",
+                message: "테스트 계정 수와 페르소나 수가 달라요. 3단계에서 인원을 다시 맞춰주세요.",
+                fields: {},
+              },
+            },
+            { status: 409 },
+          ),
+        { once: true },
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "테스트 계정 수와 페르소나 수가 달라요. 3단계에서 인원을 다시 맞춰주세요.",
+    );
+    expect(screen.queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "변경 · 1단계" }));
+
+    /* 서버 계정을 다시 받아 5개로 보이고, 다음에서 다시 확인해 에이전트 5명으로 맞춥니다 */
+    expect(await screen.findByText(/테스트 계정 5개 등록/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.click(await screen.findByRole("button", { name: "다음: 페르소나" }));
+    expect(await screen.findByText("테스트 계정 5개 → 에이전트 5명")).toBeInTheDocument();
+  });
+
   it("P05a — 과업을 하나도 고르지 않으면 다음으로 가지 않는다", async () => {
     const user = userEvent.setup();
     await renderWizard();
@@ -268,7 +320,7 @@ describe("P02~P07 새 테스트", () => {
     expect(screen.getByRole("button", { name: "다음: 페르소나" })).toBeDisabled();
   });
 
-  it("P05e — 세그먼트 합계가 20명이 아니면 안내하고 다음을 막는다", async () => {
+  it("P05e — 세그먼트 합계가 4~20명 밖이면 안내하고 다음을 막는다", async () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
@@ -276,14 +328,21 @@ describe("P02~P07 새 테스트", () => {
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
+    /* 기본 10명에서 줄여도 범위 안이면 그대로 다음으로 갈 수 있습니다 */
     await user.click(await screen.findByRole("button", { name: "세그먼트 4 1명 줄이기" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeEnabled();
 
+    /* 9명 → 21명 */
+    for (let i = 0; i < 12; i += 1) {
+      await user.click(screen.getByRole("button", { name: "세그먼트 1 1명 늘리기" }));
+    }
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "합계가 20명이 되도록 맞춰주세요 · 지금 19명",
+      "합계를 4~20명 사이로 맞춰주세요 · 지금 21명",
     );
     expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: "세그먼트 1 1명 늘리기" }));
+    await user.click(screen.getByRole("button", { name: "세그먼트 2 1명 줄이기" }));
     expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeEnabled();
   });
 
@@ -368,6 +427,52 @@ describe("P02~P07 새 테스트", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText(/테스트 계정 2개 등록/)).toBeInTheDocument();
   });
+
+  it("P04 — 비밀번호를 암호화하지 못하면(503) 입력을 지우지 않고 다시 저장할 수 있다", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    server.use(
+      http.put(
+        "*/api/v1/projects/:projectId/test-accounts",
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "TEST_ACCOUNT_KEY_UNAVAILABLE",
+                message: "비밀번호를 암호화하지 못했습니다. 잠시 뒤 다시 저장해주세요.",
+                fields: {},
+              },
+            },
+            { status: 503 },
+          ),
+        { once: true },
+      ),
+    );
+
+    await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
+    await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
+    const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    expect(
+      within(dialog).getByText(
+        "입력한 비밀번호는 암호화해서 저장하고, 화면에 다시 보여주지 않아요. 마지막으로 사용하거나 수정한 뒤 90일이 지나면 자동으로 삭제돼요.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("radio", { name: "붙여넣기" }));
+    await user.click(within(dialog).getByLabelText("계정 붙여넣기"));
+    await user.paste("a@x.example,pw1");
+    await user.click(within(dialog).getByRole("button", { name: "목록에 넣기" }));
+    await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "비밀번호를 암호화하지 못했습니다. 잠시 뒤 다시 저장해주세요.",
+    );
+    expect(within(dialog).getByText("1 / 20")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
+    expect(await screen.findByText(/테스트 계정 1개 등록/)).toBeInTheDocument();
+  });
+
   it("다른 단계 주소로 들어와 사이트를 확인해도 과업·타겟부터 다시 입력한다", async () => {
     const user = userEvent.setup();
     await renderWizard("confirm");
@@ -604,10 +709,36 @@ describe("P02~P07 제품 API 계약", () => {
       audience: { context: "첫 방문자", ages: ["any"] },
     });
     expect(JSON.parse(patches[1].body).segments).toHaveLength(4);
+    /* 시드를 바꾸지 않으면 limits 는 보내지 않습니다 */
+    expect(JSON.parse(patches[1].body)).not.toHaveProperty("limits");
     expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 3 });
     expect(calls(requests, "POST", /^\/api\/v1\/runs$/)[0].headers.get("Idempotency-Key")).toMatch(
       /^[0-9a-f-]{36}$/,
     );
+  });
+
+  it("P05b — 시드를 바꾸면 세그먼트 인원과 같은 저장(PATCH)에 limits.seed_count 를 싣는다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+
+    expect(await screen.findByLabelText("시드 횟수")).toHaveTextContent("1회");
+    expect(screen.getByRole("button", { name: "시드 1회 줄이기" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "시드 1회 늘리기" }));
+    expect(screen.getByText("모바일 390 · 동시 5세션 · 시드 2회 · 스텝 40")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 시작 전 확인" }));
+    await screen.findByRole("list", { name: "입력 요약" });
+
+    const patches = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
+    expect(patches).toHaveLength(2);
+    expect(JSON.parse(patches[1].body)).toMatchObject({
+      segments: expect.any(Array),
+      limits: { seed_count: 2 },
+    });
   });
 
   it("다른 곳에서 계획이 바뀌어 저장이 충돌하면(409) 최신 revision 으로 한 번 더 저장한다", async () => {

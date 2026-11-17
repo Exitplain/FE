@@ -13,7 +13,7 @@ import { useToastStore } from "@/stores/useToastStore";
 import { ApiError } from "@/types/api.type";
 import type { PersonaRun } from "@/types/persona.type";
 import type { RunDetail } from "@/types/run.type";
-import { RUN_CONDITIONS } from "@/pages/new-test/utils/newTest";
+import { RUN_DEVICE } from "@/pages/new-test/utils/newTest";
 
 import RunProgress from "./components/RunProgress";
 import {
@@ -44,7 +44,7 @@ const PHASE_BADGE = {
 } as const satisfies Record<Exclude<RunPhase, "idle" | "stopped">, object>;
 
 /* 실행 조건 첫 항목 ("모바일 390") */
-const DEVICE = RUN_CONDITIONS.split(" · ")[0];
+const DEVICE = RUN_DEVICE;
 
 /*
   P08~P11 실행 화면 (/projects/:projectId/runs/:runId, 세션 라이브는 ?session=)

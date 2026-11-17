@@ -78,8 +78,12 @@ export type Plan = {
     capabilities: {
       ages: Partial<Record<AgeKey, string>>;
       segment_ids: string[];
+      /* 기준 인원 (로그인 없이 10명, 테스트 계정이면 계정 수) */
       persona_total: number;
-      limits: Record<string, { min: number; max: number }>;
+      /* 확정할 수 있는 인원 범위 (로그인 없이 4~20명, 테스트 계정이면 계정 수 하나) */
+      persona_min?: number;
+      persona_max?: number;
+      limits: Partial<Record<keyof PlanLimits, { min: number; max: number }>>;
       custom_task_limit: number;
     };
   };
@@ -107,6 +111,8 @@ export type PlanPatch = Partial<{
   additional_request: string;
   audience: { context: string; ages: AgeKey[] };
   segments: { id: string; count: number }[];
+  /* 보낸 키만 바뀝니다 (P05b 시드 1~3회) */
+  limits: Partial<PlanLimits>;
 }>;
 
 export type SnapshotSegment = {
@@ -152,15 +158,23 @@ export type TestAccountItem = {
   username: string;
   has_password: boolean;
   status: "unchecked" | "ok" | "failed";
+  status_message?: string;
+  checked_at?: string | null;
+  last_used_at?: string | null;
+  /* 자동 삭제 예정일 — 마지막으로 쓰이거나 바뀐 뒤 retention_days 가 지난 날 */
+  expires_at?: string;
 };
 
 export type TestAccounts = {
   project_id: number;
   login_url: string;
   count: number;
+  /* 로그인 상태 테스트에 필요한 계정 수 (4~20개). count >= min 이면 ready */
   min: number;
   max: number;
   ready: boolean;
+  /* 계정 보관 기간 (기본 90일) */
+  retention_days?: number;
   items: TestAccountItem[];
 };
 

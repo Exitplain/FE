@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
@@ -5,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import Stepper from "@/components/Stepper/Stepper";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
+import { queryKeys } from "@/apis/queryKeys";
 import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
 import { useRunList } from "@/hooks/useRunList";
@@ -20,15 +22,15 @@ import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
 import { useSavePlan, useStartRun } from "./hooks/useNewTestMutations";
 import {
-  agentTotal,
+  agentRange,
   clampStep,
   formatMonthDay,
   furthestAllowedStep,
+  inRange,
   parseStep,
   REVIEW_STEP,
-  RUN_CONDITIONS,
+  RUN_DEVICE,
   STEP_LABELS,
-  SEEDS,
   segmentsPatch,
   STEPS,
   type StepKey,
@@ -58,6 +60,7 @@ export default function NewTestPage() {
 function NewTestWizard({ project }: { project: CurrentProject }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const save = useSavePlan();
   const startRun = useStartRun();
   const runs = useRunList(project.v1Id);
@@ -68,20 +71,30 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
   const saved = useRef<{ planId: string; body: Record<string, unknown> } | null>(null);
 
   const calibrations = useCalibrations(project.id);
-  const { storeProjectId, plan, taskIds, taskCount, targetDescription, segmentsValid, panel } =
-    useNewTestStore(
-      useShallow((state) => ({
-        storeProjectId: state.projectId,
-        plan: state.plan,
-        taskIds: state.taskIds,
-        taskCount: state.taskIds.length,
-        panel: agentTotal(state.plan, state.loginMode, state.accounts.length),
-        targetDescription: state.targetDescription,
-        segmentsValid:
-          sum(state.segmentCounts) ===
-          agentTotal(state.plan, state.loginMode, state.accounts.length),
-      })),
-    );
+  const {
+    storeProjectId,
+    plan,
+    taskIds,
+    taskCount,
+    targetDescription,
+    segmentsValid,
+    panel,
+    seedCount,
+  } = useNewTestStore(
+    useShallow((state) => ({
+      storeProjectId: state.projectId,
+      plan: state.plan,
+      taskIds: state.taskIds,
+      taskCount: state.taskIds.length,
+      panel: sum(state.segmentCounts),
+      seedCount: state.seedCount,
+      targetDescription: state.targetDescription,
+      segmentsValid: inRange(
+        sum(state.segmentCounts),
+        agentRange(state.plan, state.loginMode, state.accounts.length),
+      ),
+    })),
+  );
 
   /* 화면에 그리기 전에 이 프로젝트의 입력으로 시작하고, 떠날 때 지웁니다 */
   useLayoutEffect(() => {
@@ -173,7 +186,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     const state = useNewTestStore.getState();
     const current: Record<string, unknown> = {
       ...taskTargetPatch(plan, state),
-      ...segmentsPatch(plan, state.segmentCounts),
+      ...segmentsPatch(plan, state.segmentCounts, state.seedCount),
     };
     const last = saved.current?.planId === plan.planId ? saved.current.body : {};
     const dirty = Object.fromEntries(
@@ -225,7 +238,6 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     const tasks = plan.tasks.filter((task) => taskIds.includes(task.id));
     const taskSummary =
       tasks.length > 1 ? `${tasks[0].name} 외 ${tasks.length - 1}개` : (tasks[0]?.name ?? "");
-    const device = RUN_CONDITIONS.split(" · ")[0];
     return (
       <div className="flex flex-col gap-12">
         {/* Figma P06·P07: Stepper 없이 제목 "페르소나 확인" (P07 은 실행 조건 한 줄을 덧붙임) */}
@@ -233,7 +245,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           projectId={project.id}
           breadcrumb={`${project.name} / 사전 테스트 / 새 테스트 · 테스트`}
           title="페르소나 확인"
-          description={`${taskSummary} · ${device} · ${panel}명 × 시드 ${SEEDS}회 (1/${SEEDS})`}
+          description={`${taskSummary} · ${RUN_DEVICE} · ${panel}명 × 시드 ${seedCount}회 (1/${seedCount})`}
           activeTab="tests"
         />
         <PersonaReviewStep
@@ -246,6 +258,15 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           onPrev={() => goTo("confirm")}
           onStart={start}
           onExpired={() => backToSite(EXPIRED_NOTICE)}
+          /*
+            서버의 테스트 계정이 바뀌었으면 받아 둔 목록을 버리고 1단계에서 다시 받습니다 (SiteStep 이 새로 받아 맞춤).
+            계정 수가 계획과 달라지므로 1단계 "다음"이 다시 확인(재탐색)해 인원 기준을 맞춥니다.
+            여기서 store 계정을 먼저 비우면 주소가 바뀌기 전 렌더에서 인원이 어긋나 3단계로 돌아가므로 비우지 않습니다.
+          */
+          onAccountsChanged={() => {
+            queryClient.removeQueries({ queryKey: queryKeys.testAccounts(project.v1Id) });
+            goTo("site");
+          }}
         />
       </div>
     );
@@ -289,9 +310,10 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           calibratedLabel={calibratedLabel}
           saving={save.isPending}
           onPrev={() => goTo("task")}
-          onNext={() =>
-            saveThen(segmentsPatch(plan, useNewTestStore.getState().segmentCounts), "confirm")
-          }
+          onNext={() => {
+            const state = useNewTestStore.getState();
+            saveThen(segmentsPatch(plan, state.segmentCounts, state.seedCount), "confirm");
+          }}
         />
       )}
       {step === "confirm" && plan && (

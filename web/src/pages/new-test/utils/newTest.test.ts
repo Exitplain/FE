@@ -10,8 +10,10 @@ import {
 import { ApiError } from "@/types/api.type";
 
 import {
+  agentRange,
   ageSummary,
   clampStep,
+  confirmFixStep,
   evenSplit,
   findDuplicateUsernames,
   furthestAllowedStep,
@@ -21,6 +23,7 @@ import {
   parseAccountsText,
   parseStep,
   segmentsPatch,
+  segmentTotalMessage,
   sum,
   taskTargetPatch,
   toggleAge,
@@ -79,8 +82,12 @@ describe("toWizardPlan — 탐색 결과 + 서버 계획", () => {
       discoveryId: discovery.id,
       expiresAt: Date.parse(discovery.expires_at),
       loginMode: "none",
-      personaTotal: 20,
+      personaTotal: 10,
+      personaMin: 4,
+      personaMax: 20,
       segmentIds: ["segment_1", "segment_2", "segment_3", "segment_4"],
+      seedCount: 1,
+      seedRange: { min: 1, max: 3 },
     });
     expect(plan.tasks.find((task) => task.id === "order")?.funnel_stages).toBe(7);
     expect(plan.age_options["50plus"]).toBe("50대 이상");
@@ -117,6 +124,12 @@ describe("계획 저장 본문 (PATCH /api/v1/plans/{id})", () => {
       ],
     });
   });
+
+  it("시드는 서버 계획 값과 다를 때만 limits 로 함께 싣는다", () => {
+    const { plan } = wizardPlan();
+    expect(segmentsPatch(plan, [3, 3, 2, 2], 1)).not.toHaveProperty("limits");
+    expect(segmentsPatch(plan, [3, 3, 2, 2], 2)).toMatchObject({ limits: { seed_count: 2 } });
+  });
 });
 
 describe("toPanelSegments — P07 세그먼트 카드", () => {
@@ -129,12 +142,12 @@ describe("toPanelSegments — P07 세그먼트 카드", () => {
     expect(first).toEqual({
       id: "segment_1",
       name: "빠른 구매형",
-      count: 5,
-      codes: ["P-001", "P-005"],
+      count: 3,
+      codes: ["P-001", "P-003"],
       representative: "P-001",
       traits: { patience: 22, digital: 80, price: 40, trust: 30 },
     });
-    expect(second.codes).toEqual(["P-006", "P-010"]);
+    expect(second.codes).toEqual(["P-004", "P-006"]);
   });
 });
 
@@ -215,6 +228,27 @@ describe("isDiscoveryExpiredError", () => {
   });
 });
 
+describe("confirmFixStep — 확정 409 를 고칠 단계", () => {
+  it("계정 부족·계정 수 변경은 1단계, 과업·타겟은 2단계, 세그먼트 합계는 3단계, 그 밖은 다시 시도(null)", () => {
+    const conflict = (code: string, blocking?: string[]) =>
+      new ApiError({ status: 409, message: "", code, fields: blocking ? { blocking } : {} });
+
+    expect(confirmFixStep(conflict("TEST_ACCOUNT_COUNT_MISMATCH"))).toBe("site");
+    expect(confirmFixStep(conflict("SEGMENT_TOTAL", ["SEGMENT_TOTAL"]))).toBe("persona");
+    /* 여러 이유면 앞 단계부터 */
+    expect(confirmFixStep(conflict("NO_TASKS", ["NO_TASKS", "SEGMENT_TOTAL"]))).toBe("task");
+    expect(
+      confirmFixStep(conflict("SEGMENT_TOTAL", ["SEGMENT_TOTAL", "TEST_ACCOUNTS_REQUIRED"])),
+    ).toBe("site");
+    expect(confirmFixStep(conflict("ALREADY_CONFIRMED"))).toBeNull();
+    expect(
+      confirmFixStep(
+        new ApiError({ status: 503, message: "", code: "TEST_ACCOUNT_COUNT_MISMATCH" }),
+      ),
+    ).toBeNull();
+  });
+});
+
 describe("parseStep — ?step= 쿼리", () => {
   it("알 수 없는 값은 첫 단계", () => {
     expect(parseStep("task")).toBe("task");
@@ -224,11 +258,27 @@ describe("parseStep — ?step= 쿼리", () => {
 });
 
 describe("패널 (P05b·P05h)", () => {
-  it("로그인 테스트는 계정 수만큼(최대 20), 아니면 20명", () => {
-    expect(panelSize("none", 8)).toBe(20);
+  it("계획 전에는 로그인 테스트면 계정 수만큼(최대 20), 아니면 10명으로 짐작한다", () => {
+    expect(panelSize("none", 8)).toBe(10);
     expect(panelSize("account", 8)).toBe(8);
-    expect(panelSize("account", 0)).toBe(20);
+    expect(panelSize("account", 0)).toBe(10);
     expect(panelSize("account", 30)).toBe(20);
+  });
+
+  it("확정할 수 있는 인원 — 계획이 있으면 서버 범위, 없으면 로그인 없이 4~20명 · 계정 수 하나", () => {
+    const { plan } = wizardPlan();
+    expect(agentRange(plan, "none", 0)).toEqual({ min: 4, max: 20, total: 10 });
+    expect(agentRange(null, "none", 0)).toEqual({ min: 4, max: 20, total: 10 });
+    expect(agentRange(null, "account", 8)).toEqual({ min: 8, max: 8, total: 8 });
+  });
+
+  it("합계 안내는 BE 422 문구와 같다", () => {
+    expect(segmentTotalMessage(21, { min: 4, max: 20 })).toBe(
+      "합계를 4~20명 사이로 맞춰주세요 · 지금 21명",
+    );
+    expect(segmentTotalMessage(9, { min: 8, max: 8 })).toBe(
+      "합계가 8명이 되도록 맞춰주세요 · 지금 9명",
+    );
   });
 
   it("인원을 세그먼트 4개에 고르게 나눈다", () => {
