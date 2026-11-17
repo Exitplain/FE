@@ -4,7 +4,7 @@ import { queryKeys } from "@/apis/queryKeys";
 import { getRuns } from "@/apis/run.api";
 import { ACTIVE_RUN_STATUSES, type RunItem } from "@/types/run.type";
 
-import { POLLING_INTERVAL_MS } from "./usePersonaRun";
+import { POLLING_INTERVAL_MS } from "@/constants/polling";
 
 const PAGE_SIZE = 20;
 

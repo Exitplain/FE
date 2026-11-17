@@ -1,26 +1,29 @@
-import { useParams, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import ProjectContextHeader from "@/components/Projects/ProjectContextHeader";
-import ProjectUnavailable from "@/components/Projects/ProjectUnavailable";
+import { useCurrentProject } from "@/components/Projects/currentProject";
 import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
-import { useProjectOverview, useProjects } from "@/hooks/useProjects";
+import { toProjectOverview } from "@/apis/project.api";
 
 import DiagnosisLoop from "./components/DiagnosisLoop";
 import ProjectSummary from "./components/ProjectSummary";
 
+/*
+  C05 프로젝트 개요. 프로젝트는 ProjectRoute 가 GET /api/v1/projects/{id} 로 받아 둔 것을 씁니다.
+  서버에 있는 건 마지막 사전 테스트뿐이라 실측·보정 단계는 시작 전으로 보여 줍니다.
+  ?state=loading|error 는 디자인 확인용 미리보기입니다.
+*/
 export default function ProjectDetailPage() {
-  const { projectId } = useParams();
-  const projects = useProjects();
+  const current = useCurrentProject();
+  const project = current.record;
+  const overview = toProjectOverview(current.detail);
   const [params, setParams] = useSearchParams();
-  const project = projects.data?.find((item) => item.id === projectId);
-  const query = useProjectOverview(project?.id, params.get("variant") === "unconnected");
-  if (!project) return <ProjectUnavailable />;
   return (
     <div className="space-y-10 text-ink">
       <ProjectContextHeader project={project} />
-      {query.isPending || params.get("state") === "loading" ? (
+      {params.get("state") === "loading" ? (
         <WorkspaceState kind="loading" title="프로젝트를 불러오는 중이에요" />
-      ) : query.isError || params.get("state") === "error" ? (
+      ) : params.get("state") === "error" ? (
         <WorkspaceState
           kind="error"
           title="프로젝트를 불러오지 못했어요"
@@ -35,18 +38,15 @@ export default function ProjectDetailPage() {
                   },
                   { replace: true },
                 );
-                void query.refetch();
               }}
             />
           }
         />
       ) : (
-        query.data && (
-          <>
-            <DiagnosisLoop project={project} overview={query.data} />
-            <ProjectSummary project={project} overview={query.data} />
-          </>
-        )
+        <>
+          <DiagnosisLoop project={project} overview={overview} />
+          <ProjectSummary project={project} overview={overview} />
+        </>
       )}
     </div>
   );

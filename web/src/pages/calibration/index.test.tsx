@@ -4,16 +4,19 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ROUTES } from "@/constants/routes";
 import { useToastStore } from "@/stores/useToastStore";
+import { createTestProject, waitForProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
 import { useCalibrationMockStore } from "./data/calibrationMock";
 import CalibrationPage from "./index";
 
-function renderCalibration(projectId: string, search = "") {
-  return renderWithProviders(<CalibrationPage />, {
+async function renderCalibration(projectId: string, search = "") {
+  const result = renderWithProviders(<CalibrationPage />, {
     route: `/projects/${projectId}/calibration${search}`,
     path: ROUTES.calibration.path,
   });
+  await waitForProject();
+  return result;
 }
 
 beforeEach(() => {
@@ -23,7 +26,7 @@ beforeEach(() => {
 describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
   it("K01 → K02 → K03 — 조정안을 확인하고 적용하면 오차 비교와 보정 이력을 보여준다", async () => {
     const user = userEvent.setup();
-    renderCalibration("banchan");
+    await renderCalibration("1");
 
     expect(screen.getByText("조정안 있음")).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "조정안" });
@@ -54,7 +57,7 @@ describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
 
   it("E11 — 조정안이 없으면 보정할 차이가 없다고 알리고 이력으로 안내한다", async () => {
     const user = userEvent.setup();
-    renderCalibration("studio");
+    await renderCalibration(await createTestProject());
 
     expect(
       screen.getByRole("heading", { name: "지금은 보정할 차이가 없어요" }),
@@ -68,7 +71,7 @@ describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
 
   it("K04 — 관측을 저장하면 표와 일치 요약에 반영하고, 같은 참여자는 덮어쓴다고 알린다(K04c)", async () => {
     const user = userEvent.setup();
-    renderCalibration("banchan", "?view=observe");
+    await renderCalibration("1", "?view=observe");
 
     expect(screen.getByRole("heading", { level: 1, name: "사람 관측" })).toBeInTheDocument();
     expect(screen.getByText("입력한 관측 3건")).toBeInTheDocument();
@@ -89,7 +92,7 @@ describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
 
   it("참여자 코드 형식이 틀리면 저장하지 않고 안내한다", async () => {
     const user = userEvent.setup();
-    renderCalibration("banchan", "?view=observe");
+    await renderCalibration("1", "?view=observe");
 
     const input = screen.getByLabelText("참여자 코드");
     await user.clear(input);
@@ -100,9 +103,9 @@ describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
     expect(screen.getByText("입력한 관측 3건")).toBeInTheDocument();
   });
 
-  it("보정 이력·관측은 프로젝트마다 따로 둔다", () => {
-    useCalibrationMockStore.getState().apply("banchan", new Date());
-    useCalibrationMockStore.getState().saveObservation("banchan", {
+  it("보정 이력·관측은 프로젝트마다 따로 둔다", async () => {
+    useCalibrationMockStore.getState().apply("1", new Date());
+    useCalibrationMockStore.getState().saveObservation("1", {
       participant: "H-009",
       task: "첫 주문 완료",
       outcome: "success",
@@ -111,7 +114,7 @@ describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
       matches: { outcome: false, stage: false, cause: false },
     });
 
-    renderCalibration("studio", "?view=history");
+    await renderCalibration(await createTestProject(), "?view=history");
 
     expect(
       within(screen.getByRole("table", { name: "보정 이력" })).getAllByRole("row"),
@@ -120,7 +123,7 @@ describe("K01~K04 보정 (임시 하드코딩 목데이터)", () => {
 
   it("같은 참여자라도 과업이 다르면 다른 관측으로 저장한다", async () => {
     const user = userEvent.setup();
-    renderCalibration("banchan", "?view=observe");
+    await renderCalibration("1", "?view=observe");
 
     const input = screen.getByLabelText("참여자 코드");
     await user.clear(input);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import Button from "@/components/Button/Button";
@@ -7,12 +7,20 @@ import Icon from "@/components/Icon/Icon";
 import Input from "@/components/Input/Input";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 
-import { useDiscoverPlan } from "../hooks/useNewTestMutations";
+import type { ApiError } from "@/types/api.type";
+
+import {
+  useDiscoverPlan,
+  useSaveTestAccounts,
+  useTestAccounts,
+} from "../hooks/useNewTestMutations";
 import { validateSiteUrl } from "../utils/newTest";
 import AccountModal from "./AccountModal";
 import StepSection, { StatusRow, StepFooter } from "./StepSection";
 
 type SiteStepProps = {
+  /* 제품 API 프로젝트 id */
+  projectId: number;
   /* 만료 등으로 돌아왔을 때 위에 보여줄 안내 */
   notice: string | null;
   /* 사이트 확인이 성공했을 때 */
@@ -30,15 +38,21 @@ const timeFormat = new Intl.DateTimeFormat("ko-KR", {
 
 /*
   P02 사이트 · P02b 확인 중 · P03 확인 완료 · E07 잘못된 URL · E08 접근 불가 (Figma Section/Site)
-  - "확인"은 POST /api/personas/discover 를 부릅니다. 개발 서버는 주소 대신 반찬 데모 버전만 받아
-    입력한 주소는 아직 탐색에 쓰이지 않습니다(주소 모양만 확인). 데모 버전은 Figma 에 없어 화면에서 고르지 않고
-    "문제 버전"으로 확인합니다(스토어 기본값).
-  - 응답 시간·화면 수는 탐색 응답의 임시 필드(response_ms, screens_read)이고 없으면 빼고 보여줍니다.
+  - "확인"은 주소 확인(check) → 기능 탐색(discoveries) → 계획 만들기(plans) 순서로 부릅니다.
+    탐색은 서버가 브라우저로 시작 화면을 읽어 수 초 걸립니다. 주소는 프로젝트에 등록한 사이트여야 합니다.
+    데모 버전(variant)은 Figma 에 없어 화면에서 고르지 않고 "문제 버전"으로 확인합니다(스토어 기본값).
+  - 주소 확인이 실패해도 탐색은 진행하고 경고만 보여 줍니다 (응답 시간은 주소 확인 결과).
+  - 로그인 방식·계정 수를 바꾸면 탐색(login_mode)과 에이전트 수가 달라져, "다음"에서 다시 확인합니다.
   - 확인하는 동안 주소를 잠가, 이전 요청의 응답이 바뀐 입력의 결과로 들어가지 않게 합니다.
-  - 로그인 연결은 사이트 확인이 끝난 뒤(P03)에 나옵니다. 테스트 계정은 등록(P04)까지만 하고
-    실행에는 쓰이지 않습니다(서버 미지원).
+  - 로그인 연결은 사이트 확인이 끝난 뒤(P03)에 나옵니다. 테스트 계정과 로그인 화면 주소를 서버에 저장(P04)하면
+    에이전트가 그 화면에서 로그인한 뒤 사이트를 확인하고 실행합니다.
 */
-export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps) {
+export default function SiteStep({
+  projectId: v1ProjectId,
+  notice,
+  onDiscovered,
+  onNext,
+}: SiteStepProps) {
   const { projectId, siteUrl, variant, loginMode, accountCount, plan } = useNewTestStore(
     useShallow((state) => ({
       projectId: state.projectId,
@@ -50,7 +64,33 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
     })),
   );
   const actions = useNewTestStore.getState();
+  /*
+    서버에 이미 저장된 테스트 계정을 한 번 받아 둡니다 (비밀번호는 없음).
+    에이전트 수를 서버와 맞추고, 계정 저장(목록 전체 교체)이 기존 계정을 지우지 않게 하려는 것입니다.
+    화면의 계정이 모두 서버에 저장된 것(id 있음)이면 새로 받은 목록으로 바꿉니다
+    (확정 직전 다른 곳에서 계정이 바뀌어 다시 받는 경우 — 저장된 비밀번호는 서버가 유지합니다).
+    아직 저장하지 않은 계정(id 없음)이 있으면 입력을 지우지 않게 건드리지 않습니다.
+  */
+  const savedAccounts = useTestAccounts(v1ProjectId);
+  const accountsLoaded = useRef(false);
+  useEffect(() => {
+    /* 캐시가 store 보다 오래됐을 수 있어 들어올 때 새로 받은 응답으로만 맞춥니다 */
+    if (accountsLoaded.current || !savedAccounts.isSuccess || savedAccounts.isFetching) return;
+    accountsLoaded.current = true;
+    const items = savedAccounts.data?.items ?? [];
+    const local = useNewTestStore.getState().accounts;
+    if (!local.every((account) => account.id)) return;
+    if (items.length === 0 && local.length === 0) return;
+    useNewTestStore
+      .getState()
+      .setAccounts(
+        [...items]
+          .sort((a, b) => a.position - b.position)
+          .map((item) => ({ id: item.id, username: item.username, password: "" })),
+      );
+  }, [savedAccounts.isSuccess, savedAccounts.isFetching, savedAccounts.data]);
   const discover = useDiscoverPlan();
+  const saveAccounts = useSaveTestAccounts();
   const [urlError, setUrlError] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [failedAt, setFailedAt] = useState<Date | null>(null);
@@ -63,19 +103,21 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
     setUrlError(error);
     if (error) return;
     /* 프로젝트가 바뀐 뒤 같은 주소로 돌아온 결과가 새 프로젝트에 들어가지 않게 프로젝트도 비교합니다 */
-    const requested = { projectId, siteUrl, variant };
-    const same = (current: typeof requested) =>
+    const requested = { projectId, siteUrl, variant, loginMode, accountCount };
+    const same = (current: ReturnType<typeof useNewTestStore.getState>) =>
       current.projectId === requested.projectId &&
       current.siteUrl === requested.siteUrl &&
-      current.variant === requested.variant;
+      current.variant === requested.variant &&
+      current.loginMode === requested.loginMode &&
+      current.accounts.length === requested.accountCount;
     discover.mutate(
-      { variant },
+      { projectId: v1ProjectId, entryUrl: siteUrl.trim(), loginMode, variant },
       {
         onSuccess: (result) => {
           /* 응답을 기다리는 사이 입력이 바뀌었다면 이 결과는 버립니다 */
           const current = useNewTestStore.getState();
           if (!same(current)) return;
-          current.setPlan(result);
+          current.setPlan(result.plan, result.server);
           onDiscovered();
           if (thenNext) onNext();
         },
@@ -89,14 +131,36 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
     );
   };
 
-  /* E08 접근 불가는 서버가 사이트를 열지 못한 5xx 만. 4xx 는 서버 메시지, 0 은 서버 연결 실패 */
+  /*
+    E08 접근 불가는 서버가 사이트를 열지 못한 5xx(503 SITE_UNREACHABLE) 만.
+    401 은 로그인, 403 은 이 프로젝트 권한(샘플 프로젝트 등), 그 밖의 4xx 는 서버 메시지, 0 은 서버 연결 실패
+  */
   const errorStatus = discover.error?.status ?? null;
   const unreachable = errorStatus != null && errorStatus >= 500;
+  const errorText =
+    errorStatus === 401
+      ? "로그인이 필요해요"
+      : errorStatus === 403
+        ? "이 프로젝트에서는 실행할 수 없어요"
+        : `사이트를 확인하지 못했어요 · ${discover.error?.message ?? ""}`;
 
+  /*
+    로그인 방식이 탐색할 때와 달라졌거나, 테스트 계정 모드에서 계정 수가 서버 총원과 달라지면
+    "다음"에서 다시 확인합니다 (서버는 저장된 계정 수로 에이전트 수를 정함).
+  */
+  const desiredLoginMode = loginMode === "account" ? "test_account" : "none";
+  const stale =
+    plan != null &&
+    (plan.loginMode !== desiredLoginMode ||
+      (desiredLoginMode === "test_account" && plan.personaTotal !== accountCount));
+  /* 테스트 계정이 모자라 탐색하지 못했을 때도 로그인 연결을 바꿀 수 있게 둡니다 */
+  const accountsRequired = discover.error?.code === "TEST_ACCOUNTS_REQUIRED";
+
+  const checkFailed = plan?.check?.status === "failed";
   const reachable = [
     "접근 가능",
-    plan?.response_ms != null ? `응답 ${(plan.response_ms / 1000).toFixed(1)}초` : null,
-    plan?.screens_read != null ? `화면 ${plan.screens_read}개 읽음` : null,
+    plan?.check?.elapsed_ms != null ? `응답 ${(plan.check.elapsed_ms / 1000).toFixed(1)}초` : null,
+    plan ? `기능 ${plan.features.length}개 찾음` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -157,7 +221,9 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
         {isChecking ? (
           <StatusRow>
             <Icon name="search" className="size-5" />
-            <span className="text-subtle">시작 화면의 메뉴와 기능을 읽는 중이에요</span>
+            <span className="text-subtle">
+              사이트 화면과 메뉴를 둘러보며 기능을 찾는 중이에요 · 1~2분 걸려요
+            </span>
           </StatusRow>
         ) : discover.isError ? (
           <div
@@ -170,12 +236,20 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
                 ? `사이트 응답 없음 · 점검·방화벽 가능성${failedAt ? ` · ${timeFormat.format(failedAt)}` : ""}`
                 : errorStatus === 0
                   ? "서버에 연결할 수 없어요"
-                  : `사이트를 확인하지 못했어요 · ${discover.error.message}`}
+                  : errorText}
             </span>
             {errorStatus != null && errorStatus > 0 && (
               <span className="text-xs text-muted">오류 코드 {errorStatus}</span>
             )}
           </div>
+        ) : plan && checkFailed ? (
+          /* 주소 확인은 실패했지만 탐색은 됐습니다 — 경고만 보여 주고 진행할 수 있게 둡니다 */
+          <StatusRow>
+            <Icon name="status-error" className="size-5" />
+            <span className="font-bold text-ink">
+              {`접근 확인 실패 · ${plan.check?.message ?? "사이트에 접속할 수 없어요"}`}
+            </span>
+          </StatusRow>
         ) : plan ? (
           <StatusRow>
             <Icon name="check" className="size-5" />
@@ -195,7 +269,7 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
       </StepSection>
 
       {/* 확인이 끝났거나, 사이트가 열리지 않아(E08) 로그인이 필요할 수 있을 때만 */}
-      {(plan || unreachable) && !isChecking && (
+      {(plan || unreachable || accountsRequired) && !isChecking && (
         <StepSection
           title="로그인 연결"
           description="로그인이 필요해 보여요 · 테스트 계정만 써 주세요"
@@ -234,7 +308,7 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
                   </span>
                   <span className="text-xs text-muted">
                     {accountCount > 0
-                      ? `테스트 계정 ${accountCount}개 등록 · 지금은 저장만 하고 실행에는 쓰지 않아요`
+                      ? `테스트 계정 ${accountCount}개 등록${savedAccounts.data?.login_url ? "" : " · 로그인 화면 주소를 등록해주세요"}`
                       : "테스트 계정 1개 = 에이전트 1명 · 최대 20개"}
                   </span>
                 </span>
@@ -249,20 +323,52 @@ export default function SiteStep({ notice, onDiscovered, onNext }: SiteStepProps
       )}
 
       <StepFooter>
-        <Button disabled={isChecking} onClick={() => (plan ? onNext() : check(true))}>
+        {/* 테스트 계정 모드에서 서버 계정을 다시 받는 중이면 기다립니다 (옛 계정 수로 넘어가지 않게) */}
+        <Button
+          disabled={isChecking || (loginMode === "account" && savedAccounts.isFetching)}
+          onClick={() => (plan && !stale ? onNext() : check(true))}
+        >
           다음: 과업 · 타겟
         </Button>
       </StepFooter>
 
       <AccountModal
         open={accountOpen}
-        onClose={() => setAccountOpen(false)}
-        onSave={(accounts) => {
-          actions.setLoginMode("account");
-          actions.setAccounts(accounts);
+        onClose={() => {
+          saveAccounts.reset();
           setAccountOpen(false);
         }}
+        saving={saveAccounts.isPending}
+        error={saveAccounts.error ? accountSaveError(saveAccounts.error) : null}
+        retentionDays={savedAccounts.data?.retention_days}
+        loginUrl={savedAccounts.data?.login_url}
+        siteUrl={siteUrl}
+        onSave={(accounts, loginUrl) =>
+          saveAccounts.mutate(
+            { projectId: v1ProjectId, loginUrl, accounts },
+            {
+              onSuccess: (saved) => {
+                actions.setLoginMode("account");
+                actions.setAccounts(saved);
+                setAccountOpen(false);
+              },
+            },
+          )
+        }
       />
     </div>
   );
+}
+
+/* 계정 저장 실패 문구 — 401 로그인 · 403 권한 · 0 연결 실패, 그 밖은 서버 message */
+function accountSaveError(error: ApiError) {
+  if (error.status === 0) return "서버에 연결할 수 없어요";
+  if (error.status === 401) return "로그인이 필요해요";
+  if (error.status === 403) return "이 프로젝트에서는 실행할 수 없어요";
+  /* 로그인 화면 주소가 프로젝트 사이트가 아닌 경우 등 — 서버가 칸별 안내를 줍니다 */
+  const loginUrlMessage = error.fields?.login_url;
+  if (Array.isArray(loginUrlMessage) && typeof loginUrlMessage[0] === "string") {
+    return loginUrlMessage[0];
+  }
+  return error.message;
 }

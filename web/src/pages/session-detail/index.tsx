@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/Button/buttonVariants";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { runOrder } from "@/pages/report/utils/reportView";
@@ -36,10 +36,10 @@ import {
   - 임시: 세션은 mock 전용 GET /api/personas/session 으로 받습니다 (서버 명세 대기)
 */
 export default function SessionDetailPage() {
-  const { projectId, runId, sessionId } = useParams();
-  const project = findSampleProject(projectId);
+  const { runId, sessionId } = useParams();
+  const project = useCurrentProject();
 
-  if (!project || !runId || !sessionId) {
+  if (!runId || !sessionId) {
     return (
       <section className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
@@ -79,7 +79,7 @@ function SessionDetail({
   runId,
   sessionId,
 }: {
-  project: SampleProject;
+  project: CurrentProject;
   runId: string;
   sessionId: string;
 }) {

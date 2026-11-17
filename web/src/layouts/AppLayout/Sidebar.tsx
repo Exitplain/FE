@@ -5,17 +5,17 @@ import logoMark from "@/assets/brand/logo-mark.svg";
 import Icon from "@/components/Icon/Icon";
 import type { IconName } from "@/components/Icon/iconNames";
 import { iconButtonVariants } from "@/components/IconButton/iconButtonVariants";
-import { SAMPLE_PROJECTS, type SampleProject } from "@/constants/projects";
 import { buildPath, ROUTES } from "@/constants/routes";
 import { useProjects } from "@/hooks/useProjects";
+import type { ProjectRecord } from "@/types/project.type";
 import { cn } from "@/utils/cn";
 
 import AccountControls from "./AccountControls";
 
 /*
   로그인 후 화면 공통 사이드바 (Figma W01 `Sidebar`, 256px).
-  프로젝트 목록은 정적 예시 값이며 계정 영역은 AccountControls의 데모 세션을 사용합니다.
-  API 가 붙으면 SAMPLE_PROJECTS와 데모 세션을 실제 조회 결과로 바꿉니다.
+  프로젝트 목록은 제품 API 의 내 프로젝트(로그인했을 때) + 샘플 프로젝트입니다. (hooks/useProjects)
+  계정 영역은 AccountControls 가 서버 세션을 보여 줍니다.
 */
 
 /*
@@ -84,6 +84,8 @@ function prefersReducedMotion() {
 function useSidebarIndicator(
   containerRef: RefObject<HTMLElement | null>,
   indicatorRef: RefObject<HTMLElement | null>,
+  /* 항목 구성이 바뀌면(서버에서 프로젝트 목록이 늦게 도착) 다시 배치하고 새 하위 메뉴도 지켜봅니다 */
+  itemsKey: string,
 ) {
   const { pathname } = useLocation();
   /* 모서리 크기 변경 예약. 경로가 0.3초 안에 다시 바뀌어도 예약이 사라지지 않게 effect 밖에 둡니다 */
@@ -182,8 +184,8 @@ function useSidebarIndicator(
       container.removeEventListener("transitionend", onTransitionEnd);
       container.removeEventListener("transitioncancel", onTransitionEnd);
     };
-    /* pathname 은 본문에서 읽지 않지만, 경로가 바뀔 때 다시 배치하려고 의존성에 둡니다 */
-  }, [containerRef, indicatorRef, pathname]);
+    /* pathname·itemsKey 는 본문에서 읽지 않지만, 경로나 항목이 바뀔 때 다시 배치하려고 의존성에 둡니다 */
+  }, [containerRef, indicatorRef, pathname, itemsKey]);
 
   /* 사이드바가 사라질 때만 예약을 지웁니다 */
   useEffect(
@@ -250,7 +252,7 @@ function activeSubMenu(rest: string): SubMenuKey | null {
     Tab 이동·화면 낭독기에서 뺍니다.
   치수 (Figma): 하위 항목 x=52 · 높이 36 · 글자 안쪽 20(x=72), 프로젝트 항목과 4px, 다음 프로젝트와 8px
 */
-function ProjectNavItem({ project }: { project: SampleProject }) {
+function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name"> }) {
   const { pathname } = useLocation();
   const base = buildPath("projectDetail", { projectId: project.id });
   const inProject = pathname === base || pathname.startsWith(`${base}/`);
@@ -315,7 +317,11 @@ export default function Sidebar() {
   createParams.set("create", "1");
   const asideRef = useRef<HTMLElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
-  useSidebarIndicator(asideRef, indicatorRef);
+  useSidebarIndicator(
+    asideRef,
+    indicatorRef,
+    (projects.data ?? []).map((project) => project.id).join(","),
+  );
 
   return (
     <aside
@@ -367,7 +373,7 @@ export default function Sidebar() {
         </Link>
       </div>
       <nav aria-label="프로젝트" className="flex flex-col gap-2">
-        {(projects.data ?? SAMPLE_PROJECTS).map((project) => (
+        {(projects.data ?? []).map((project) => (
           <ProjectNavItem key={project.id} project={project} />
         ))}
         {/* C03은 현재 화면·필터를 유지한 채 공통 레이아웃 위에 표시합니다 */}

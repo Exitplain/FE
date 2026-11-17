@@ -5,7 +5,7 @@ import ChoiceChip from "@/components/ChoiceChip/ChoiceChip";
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
-import { findSampleProject, type SampleProject } from "@/constants/projects";
+import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { usePersonaReports } from "@/hooks/usePersonaReports";
 import { usePersonaReport } from "@/pages/report/hooks/usePersonaReport";
@@ -39,10 +39,10 @@ import {
   - 두 실행 모두 예측 범위라 차이는 범위 가운데값 기준입니다.
 */
 export default function RetestPage() {
-  const { projectId, runId } = useParams();
-  const project = findSampleProject(projectId);
+  const { runId } = useParams();
+  const project = useCurrentProject();
 
-  if (!project || !runId) {
+  if (!runId) {
     return (
       <section className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-ink">프로젝트를 찾을 수 없어요</h1>
@@ -55,7 +55,7 @@ export default function RetestPage() {
   return <Retest project={project} runId={runId} />;
 }
 
-function Retest({ project, runId }: { project: SampleProject; runId: string }) {
+function Retest({ project, runId }: { project: CurrentProject; runId: string }) {
   const reports = usePersonaReports();
   const [params] = useSearchParams();
   /* 실패·비용 상한으로 멈춘 실행은 결과가 온전하지 않아 비교하지 않습니다 */
@@ -110,7 +110,7 @@ function Layout({
   actions,
   children,
 }: {
-  project: SampleProject;
+  project: CurrentProject;
   title: string;
   description?: string;
   actions?: ReactNode;
@@ -137,7 +137,7 @@ function NeedAnother({
   runId,
   known,
 }: {
-  project: SampleProject;
+  project: CurrentProject;
   runId: string;
   known: boolean;
 }) {
@@ -182,7 +182,7 @@ function Compare({
   bId,
   list,
 }: {
-  project: SampleProject;
+  project: CurrentProject;
   aId: string;
   bId: string;
   list: PersonaReportSummary[];

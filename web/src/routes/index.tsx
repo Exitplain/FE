@@ -1,5 +1,6 @@
 import { createBrowserRouter, type RouteObject } from "react-router-dom";
 
+import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { ROUTES } from "@/constants/routes";
 import AppLayout from "@/layouts/AppLayout/AppLayout";
 import AuthLayout from "@/layouts/AuthLayout/AuthLayout";
@@ -45,17 +46,23 @@ export const routes: RouteObject[] = [
       { path: ROUTES.settings.path, element: <SettingsPage /> },
       { path: ROUTES.guide.path, element: <GuidePage /> },
       { path: ROUTES.projectList.path, element: <ProjectListPage /> },
-      { path: ROUTES.projectDetail.path, element: <ProjectDetailPage /> },
-      { path: ROUTES.projectHistory.path, element: <ProjectHistoryPage /> },
-      { path: ROUTES.projectIssues.path, element: <ProjectIssuesPage /> },
-      { path: ROUTES.testList.path, element: <TestListPage /> },
-      { path: ROUTES.analytics.path, element: <AnalyticsPage /> },
-      { path: ROUTES.calibration.path, element: <CalibrationPage /> },
-      { path: ROUTES.newTest.path, element: <NewTestPage /> },
-      { path: ROUTES.testRun.path, element: <TestRunPage /> },
-      { path: ROUTES.report.path, element: <ReportPage /> },
-      { path: ROUTES.sessionDetail.path, element: <SessionDetailPage /> },
-      { path: ROUTES.retest.path, element: <RetestPage /> },
+      /* :projectId 아래 화면은 ProjectRoute 가 프로젝트를 받아 넘기고 없음·로그인 필요 상태를 맡습니다 */
+      {
+        element: <ProjectRoute />,
+        children: [
+          { path: ROUTES.projectDetail.path, element: <ProjectDetailPage /> },
+          { path: ROUTES.projectHistory.path, element: <ProjectHistoryPage /> },
+          { path: ROUTES.projectIssues.path, element: <ProjectIssuesPage /> },
+          { path: ROUTES.testList.path, element: <TestListPage /> },
+          { path: ROUTES.analytics.path, element: <AnalyticsPage /> },
+          { path: ROUTES.calibration.path, element: <CalibrationPage /> },
+          { path: ROUTES.newTest.path, element: <NewTestPage /> },
+          { path: ROUTES.testRun.path, element: <TestRunPage /> },
+          { path: ROUTES.report.path, element: <ReportPage /> },
+          { path: ROUTES.sessionDetail.path, element: <SessionDetailPage /> },
+          { path: ROUTES.retest.path, element: <RetestPage /> },
+        ],
+      },
       /* 개인정보처리방침은 로그인 없이도 봅니다 (구글 로그인 동의 화면·사이드바 하단에서 연결) */
       { path: ROUTES.privacy.path, element: <PrivacyPage /> },
       { path: "*", element: <NotFoundPage /> },

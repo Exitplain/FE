@@ -1071,7 +1071,7 @@ export function report(runId: string | null): PersonaReport {
   const tasks = [...new Set(run.sessions.map((s) => s.task_id))].map((id) =>
     buildTask(run, id, seeds),
   );
-  const latestCalibration = CALIBRATIONS.banchan?.[0]?.applied_at ?? null;
+  const latestCalibration = CALIBRATIONS["1"]?.[0]?.applied_at ?? null;
 
   return structuredClone({
     schema_version: "mock-1",
@@ -1283,4 +1283,26 @@ export function human(body: unknown): PersonaRun {
   syncHistory();
 
   return structuredClone(run);
+}
+
+/*
+  제품 API 리포트(report-2) mock 의 재료: 끝난 실행과 시드별 세션, 과업 경로.
+  진행 중이면 409, 없으면 404 (MockApiError). mocks/reportV1Mock.ts 가 report-2 로 집계합니다.
+*/
+export function reportSource(runId: string) {
+  const run = findRun(runId);
+  const seeds = state.seedRuns.get(run.id!) ?? [];
+  return {
+    run,
+    seeds: seeds.length > 0 ? seeds : [run.sessions],
+    paths: TASK_PATHS,
+    technical: TECHNICAL,
+  };
+}
+
+/* 제품 API 실행 mock(mocks/runV1Mock.ts)의 재료: 현재 실행 또는 끝난 실행 (없으면 undefined) */
+export function findMockRun(runId: string): PersonaRun | undefined {
+  if (state.run.id === runId) return structuredClone(state.run);
+  const saved = state.history.find((run) => run.id === runId);
+  return saved ? structuredClone(saved) : undefined;
 }

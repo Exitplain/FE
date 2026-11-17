@@ -6,7 +6,7 @@ import type { CalibrationRecord } from "@/types/calibration.type";
   가장 최근 적용이 11월 5일이라 P05b·P05c 의 "보정 11월 5일 적용"과 맞습니다.
 */
 export const CALIBRATIONS: Record<string, CalibrationRecord[]> = {
-  banchan: [
+  "1": [
     {
       id: "cal-banchan-2",
       applied_at: "2026-11-05T05:50:00+00:00",
