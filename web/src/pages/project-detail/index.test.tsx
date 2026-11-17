@@ -48,12 +48,118 @@ describe("C05 프로젝트 개요 (GET /api/v1/projects/{id})", () => {
           runs: { total: 3, active: 0, last_pretest: last },
         }),
       ),
+      /* 실행 목록이 비어 있으면 프로젝트 상세의 last_pretest 로 정합니다 */
+      http.get("*/api/v1/projects/:projectId/runs", () =>
+        HttpResponse.json({ items: [], next_cursor: null, total: 0 }),
+      ),
     );
     renderDetail("1");
 
     expect(await screen.findByText("3차")).toBeInTheDocument();
-    expect(screen.getByText("완료")).toBeInTheDocument();
     expect(screen.queryByText("테스트 전")).not.toBeInTheDocument();
+    /* Figma C05: 사전 테스트가 끝나면 사전 테스트는 완료, 실측 분석이 지금 단계 */
+    expect(screen.getByRole("heading", { name: /실측 분석\s*지금 단계/ })).toBeInTheDocument();
+    /* 실행 목록을 받은 뒤 버튼이 나옵니다 */
+    expect(await screen.findByRole("link", { name: "실측 데이터 연결하기" })).toBeInTheDocument();
+  });
+
+  it("실행 목록의 마지막 사전 테스트로 단계를 정한다 — 진행 중이면 그 실행으로, 끝나면 달성률까지", async () => {
+    const run = (status: string, report: unknown = null) => ({
+      id: "run-9",
+      sequence_no: 9,
+      name: "9차·첫 주문",
+      kind: "pretest",
+      status,
+      change_note: "",
+      parent_run_id: null,
+      created_at: "2026-11-17T05:00:00+00:00",
+      started_at: null,
+      finished_at: null,
+      report,
+    });
+    let current = run("running");
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", () =>
+        HttpResponse.json({ items: [current], next_cursor: null, total: 1 }),
+      ),
+    );
+    const { unmount } = renderDetail("1");
+
+    expect(await screen.findByRole("link", { name: "진행 중 테스트 보기" })).toHaveAttribute(
+      "href",
+      "/projects/1/runs/run-9",
+    );
+    expect(screen.getByRole("heading", { name: /사전 테스트\s*지금 단계/ })).toBeInTheDocument();
+    unmount();
+
+    current = run("completed", {
+      id: "r9",
+      status: "final",
+      revision: 1,
+      goal_rates: [],
+      achievement_rate: 0.3,
+    });
+    renderDetail("1");
+
+    expect(await screen.findByRole("link", { name: "실측 데이터 연결하기" })).toBeInTheDocument();
+    expect(screen.getByText("9차·첫 주문")).toBeInTheDocument();
+    expect(screen.getByText("목표 달성률 (예측)").nextElementSibling).toHaveTextContent("30%");
+  });
+
+  it("원인 재현은 건너뛰고, 마지막 재테스트가 실패해도 앞서 끝낸 테스트가 있으면 실측 분석 단계를 유지한다", async () => {
+    const item = (id: string, sequence_no: number, kind: string, status: string) => ({
+      id,
+      sequence_no,
+      name: `${sequence_no}차`,
+      kind,
+      status,
+      change_note: "",
+      parent_run_id: null,
+      created_at: "2026-11-17T05:00:00+00:00",
+      started_at: null,
+      finished_at: null,
+      report: null,
+    });
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", () =>
+        HttpResponse.json({
+          items: [
+            item("repro", 6, "cause_repro", "running"),
+            item("retest", 5, "retest", "failed"),
+            item("done", 4, "pretest", "completed"),
+          ],
+          next_cursor: null,
+          total: 3,
+        }),
+      ),
+    );
+    renderDetail("1");
+
+    expect(await screen.findByRole("link", { name: "실측 데이터 연결하기" })).toBeInTheDocument();
+    /* 요약은 마지막 사전 테스트(실패한 5차 재테스트) 기준 */
+    expect(screen.getByText("5차")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "진행 중 테스트 보기" })).not.toBeInTheDocument();
+  });
+
+  it("실행 목록을 받지 못하면 프로젝트 상세의 마지막 사전 테스트로 그린다", async () => {
+    const detail = await getProjectDetail(1);
+    const last = {
+      run_id: "run-2",
+      sequence_no: 2,
+      status: "completed" as const,
+      created_at: "2026-11-07T05:00:00+00:00",
+      finished_at: "2026-11-07T05:20:00+00:00",
+    };
+    server.use(
+      http.get("*/api/v1/projects/:projectId", () =>
+        HttpResponse.json({ ...detail, runs: { total: 2, active: 0, last_pretest: last } }),
+      ),
+      http.get("*/api/v1/projects/:projectId/runs", () => HttpResponse.error()),
+    );
+    renderDetail("1");
+
+    expect(await screen.findByRole("link", { name: "실측 데이터 연결하기" })).toBeInTheDocument();
+    expect(screen.getByText("2차")).toBeInTheDocument();
   });
 
   it("새로 만든 프로젝트는 그 id 의 주소로 연결한다", async () => {

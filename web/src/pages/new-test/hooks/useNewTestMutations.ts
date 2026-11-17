@@ -156,6 +156,8 @@ export function useStartRun() {
       createRun({ plan_revision_id: planRevisionId }, idempotencyKey),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
+      /* 프로젝트의 마지막 사전 테스트(사이드바·개요 단계)도 바뀝니다 */
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectsV1.all });
       /* 실행 화면(P08~P11)은 아직 개발 API 의 현재 실행을 봅니다 */
       void queryClient.invalidateQueries({ queryKey: queryKeys.personas.all });
     },

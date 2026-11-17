@@ -1,7 +1,7 @@
 import { formatRunDate } from "@/pages/test-list/utils/testRows";
 import { ApiError } from "@/types/api.type";
 import type { ProjectInput, ProjectOverview, ProjectRecord } from "@/types/project.type";
-import type { RunStatus } from "@/types/run.type";
+import type { RunItem, RunStatus } from "@/types/run.type";
 import type { V1ProjectDetail, V1ProjectSummary } from "@/types/project.v1.type";
 import type { WorkspaceRunStatus } from "@/types/workspace.type";
 import { validateProjectInput } from "@/utils/projectInput";
@@ -84,18 +84,40 @@ export async function getProjects(): Promise<ProjectRecord[]> {
   return [...own, ...sampleItems.filter((project) => !seen.has(project.id))].map(toProjectRecord);
 }
 
-/* C05 개요. 서버에 있는 건 마지막 사전 테스트뿐이라 나머지 단계는 시작 전 상태로 둡니다 */
-export function toProjectOverview(project: V1ProjectDetail): ProjectOverview {
+/*
+  C05 개요 — 진단 루프 단계와 최근 사전 테스트 요약.
+  - 마지막 사전 테스트는 실행 목록(latest, 리포트 요약 포함)을 먼저 쓰고, 없으면 프로젝트 상세의 last_pretest 를 씁니다.
+    실행 목록은 들어올 때마다·실행 중에는 주기적으로 다시 받아 단계가 바로 바뀝니다.
+  - 끝난(완료·일부 완료) 사전 테스트가 하나라도 있으면 실측 분석을 지금 단계로 넘깁니다 (Figma C05).
+    마지막 실행이 실패·취소여도 앞서 끝낸 테스트가 있으면 단계는 그대로입니다.
+    단, 사전 테스트(재테스트 포함)가 진행 중이면 사전 테스트 단계로 두고 그 실행으로 보냅니다.
+    실측·보정은 BE 에 아직 없어 그 뒤로는 넘어가지 않습니다.
+  - 최대 이탈 구간은 리포트 전체를 받아야 해서 비워 둡니다 (BE 요약에 들어오면 채움)
+*/
+export function toProjectOverview(project: V1ProjectDetail, runs?: RunItem[]): ProjectOverview {
   const last = project.runs.last_pretest;
+  /* 목록은 차수 최신순입니다. 원인 재현은 사전 테스트가 아니라 뺍니다 */
+  const pretests = (runs ?? []).filter((item) => item.kind !== "cause_repro");
+  const latest = pretests[0];
+  const status = runStatusOf(latest?.status ?? last?.status);
+  const finishedBefore =
+    pretests.some((item) => runStatusOf(item.status) === "completed") ||
+    runStatusOf(last?.status) === "completed";
+  const active = status === "running" || status === "queued";
+  const rate = latest?.report?.achievement_rate;
+  const percent = rate == null ? null : Math.round(rate * 100);
+  const sequence = latest?.sequence_no ?? last?.sequence_no;
+  const createdAt = latest?.created_at ?? last?.created_at;
   return {
-    phase: 1,
+    phase: finishedBefore && !active ? 2 : 1,
     connection: null,
     test: {
-      status: runStatusOf(last?.status),
-      title: last ? `${last.sequence_no}차` : null,
-      prediction: null,
+      status,
+      runId: latest?.id ?? last?.run_id ?? null,
+      title: latest?.name || (sequence ? `${sequence}차` : null),
+      prediction: percent == null ? null : [percent, percent],
       maxDropOff: null,
-      dateLabel: last ? formatRunDate(last.created_at) : null,
+      dateLabel: createdAt ? formatRunDate(createdAt) : null,
     },
     analytics: {
       status: "unconnected",
