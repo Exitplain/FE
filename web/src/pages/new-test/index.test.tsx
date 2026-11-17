@@ -1,4 +1,5 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
+import { Fragment, StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { Link, Route, Routes, useParams } from "react-router-dom";
@@ -10,6 +11,7 @@ import { planErrorHandlers } from "@/mocks/handlers/plans";
 import { server } from "@/mocks/node";
 import { patchPlan, putTestAccounts } from "@/mocks/planMock";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import { useSiteCheckStore } from "@/stores/useSiteCheckStore";
 import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { createTestProject, waitForProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -1043,5 +1045,79 @@ describe("P02~P07 제품 API 계약", () => {
 
     const [patch] = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
     expect(JSON.parse(patch.body).audience.ages).toEqual(["50plus"]);
+  });
+});
+
+describe("P02b 사이트 확인 — 다른 화면에 갔다 와도 이어진다", () => {
+  /* 기능 탐색 응답을 원할 때까지 붙잡아 둡니다 (풀면 기본 mock 응답으로 이어짐) */
+  function holdDiscovery() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.post("*/api/v1/projects/:projectId/discoveries", async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    return () => act(() => release());
+  }
+
+  /* main.tsx 처럼 StrictMode 로 감쌀 수 있게 (개발 모드에서는 위저드가 두 번 열림) */
+  function renderWithOtherPage({ strict = false } = {}) {
+    const Wrapper = strict ? StrictMode : Fragment;
+    return renderWithProviders(
+      <Wrapper>
+        <Link to="/projects/1/tests/new">새 테스트로</Link>
+        <Link to="/elsewhere">다른 화면으로</Link>
+        <Routes>
+          <Route element={<ProjectRoute />}>
+            <Route path={ROUTES.newTest.path} element={<NewTestPage />} />
+          </Route>
+          <Route path="/elsewhere" element={<p>다른 화면</p>} />
+        </Routes>
+      </Wrapper>,
+      { route: "/projects/1/tests/new" },
+    );
+  }
+
+  it("확인 중에 떠났다 돌아오면 진행 표시를 이어 보여 주고, 끝나면 결과가 채워진다", async () => {
+    const release = holdDiscovery();
+    const user = userEvent.setup();
+    renderWithOtherPage();
+    await waitForProject();
+
+    await user.click(screen.getByRole("button", { name: "확인" }));
+    expect(await screen.findByText("시작 화면의 메뉴와 기능을 읽는 중이에요")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "다른 화면으로" }));
+    expect(screen.getByText("다른 화면")).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "새 테스트로" }));
+
+    /* 확인이 아직 진행 중이라 같은 단계를 이어 보여 줍니다 */
+    expect(await screen.findByText("시작 화면의 메뉴와 기능을 읽는 중이에요")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();
+
+    await release();
+    expect(await screen.findByText("접근 가능 · 응답 0.8초 · 기능 4개 찾음")).toBeInTheDocument();
+  });
+
+  it("떠나 있는 사이 확인이 끝났으면 돌아왔을 때 결과로 바로 다음 단계에 갈 수 있다 (StrictMode)", async () => {
+    const release = holdDiscovery();
+    const user = userEvent.setup();
+    renderWithOtherPage({ strict: true });
+    await waitForProject();
+
+    await user.click(screen.getByRole("button", { name: "확인" }));
+    await screen.findByText("시작 화면의 메뉴와 기능을 읽는 중이에요");
+    await user.click(screen.getByRole("link", { name: "다른 화면으로" }));
+
+    await release();
+    /* 위저드가 없는 사이 계획까지 만들어져 결과가 남아 있습니다 */
+    await waitFor(() => expect(useSiteCheckStore.getState().jobs["1"]?.status).toBe("success"));
+
+    await user.click(screen.getByRole("link", { name: "새 테스트로" }));
+    expect(await screen.findByText("접근 가능 · 응답 0.8초 · 기능 4개 찾음")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 });

@@ -90,11 +90,10 @@ export default function SiteStep({
           .map((item) => ({ id: item.id, username: item.username, password: "" })),
       );
   }, [savedAccounts.isSuccess, savedAccounts.isFetching, savedAccounts.data]);
-  const discover = useDiscoverPlan();
+  const discover = useDiscoverPlan(projectId ?? "");
   const saveAccounts = useSaveTestAccounts();
   const [urlError, setUrlError] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [failedAt, setFailedAt] = useState<Date | null>(null);
   const isChecking = discover.isPending;
 
   /* thenNext: "다음"을 눌렀는데 아직 확인 전이면 확인이 끝난 뒤 바로 다음 단계로 갑니다 */
@@ -111,22 +110,24 @@ export default function SiteStep({
       current.variant === requested.variant &&
       current.loginMode === requested.loginMode &&
       current.accounts.length === requested.accountCount;
+    /*
+      결과(계획)는 확인 작업이 위저드에 직접 넣습니다 (다른 화면에 갔다 와도 이어지게).
+      여기서는 화면이 그대로 있을 때 할 일(안내 지우기 · 다음 단계로)만 합니다.
+    */
     discover.mutate(
-      { projectId: v1ProjectId, entryUrl: siteUrl.trim(), loginMode, variant },
       {
-        onSuccess: (result) => {
-          /* 응답을 기다리는 사이 입력이 바뀌었다면 이 결과는 버립니다 */
-          const current = useNewTestStore.getState();
-          if (!same(current)) return;
-          current.setPlan(result.plan, result.server);
+        projectId: v1ProjectId,
+        entryUrl: siteUrl.trim(),
+        loginMode,
+        variant,
+        request: { siteUrl, variant, loginMode },
+      },
+      {
+        onSuccess: () => {
+          /* 응답을 기다리는 사이 입력이 바뀌었다면 이 결과로 넘어가지 않습니다 */
+          if (!same(useNewTestStore.getState())) return;
           onDiscovered();
           if (thenNext) onNext();
-        },
-        /* 다시 확인이 실패하면 이전 결과로 다음 단계에 가지 않도록 지웁니다 */
-        onError: () => {
-          setFailedAt(new Date());
-          const current = useNewTestStore.getState();
-          if (same(current)) current.clearPlan();
         },
       },
     );
@@ -191,7 +192,6 @@ export default function SiteStep({
                   /* 새 주소는 아직 확인 전이라 이전 실패 안내를 지웁니다 */
                   if (discover.isError) {
                     discover.reset();
-                    setFailedAt(null);
                   }
                 }}
                 onKeyDown={(event) => {
@@ -220,7 +220,7 @@ export default function SiteStep({
 
         {/* 상태 띠: 확인 전 안내 → 확인 중 → 접근 가능 / 접근 불가(E08) */}
         {isChecking ? (
-          <SiteCheckProgress phase={discover.phase} />
+          <SiteCheckProgress phase={discover.phase} startedAt={discover.startedAt} />
         ) : discover.isError ? (
           <div
             role="alert"
@@ -229,7 +229,7 @@ export default function SiteStep({
             <Icon name="status-error" className="size-5 text-danger" />
             <span className="flex-1 font-bold text-ink">
               {unreachable
-                ? `사이트 응답 없음 · 점검·방화벽 가능성${failedAt ? ` · ${timeFormat.format(failedAt)}` : ""}`
+                ? `사이트 응답 없음 · 점검·방화벽 가능성${discover.failedAt ? ` · ${timeFormat.format(discover.failedAt)}` : ""}`
                 : errorStatus === 0
                   ? "서버에 연결할 수 없어요"
                   : errorText}

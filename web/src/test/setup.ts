@@ -11,6 +11,7 @@ import { resetPersonaMock } from "@/mocks/personaMock";
 import { resetPlanMock } from "@/mocks/planMock";
 import { resetRunV1Mock } from "@/mocks/runV1Mock";
 import { useRetestStore } from "@/stores/useRetestStore";
+import { useSiteCheckStore } from "@/stores/useSiteCheckStore";
 
 /*
   jsdom 에는 ResizeObserver 가 없습니다. 사이드바(AppLayout)처럼 크기 변화를 지켜보는
@@ -66,6 +67,8 @@ afterEach(() => {
   resetRunV1Mock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });
+  // 앞 테스트의 사이트 확인 작업이 다음 테스트의 위저드로 이어지지 않게 비웁니다
+  useSiteCheckStore.setState({ jobs: {} });
   sessionStorage.clear();
 });
 
