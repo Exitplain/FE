@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { server } from "@/mocks/node";
+import { issueFixture, issueList } from "@/test/issues";
 import { createTestProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
@@ -62,6 +63,7 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
           total: 2,
         }),
       ),
+      http.get("*/api/v1/issues", () => HttpResponse.json(issueList([issueFixture()]))),
       http.get("*/api/v1/runs/run-2", () =>
         HttpResponse.json({
           ...base,
@@ -86,7 +88,12 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
     /* 카드는 목록 값으로 먼저 그리고, 실행 상태를 받으면 세션 수를 채웁니다 */
     expect(await screen.findByText("세션 5 / 20 종료")).toBeInTheDocument();
     expect(screen.getByText("대기").parentElement).toHaveTextContent("9");
-    expect(screen.getByRole("link", { name: /입력 부담/ })).toHaveTextContent("5명");
+    /* 최근 발견한 문제는 GET /api/v1/issues 의 앞 3개, 누르면 W03 에서 그 문제를 엽니다 */
+    const issue = await screen.findByRole("link", { name: /입력 부담 · 가입 단계/ });
+    expect(issue).toHaveTextContent("5~7");
+    expect(issue).toHaveTextContent("계속 발생");
+    expect(issue).toHaveAttribute("href", expect.stringContaining("/issues?issue=1%3Aorder"));
+    expect(screen.getByRole("link", { name: "문제 1개 전체 보기" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /반찬로드 1차/ })).toHaveTextContent("30%");
     expect(screen.getByText("이번 주 완료 테스트").nextElementSibling).toHaveTextContent("1개");
     expect(screen.queryByText("보정 조정안 대기")).not.toBeInTheDocument();

@@ -45,6 +45,12 @@ export const queryKeys = {
     session: (reportId: string, taskId: string, seed: number, personaId: string) =>
       [...queryKeys.reports.all, reportId, "session", taskId, seed, personaId] as const,
   },
+  /* 발견한 문제 (W03 전체 · C09 프로젝트). 실행이 끝나면 runs 와 함께 다시 받을 수 있게 따로 둡니다 */
+  issues: {
+    all: ["issues"] as const,
+    workspace: () => [...queryKeys.issues.all, "workspace"] as const,
+    project: (projectId: number) => [...queryKeys.issues.all, "project", projectId] as const,
+  },
   /* 프로젝트 테스트 계정 (P04). 저장하면 응답으로 바로 채웁니다 */
   testAccounts: (projectId: number) => ["testAccounts", projectId] as const,
   calibration: {

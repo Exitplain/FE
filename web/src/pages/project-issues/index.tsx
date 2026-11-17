@@ -8,6 +8,7 @@ export default function ProjectIssuesPage() {
     <IssuesPage
       key={project.id}
       projectId={project.id}
+      sample={project.isSample}
       header={
         <ProjectContextHeader
           project={project}

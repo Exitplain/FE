@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RunDetail, RunItem } from "@/types/run.type";
 
-import { activeItemOf, recentIssues, runningCard, weekCounts } from "./dashboardData";
+import { activeItemOf, runningCard, weekCounts } from "./dashboardData";
 
 const item = (id: string, created_at: string, overrides: Partial<RunItem> = {}): RunItem => ({
   id,
@@ -74,63 +74,5 @@ describe("대시보드 값", () => {
       exited: 8,
       errors: 1,
     });
-  });
-
-  it("최근 리포트에 원인이 없으면 그 프로젝트의 옛 원인을 보여 주지 않는다", () => {
-    const issues = recentIssues([
-      {
-        project: banchan,
-        item: item("old", "2026-11-01T00:00:00Z", {
-          report: {
-            id: "r",
-            status: "final",
-            revision: 1,
-            goal_rates: [],
-            top_causes: [{ key: "cost", name: "비용 충격", dropouts: 3 }],
-          },
-        }),
-      },
-      {
-        project: banchan,
-        item: item("new", "2026-11-05T00:00:00Z", {
-          report: { id: "r2", status: "final", revision: 1, goal_rates: [], top_causes: [] },
-        }),
-      },
-    ]);
-    expect(issues).toEqual([]);
-  });
-
-  it("프로젝트마다 최근 리포트의 원인을 모아 이탈 수 순서로 3개", () => {
-    const report = (causes: [string, number][]) => ({
-      id: "r",
-      status: "final" as const,
-      revision: 1,
-      goal_rates: [],
-      top_causes: causes.map(([name, dropouts]) => ({ key: name, name, dropouts })),
-    });
-    const issues = recentIssues([
-      {
-        project: banchan,
-        item: item("b1", "2026-11-01T00:00:00Z", { report: report([["옛 원인", 9]]) }),
-      },
-      {
-        project: banchan,
-        item: item("b2", "2026-11-05T00:00:00Z", {
-          report: report([
-            ["입력 부담", 5],
-            ["비용 충격", 2],
-          ]),
-        }),
-      },
-      {
-        project: studio,
-        item: item("s1", "2026-11-03T00:00:00Z", { report: report([["탐색 실패", 4]]) }),
-      },
-    ]);
-    expect(issues.map((issue) => [issue.cause, issue.projectName, issue.dropouts])).toEqual([
-      ["입력 부담", "반찬로드", 5],
-      ["탐색 실패", "스튜디오", 4],
-      ["비용 충격", "반찬로드", 2],
-    ]);
   });
 });

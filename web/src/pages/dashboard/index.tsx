@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+
+import { queryKeys } from "@/apis/queryKeys";
 
 import door from "@/assets/characters/character-door-peek.svg";
 import Button from "@/components/Button/Button";
 import WorkspacePageHeader from "@/components/Workspace/WorkspacePageHeader";
 import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
+import { useIssues } from "@/hooks/useIssues";
 import { useProjectRuns } from "@/hooks/useProjectRuns";
 import { useRunDetail } from "@/pages/report/hooks/useRunReport";
+import { ApiError } from "@/types/api.type";
 import { formatClock } from "@/pages/test-run/utils/runView";
 
 import ProjectLoops from "./components/ProjectLoops";
@@ -13,13 +18,7 @@ import { RecentGoals, RecentIssues } from "./components/RecentActivity";
 import RunningTestCard from "./components/RunningTestCard";
 import StartTestModal from "./components/StartTestModal";
 import SummaryCards from "./components/SummaryCards";
-import {
-  activeItemOf,
-  recentIssues,
-  runningCard,
-  waitingCard,
-  weekCounts,
-} from "./utils/dashboardData";
+import { activeItemOf, runningCard, waitingCard, weekCounts } from "./utils/dashboardData";
 
 import "@/components/Workspace/workspace.css";
 
@@ -30,12 +29,23 @@ import "@/components/Workspace/workspace.css";
 */
 export default function DashboardPage() {
   const query = useProjectRuns();
+  const issues = useIssues();
   const [startOpen, setStartOpen] = useState(false);
   const [asOf] = useState(() => new Date().toISOString());
 
   const projects = query.records;
   const runs = [...query.runs].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
   const active = activeItemOf(query.items);
+  /* 실행이 끝나 진행 중 실행이 바뀌면 새 리포트가 생겼을 수 있어 발견한 문제를 다시 받습니다 */
+  const client = useQueryClient();
+  const activeId = active?.item.id;
+  const previousActive = useRef(activeId);
+  useEffect(() => {
+    if (previousActive.current && previousActive.current !== activeId) {
+      void client.invalidateQueries({ queryKey: queryKeys.issues.all });
+    }
+    previousActive.current = activeId;
+  }, [activeId, client]);
   /*
     지금 실행 중인 실행의 세션 상태별 수 (리포트 화면과 같은 조회·폴링). 끝나면 실행 목록 폴링이 카드를 내립니다.
     상태를 받기 전에는 목록 값(이름·차수)으로 카드를 먼저 그립니다
@@ -101,7 +111,11 @@ export default function DashboardPage() {
             </div>
             {activeCard ? <RunningTestCard run={activeCard} /> : <div />}
             <div className="xl:col-span-2">
-              <RecentIssues issues={recentIssues(query.items)} />
+              <RecentIssues
+                issues={issues.data}
+                failed={issues.isError}
+                loggedOut={issues.error instanceof ApiError && issues.error.status === 401}
+              />
             </div>
             <RecentGoals runs={runs} />
           </div>
