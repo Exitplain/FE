@@ -8,6 +8,7 @@ import { resetProjectMock } from "@/mocks/handlers/projects";
 import { resetReportMock } from "@/mocks/handlers/reports";
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
+import { resetPlanMock } from "@/mocks/planMock";
 import { useRetestStore } from "@/stores/useRetestStore";
 
 /*
@@ -60,6 +61,7 @@ afterEach(() => {
   // 만든 프로젝트(제품 API mock)도 테스트마다 비웁니다
   resetProjectMock();
   resetReportMock();
+  resetPlanMock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });
   sessionStorage.clear();

@@ -38,6 +38,8 @@ export const queryKeys = {
     shareLinks: (reportId: string) => [...queryKeys.reports.all, reportId, "share-links"] as const,
     shared: (token: string) => [...queryKeys.reports.all, "shared", token] as const,
   },
+  /* 프로젝트 테스트 계정 (P04). 저장하면 응답으로 바로 채웁니다 */
+  testAccounts: (projectId: number) => ["testAccounts", projectId] as const,
   calibration: {
     all: ["calibration"] as const,
     history: (projectId: string) => [...queryKeys.calibration.all, projectId, "history"] as const,

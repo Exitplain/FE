@@ -6,7 +6,7 @@ import Icon from "@/components/Icon/Icon";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 import { cn } from "@/utils/cn";
 
-import { panelSize, RUN_CONDITION_DETAILS, RUN_CONDITIONS, sum } from "../utils/newTest";
+import { agentTotal, RUN_CONDITION_DETAILS, RUN_CONDITIONS, sum } from "../utils/newTest";
 import { StepFooter } from "./StepSection";
 
 type PersonaStepProps = {
@@ -14,6 +14,8 @@ type PersonaStepProps = {
   calibratedLabel: string | null | undefined;
   onPrev: () => void;
   onNext: () => void;
+  /* 다음 단계로 가기 전에 계획을 저장하는 중 (PATCH) */
+  saving?: boolean;
 };
 
 /* Figma Stepper — 연회색 pill(너비 136) 안 − 인원 + */
@@ -33,7 +35,7 @@ function SegmentStepper({
       <button
         type="button"
         aria-label={`${label} 1명 줄이기`}
-        disabled={value <= 0}
+        disabled={value <= 1}
         onClick={() => onChange(value - 1)}
         className="rounded text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:text-gray-400"
       >
@@ -58,12 +60,17 @@ function SegmentStepper({
 /*
   P05b 세그먼트 비율 (+ P05e 합계 오류, P05h 테스트 계정 8개) — Figma Wizard/Body (너비 704)
   - 에이전트 20명(로그인 테스트는 계정 수만큼)을 세그먼트 4개에 나눕니다. 합계가 맞아야 다음으로 갑니다.
-  - 임시: 개발 서버는 고정 프로필 3개 × 과업으로 실행해 이 인원·실행 조건을 아직 받지 않습니다.
-    서버가 패널을 받으면 요청에 싣습니다 (utils/newTest PANEL_SIZE 설명).
+  - "다음"에서 세그먼트 인원을 계획에 저장합니다 (PATCH segments). 서버는 세그먼트마다 1명 이상을 받습니다.
 */
-export default function PersonaStep({ calibratedLabel, onPrev, onNext }: PersonaStepProps) {
-  const { segmentCounts, loginMode, accountCount, setSegmentCount } = useNewTestStore(
+export default function PersonaStep({
+  calibratedLabel,
+  onPrev,
+  onNext,
+  saving = false,
+}: PersonaStepProps) {
+  const { plan, segmentCounts, loginMode, accountCount, setSegmentCount } = useNewTestStore(
     useShallow((state) => ({
+      plan: state.plan,
       segmentCounts: state.segmentCounts,
       loginMode: state.loginMode,
       accountCount: state.accounts.length,
@@ -71,7 +78,7 @@ export default function PersonaStep({ calibratedLabel, onPrev, onNext }: Persona
     })),
   );
   const [showDetails, setShowDetails] = useState(false);
-  const panel = panelSize(loginMode, accountCount);
+  const panel = agentTotal(plan, loginMode, accountCount);
   const total = sum(segmentCounts);
   const mismatch = total !== panel;
   const fromAccounts = loginMode === "account" && accountCount > 0;
@@ -168,7 +175,7 @@ export default function PersonaStep({ calibratedLabel, onPrev, onNext }: Persona
         <Button variant="link" onClick={onPrev}>
           이전
         </Button>
-        <Button disabled={mismatch} onClick={onNext}>
+        <Button disabled={mismatch || saving} onClick={onNext}>
           다음: 시작 전 확인
         </Button>
       </StepFooter>

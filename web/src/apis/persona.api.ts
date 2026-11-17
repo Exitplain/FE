@@ -5,8 +5,6 @@ import type {
   ExplainAnswer,
   ExplainRequest,
   HumanObservationRequest,
-  PersonaPanel,
-  PersonaPanelRequest,
   PersonaReport,
   PersonaReportsResponse,
   PersonaRun,
@@ -33,15 +31,6 @@ export async function discoverPersonaPlan(body: DiscoverRequest) {
 /* 기능·과업·타겟 확인 후 실행. 400 = 입력 오류·계획 만료(사이트 확인부터 다시), 409 = 실행 중 */
 export async function confirmPersonaRun(body: ConfirmRequest) {
   const { data } = await axiosInstance.post<PersonaRun>("/api/personas/confirm", body);
-  return data;
-}
-
-/*
-  임시 v1: 타겟 설명·세그먼트 인원으로 페르소나 패널을 만듭니다 (P06 생성 중 → P07 확인).
-  명세 8절에는 계획(plans)의 segments 로만 있어, 서버가 정하면 경로·모양을 맞춥니다.
-*/
-export async function generatePersonaPanel(body: PersonaPanelRequest) {
-  const { data } = await axiosInstance.post<PersonaPanel>("/api/v1/persona-panels", body);
   return data;
 }
 

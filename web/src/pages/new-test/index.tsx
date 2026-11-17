@@ -1,45 +1,48 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
-import { queryKeys } from "@/apis/queryKeys";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import Stepper from "@/components/Stepper/Stepper";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
-import { usePersonaRun } from "@/hooks/usePersonaRun";
+import { useRunList } from "@/hooks/useRunList";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import type { ApiError } from "@/types/api.type";
+import type { PlanPatch } from "@/types/plan.type";
+import { ACTIVE_RUN_STATUSES } from "@/types/run.type";
 
 import ConfirmStep from "./components/ConfirmStep";
 import PersonaReviewStep from "./components/PersonaReviewStep";
 import PersonaStep from "./components/PersonaStep";
 import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
-import { useConfirmRun } from "./hooks/useNewTestMutations";
+import { useSavePlan, useStartRun } from "./hooks/useNewTestMutations";
 import {
-  buildConfirmRequest,
+  agentTotal,
   clampStep,
   formatMonthDay,
   furthestAllowedStep,
-  isPlanExpired,
-  isPlanExpiredMessage,
-  panelSize,
   parseStep,
   REVIEW_STEP,
   RUN_CONDITIONS,
   STEP_LABELS,
   SEEDS,
+  segmentsPatch,
   STEPS,
   type StepKey,
   sum,
+  taskTargetPatch,
+  type WizardPlan,
 } from "./utils/newTest";
 
 const EXPIRED_NOTICE = "탐색 결과가 만료됐어요. 사이트를 다시 확인해 주세요";
 
 /*
   P02~P07 새 테스트 (단계: ?step=site|task|persona|confirm, 시작 전 확인 뒤 ?step=personas 는 P06·P07)
+  제품 API: 사이트 확인 → 탐색 → 계획(PATCH, If-Match) → 확정 → 페르소나 → 실행(POST /api/v1/runs).
+  모두 로그인 + 프로젝트 소유자만 됩니다 (401·403 은 각 단계에서 안내).
   프로젝트가 바뀌면 key 로 위저드를 새로 그려 입력·안내·요청 상태를 모두 처음으로 돌립니다.
 */
 export default function NewTestPage() {
@@ -55,10 +58,14 @@ export default function NewTestPage() {
 function NewTestWizard({ project }: { project: CurrentProject }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const currentRun = usePersonaRun();
-  const confirm = useConfirmRun();
+  const save = useSavePlan();
+  const startRun = useStartRun();
+  const runs = useRunList(project.v1Id);
   const [notice, setNotice] = useState<string | null>(null);
+  /* 같은 확정본으로 다시 누르면 같은 Idempotency-Key 를 보내 실행이 두 번 생기지 않게 합니다 */
+  const runKeys = useRef(new Map<string, string>());
+  /* 마지막으로 서버 계획에 저장한 값 (계획마다). 바뀐 입력만 다시 저장하는 데 씁니다 */
+  const saved = useRef<{ planId: string; body: Record<string, unknown> } | null>(null);
 
   const calibrations = useCalibrations(project.id);
   const { storeProjectId, plan, taskIds, taskCount, targetDescription, segmentsValid, panel } =
@@ -68,10 +75,11 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
         plan: state.plan,
         taskIds: state.taskIds,
         taskCount: state.taskIds.length,
-        panel: panelSize(state.loginMode, state.accounts.length),
+        panel: agentTotal(state.plan, state.loginMode, state.accounts.length),
         targetDescription: state.targetDescription,
         segmentsValid:
-          sum(state.segmentCounts) === panelSize(state.loginMode, state.accounts.length),
+          sum(state.segmentCounts) ===
+          agentTotal(state.plan, state.loginMode, state.accounts.length),
       })),
     );
 
@@ -108,27 +116,30 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     요청이 진행 중이면 지우지 않습니다: reset 은 진행 중인 요청의 화면 이동 콜백까지 끊어,
     서버에서는 실행이 시작됐는데 화면은 위저드에 남게 됩니다.
   */
-  const { reset: resetConfirm } = confirm;
-  const confirmPending = useRef(false);
+  const { reset: resetStart } = startRun;
+  const { reset: resetSave } = save;
+  const startPending = useRef(false);
   useEffect(() => {
-    confirmPending.current = confirm.isPending;
+    startPending.current = startRun.isPending;
   });
   useEffect(() => {
-    if (!confirmPending.current) resetConfirm();
-  }, [step, reviewing, resetConfirm]);
+    if (!startPending.current) resetStart();
+    resetSave();
+  }, [step, reviewing, resetStart, resetSave]);
 
   if (storeProjectId !== project.id) return null;
 
   /*
     가장 최근 보정 적용일 (P05b·P05c). 응답 순서에 기대지 않고 적용 시각으로 고릅니다.
-    불러오는 중이면 undefined(표시 안 함), 이력이 없거나 못 받으면 null(보정 전).
+    불러오는 중이거나 받지 못하면 undefined(표시 안 함 — 보정 API 는 서버에 아직 없음), 이력이 없으면 null(보정 전).
   */
   const latestCalibration = [...(calibrations.data ?? [])].sort((a, b) =>
     b.applied_at.localeCompare(a.applied_at),
   )[0];
-  const calibratedLabel = calibrations.isPending
-    ? undefined
-    : formatMonthDay(latestCalibration?.applied_at);
+  const calibratedLabel =
+    calibrations.isPending || calibrations.isError
+      ? undefined
+      : formatMonthDay(latestCalibration?.applied_at);
 
   const goTo = (next: StepKey | typeof REVIEW_STEP) => {
     setSearchParams(next === "site" ? {} : { step: next });
@@ -141,28 +152,74 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     setSearchParams({});
   };
 
-  const start = () => {
-    const state = useNewTestStore.getState();
-    if (!state.plan) return;
-    if (state.discoveredAt != null && isPlanExpired(state.discoveredAt)) {
-      backToSite(EXPIRED_NOTICE);
-      return;
-    }
-    confirm.mutate(buildConfirmRequest(state.plan, state), {
-      onSuccess: (run) => {
-        navigate(buildPath("testRun", { projectId: project.id, runId: run.id ?? "current" }));
-      },
-      onError: (error) => {
-        if (error.status === 400 && isPlanExpiredMessage(error.message)) {
-          backToSite(EXPIRED_NOTICE);
-        }
-        /* 다른 탭 등에서 시작된 실행을 링크로 보여주려고 현재 실행을 다시 받습니다 */
-        if (error.status === 409) {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.personas.current() });
-        }
+  const savePatch = (patch: PlanPatch, onSaved: (plan: WizardPlan) => void) =>
+    save.mutate(patch, {
+      onSuccess: (result) => {
+        const body = saved.current?.planId === result.planId ? saved.current.body : {};
+        saved.current = { planId: result.planId, body: { ...body, ...patch } };
+        onSaved(result);
       },
     });
+
+  /* 단계를 넘어가기 전에 입력을 서버 계획에 저장합니다 (실패하면 이 단계에 머물며 이유를 보여 줌) */
+  const saveThen = (patch: PlanPatch, next: StepKey) => savePatch(patch, () => goTo(next));
+
+  /*
+    "페르소나 생성" — 확정하기 전에 화면 입력이 서버 계획과 같은지 봅니다.
+    "변경 · n단계"로 가서 고친 뒤 "다음" 없이 돌아오면 저장되지 않은 입력이 남아, 그 부분만 먼저 저장합니다.
+    저장한 뒤 확정을 막는 이유가 생기면 시작 전 확인에 머물러 이유를 보여 줍니다.
+  */
+  const review = (plan: WizardPlan) => {
+    const state = useNewTestStore.getState();
+    const current: Record<string, unknown> = {
+      ...taskTargetPatch(plan, state),
+      ...segmentsPatch(plan, state.segmentCounts),
+    };
+    const last = saved.current?.planId === plan.planId ? saved.current.body : {};
+    const dirty = Object.fromEntries(
+      Object.entries(current).filter(
+        ([key, value]) => JSON.stringify(last[key]) !== JSON.stringify(value),
+      ),
+    );
+    if (Object.keys(dirty).length === 0) {
+      goTo(REVIEW_STEP);
+      return;
+    }
+    savePatch(dirty as PlanPatch, (result) => {
+      const blocked = result.review.blocking.some((item) => item.code !== "DISCOVERY_EXPIRED");
+      if (!blocked) goTo(REVIEW_STEP);
+    });
   };
+
+  /*
+    P07 실행 시작. 확정본으로 실행하므로 탐색 만료(15분)와 상관없이 시작합니다.
+    같은 확정본은 같은 Idempotency-Key 로 보내되, 서버가 확정적으로 거절(4xx)하면 다음 시도는 새 키로 보냅니다.
+  */
+  const start = (planRevisionId: string) => {
+    let idempotencyKey = runKeys.current.get(planRevisionId);
+    if (!idempotencyKey) {
+      idempotencyKey = crypto.randomUUID();
+      runKeys.current.set(planRevisionId, idempotencyKey);
+    }
+    startRun.mutate(
+      { planRevisionId, idempotencyKey },
+      {
+        onSuccess: (run) => {
+          navigate(buildPath("testRun", { projectId: project.id, runId: run.run_id }));
+        },
+        /* 다른 탭 등에서 시작된 실행을 링크로 보여주려고 실행 목록을 다시 받습니다 */
+        onError: (error) => {
+          if (error.status >= 400 && error.status < 500) runKeys.current.delete(planRevisionId);
+          if (error.code === "RUN_IN_PROGRESS") void runs.refetch();
+        },
+      },
+    );
+  };
+
+  const activeRunId =
+    runs.data?.pages
+      .flatMap((page) => page.items)
+      .find((item) => ACTIVE_RUN_STATUSES.includes(item.status))?.id ?? null;
 
   if (reviewing && plan) {
     const tasks = plan.tasks.filter((task) => taskIds.includes(task.id));
@@ -181,11 +238,14 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
         />
         <PersonaReviewStep
           projectId={project.id}
-          isStarting={confirm.isPending}
-          error={confirm.error}
-          currentRunId={currentRun.data?.id ?? null}
+          planId={plan.planId}
+          revision={plan.revision}
+          isStarting={startRun.isPending}
+          error={startRun.error}
+          currentRunId={activeRunId}
           onPrev={() => goTo("confirm")}
           onStart={start}
+          onExpired={() => backToSite(EXPIRED_NOTICE)}
         />
       </div>
     );
@@ -202,8 +262,11 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
 
       <Stepper steps={STEPS.map((key) => STEP_LABELS[key])} current={STEPS.indexOf(step)} />
 
+      {save.error && <SaveError error={save.error} />}
+
       {step === "site" && (
         <SiteStep
+          projectId={project.v1Id}
           notice={notice}
           /* 사이트를 다시 확인하면 만료 안내는 지웁니다 */
           onDiscovered={() => setNotice(null)}
@@ -211,13 +274,24 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
         />
       )}
       {step === "task" && plan && (
-        <TaskTargetStep plan={plan} onPrev={() => goTo("site")} onNext={() => goTo("persona")} />
+        <TaskTargetStep
+          plan={plan}
+          saving={save.isPending}
+          onPrev={() => goTo("site")}
+          onNext={() => {
+            const state = useNewTestStore.getState();
+            saveThen(taskTargetPatch(plan, state), "persona");
+          }}
+        />
       )}
-      {step === "persona" && (
+      {step === "persona" && plan && (
         <PersonaStep
           calibratedLabel={calibratedLabel}
+          saving={save.isPending}
           onPrev={() => goTo("task")}
-          onNext={() => goTo("confirm")}
+          onNext={() =>
+            saveThen(segmentsPatch(plan, useNewTestStore.getState().segmentCounts), "confirm")
+          }
         />
       )}
       {step === "confirm" && plan && (
@@ -225,10 +299,28 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           plan={plan}
           calibratedLabel={calibratedLabel}
           onPrev={() => goTo("persona")}
-          onNext={() => goTo(REVIEW_STEP)}
+          saving={save.isPending}
+          onNext={() => review(plan)}
           onExpired={() => backToSite(EXPIRED_NOTICE)}
         />
       )}
     </div>
+  );
+}
+
+/* 계획을 저장하지 못했을 때 (PATCH) — 401 로그인 · 403 권한 · 그 밖은 서버 message */
+function SaveError({ error }: { error: ApiError }) {
+  const text =
+    error.status === 0
+      ? "서버에 연결할 수 없어요"
+      : error.status === 401
+        ? "로그인이 필요해요"
+        : error.status === 403
+          ? "이 프로젝트에서는 실행할 수 없어요"
+          : error.message;
+  return (
+    <p role="alert" className="text-caption font-medium text-danger">
+      입력을 저장하지 못했어요 · {text}
+    </p>
   );
 }

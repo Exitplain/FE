@@ -1,13 +1,14 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { ROUTES } from "@/constants/routes";
-import { personaErrorHandlers } from "@/mocks/handlers/personas";
+import { planErrorHandlers } from "@/mocks/handlers/plans";
 import { server } from "@/mocks/node";
+import { patchPlan, putTestAccounts } from "@/mocks/planMock";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { createTestProject, waitForProject } from "@/test/projects";
@@ -27,6 +28,8 @@ async function renderWizard(step?: string) {
       {/* 같은 화면에서 프로젝트만 바뀌는 경우를 확인하려는 링크 */}
       {/* createTestProject 로 만든 첫 프로젝트(101) */}
       <Link to="/projects/101/tests/new">스튜디오 예약 새 테스트</Link>
+      {/* 브라우저 앞으로 가기처럼 "다음" 없이 시작 전 확인으로 돌아오는 경우 */}
+      <Link to="/projects/1/tests/new?step=confirm">확인 화면으로</Link>
       <Routes>
         <Route element={<ProjectRoute />}>
           <Route path={ROUTES.newTest.path} element={<NewTestPage />} />
@@ -58,7 +61,7 @@ async function goToReview(user: ReturnType<typeof userEvent.setup>) {
 
 async function checkSite(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "확인" }));
-  await screen.findByText("접근 가능 · 응답 0.8초 · 화면 12개 읽음");
+  await screen.findByText("접근 가능 · 응답 0.8초 · 기능 4개 찾음");
 }
 
 beforeEach(() => useNewTestStore.getState().reset("", ""));
@@ -112,7 +115,7 @@ describe("P02~P07 새 테스트", () => {
   });
 
   it("E08 — 사이트를 확인하지 못하면 다시 시도할 수 있다", async () => {
-    server.use(personaErrorHandlers.discoverUnavailable);
+    server.use(planErrorHandlers.siteUnreachable);
     const user = userEvent.setup();
     await renderWizard();
 
@@ -158,7 +161,7 @@ describe("P02~P07 새 테스트", () => {
     const summary = await screen.findByRole("list", { name: "입력 요약" });
     expect(within(summary).getByText(/30대/)).toBeInTheDocument();
     expect(
-      within(summary).getByText("사이트 분석으로 자동 결정 · 과업별 6단계"),
+      within(summary).getByText("사이트 분석으로 자동 결정 · 과업별 7단계"),
     ).toBeInTheDocument();
     expect(
       within(summary).getByText("에이전트 20명 · 과업 2개 · 보정 11월 5일"),
@@ -193,8 +196,8 @@ describe("P02~P07 새 테스트", () => {
     const user = userEvent.setup();
     await renderWizard();
     await goToConfirm(user);
-    /* 응답을 붙잡아 생성 중 화면에 머물게 합니다 */
-    server.use(http.post("*/api/v1/persona-panels", () => delay("infinite")));
+    /* 확정 응답을 붙잡아 생성 중 화면에 머물게 합니다 */
+    server.use(http.post("*/api/v1/plans/:planId/confirmations", () => delay("infinite")));
 
     await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
 
@@ -227,8 +230,18 @@ describe("P02~P07 새 테스트", () => {
 
     server.use(
       http.post(
-        "*/api/v1/persona-panels",
-        () => HttpResponse.json({ error: "패널을 만들지 못했습니다." }, { status: 503 }),
+        "*/api/v1/plans/:planId/confirmations",
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "PERSONA_GENERATION_FAILED",
+                message: "페르소나를 만들지 못했습니다: 생성기 오류",
+                fields: {},
+              },
+            },
+            { status: 503 },
+          ),
         { once: true },
       ),
     );
@@ -278,14 +291,17 @@ describe("P02~P07 새 테스트", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
+    const accounts = Array.from({ length: 8 }, (_, i) => ({
+      username: `u${i}@x.example`,
+      password: "pw",
+    }));
+    /* 서버(mock)에 계정 8개를 저장해 둡니다 — 탐색이 계정 수로 에이전트 수를 정합니다 */
+    await putTestAccounts(1, { accounts });
     act(() => {
       useNewTestStore.getState().setLoginMode("account");
-      useNewTestStore
-        .getState()
-        .setAccounts(
-          Array.from({ length: 8 }, (_, i) => ({ username: `u${i}@x.example`, password: "pw" })),
-        );
+      useNewTestStore.getState().setAccounts(accounts);
     });
+    /* 로그인 방식이 바뀌어 다음을 누르면 테스트 계정 모드로 다시 확인합니다 */
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
@@ -304,7 +320,7 @@ describe("P02~P07 새 테스트", () => {
     expect(screen.getByText("타겟 고객을 적어 주세요")).toBeInTheDocument();
   });
 
-  it("탐색 계획이 만료되면(400) 사이트 확인 단계로 돌아간다", async () => {
+  it("탐색 결과가 만료되면(DISCOVERY_EXPIRED) 사이트 확인 단계로 돌아간다", async () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
@@ -314,10 +330,9 @@ describe("P02~P07 새 테스트", () => {
     await user.click(await screen.findByRole("button", { name: "다음: 시작 전 확인" }));
 
     await screen.findByRole("list", { name: "입력 요약" });
-    await goToReview(user);
 
-    server.use(personaErrorHandlers.confirmExpired);
-    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+    server.use(planErrorHandlers.confirmExpired);
+    await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
 
     expect(await screen.findByText(/탐색 결과가 만료됐어요/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "확인" })).toBeInTheDocument();
@@ -367,13 +382,15 @@ describe("P02~P07 새 테스트", () => {
   });
 
   it("P02b — 사이트를 확인하는 동안에는 주소를 바꿀 수 없다", async () => {
-    server.use(http.post("*/api/personas/discover", () => new Promise<Response>(() => {})));
+    server.use(
+      http.post("*/api/v1/projects/:projectId/discoveries", () => new Promise<Response>(() => {})),
+    );
     const user = userEvent.setup();
     await renderWizard();
 
     await user.click(screen.getByRole("button", { name: "확인" }));
 
-    expect(await screen.findByText("시작 화면의 메뉴와 기능을 읽는 중이에요")).toBeInTheDocument();
+    expect(await screen.findByText(/시작 화면의 메뉴와 기능을 읽는 중이에요/)).toBeInTheDocument();
     expect(screen.getByLabelText("제품 URL")).toBeDisabled();
     expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();
   });
@@ -405,20 +422,16 @@ describe("P02~P07 새 테스트", () => {
     );
   });
 
-  it("만료가 아닌 입력 오류(400)는 페르소나 확인 화면에서 알리고 사이트 단계로 보내지 않는다", async () => {
+  it("실행을 시작하지 못하면(422) 페르소나 확인 화면에서 알리고 사이트 단계로 보내지 않는다", async () => {
     const user = userEvent.setup();
     await renderWizard();
     await goToConfirm(user);
     await goToReview(user);
 
-    server.use(
-      http.post("*/api/personas/confirm", () =>
-        HttpResponse.json({ error: "기능·과업·연령을 한 개 이상 선택해주세요." }, { status: 400 }),
-      ),
-    );
+    server.use(planErrorHandlers.runInvalid);
     await user.click(screen.getByRole("button", { name: "실행 시작" }));
 
-    expect(await screen.findByText(/기능·과업·연령을 한 개 이상 선택해주세요/)).toBeInTheDocument();
+    expect(await screen.findByText(/실행 입력을 만들지 못했습니다/)).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
   });
 
@@ -465,7 +478,7 @@ describe("P02~P07 새 테스트", () => {
     await renderWizard();
     await checkSite(user);
 
-    server.use(personaErrorHandlers.discoverUnavailable);
+    server.use(planErrorHandlers.siteUnreachable);
     await user.click(screen.getByRole("button", { name: "다시 확인" }));
 
     expect(await screen.findByText(/사이트 응답 없음/)).toBeInTheDocument();
@@ -478,7 +491,7 @@ describe("P02~P07 새 테스트", () => {
 
 describe("P02 · P05b 리뷰 보완", () => {
   it("확인에 실패한 뒤 주소를 고치면 이전 오류 안내를 지운다", async () => {
-    server.use(personaErrorHandlers.discoverUnavailable);
+    server.use(planErrorHandlers.siteUnreachable);
     const user = userEvent.setup();
     await renderWizard();
     await user.click(screen.getByRole("button", { name: "확인" }));
@@ -492,8 +505,7 @@ describe("P02 · P05b 리뷰 보완", () => {
   });
 
   it("서버에 연결하지 못하면(0) 사이트 응답 없음·로그인 안내 대신 연결 실패를 알린다", async () => {
-    server.use(personaErrorHandlers.personasNetworkError);
-    server.use(http.post("*/api/personas/discover", () => HttpResponse.error()));
+    server.use(planErrorHandlers.discoveryNetworkError);
     const user = userEvent.setup();
     await renderWizard();
 
@@ -535,5 +547,352 @@ describe("P02 · P05b 리뷰 보완", () => {
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
     expect(await screen.findByText("아직 보정 전이라 기본 모형으로 예측해요")).toBeInTheDocument();
+  });
+});
+
+describe("P02~P07 제품 API 계약", () => {
+  /* 이 테스트 동안 오간 /api/v1 요청을 모읍니다 */
+  function recordRequests() {
+    const requests: { method: string; path: string; headers: Headers; body: string }[] = [];
+    const listener = async ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (!url.pathname.startsWith("/api/v1/")) return;
+      requests.push({
+        method: request.method,
+        path: url.pathname,
+        headers: request.headers,
+        body: await request.clone().text(),
+      });
+    };
+    server.events.on("request:start", listener);
+    onTestFinished(() => server.events.removeListener("request:start", listener));
+    return requests;
+  }
+
+  const calls = (requests: ReturnType<typeof recordRequests>, method: string, path: RegExp) =>
+    requests.filter((request) => request.method === method && path.test(request.path));
+
+  const productError = (status: number, code: string, message: string, fields = {}) =>
+    HttpResponse.json({ error: { code, message, fields } }, { status });
+
+  it("사이트 확인 → 탐색 → 계획 → 저장(If-Match) → 확정 → 페르소나 → 실행(Idempotency-Key) 순서로 부른다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+    await goToReview(user);
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+    expect(await screen.findByText(/^실행 화면 mock-run-\d+$/)).toBeInTheDocument();
+
+    expect(
+      requests
+        .filter((request) => request.method !== "GET" || request.path.includes("plan-revisions"))
+        .map((request) => `${request.method} ${request.path.replace(/[a-z-]+-\d+/g, ":id")}`),
+    ).toEqual([
+      "POST /api/v1/projects/1/check",
+      "POST /api/v1/projects/1/discoveries",
+      "POST /api/v1/projects/1/plans",
+      "PATCH /api/v1/plans/:id",
+      "PATCH /api/v1/plans/:id",
+      "POST /api/v1/plans/:id/confirmations",
+      "GET /api/v1/plan-revisions/:id/personas",
+      "POST /api/v1/runs",
+    ]);
+    const patches = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
+    expect(patches.map((request) => request.headers.get("If-Match"))).toEqual(['"1"', '"2"']);
+    expect(JSON.parse(patches[0].body)).toMatchObject({
+      audience: { context: "첫 방문자", ages: ["any"] },
+    });
+    expect(JSON.parse(patches[1].body).segments).toHaveLength(4);
+    expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 3 });
+    expect(calls(requests, "POST", /^\/api\/v1\/runs$/)[0].headers.get("Idempotency-Key")).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
+  });
+
+  it("다른 곳에서 계획이 바뀌어 저장이 충돌하면(409) 최신 revision 으로 한 번 더 저장한다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    server.use(
+      http.patch(
+        "*/api/v1/plans/:planId",
+        () =>
+          productError(
+            409,
+            "REVISION_CONFLICT",
+            "다른 곳에서 계획이 바뀌었습니다. 최신 내용을 다시 불러와주세요.",
+          ),
+        { once: true },
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+
+    expect(await screen.findByRole("heading", { name: "세그먼트 비율" })).toBeInTheDocument();
+    expect(calls(requests, "PATCH", /^\/api\/v1\/plans\//)).toHaveLength(2);
+    expect(calls(requests, "GET", /^\/api\/v1\/plans\//)).toHaveLength(1);
+  });
+
+  it("저장하지 못하면 단계에 머물며 서버 이유를 보여준다", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    server.use(
+      http.patch("*/api/v1/plans/:planId", () =>
+        productError(422, "VALIDATION_ERROR", "선택할 수 없는 과업입니다: order", {
+          task_ids: ["선택할 수 없는 과업입니다: order"],
+        }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+
+    expect(
+      await screen.findByText("입력을 저장하지 못했어요 · 선택할 수 없는 과업입니다: order"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("타겟 고객 설명")).toBeInTheDocument();
+  });
+
+  it("확정을 막는 이유(blocking)가 있으면 그 단계 링크와 함께 보여주고 생성을 막는다", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.patch("*/api/v1/plans/:planId", async ({ params, request }) => {
+        const plan = patchPlan(
+          String(params.planId),
+          request.headers.get("If-Match"),
+          (await request.json()) as Record<string, unknown>,
+        );
+        plan.review.blocking = [
+          { step: 3, code: "SEGMENT_TOTAL", message: "세그먼트 합계가 맞지 않습니다." },
+        ];
+        return HttpResponse.json(plan);
+      }),
+    );
+    await renderWizard();
+    await goToConfirm(user);
+
+    const blocking = screen.getByRole("list", { name: "확인이 필요한 입력" });
+    expect(blocking).toHaveTextContent("세그먼트 합계가 맞지 않습니다.");
+    expect(within(blocking).getByRole("link", { name: "변경 · 3단계" })).toHaveAttribute(
+      "href",
+      "/projects/1/tests/new?step=persona",
+    );
+    expect(screen.getByRole("button", { name: "페르소나 생성" })).toBeDisabled();
+  });
+
+  it("같은 revision 을 다시 확정하면(ALREADY_CONFIRMED) 이미 만든 확정본을 그대로 쓴다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+    await goToReview(user);
+    await user.click(screen.getByRole("button", { name: "이전" }));
+    await goToReview(user);
+
+    const personas = calls(requests, "GET", /^\/api\/v1\/plan-revisions\/.+\/personas$/);
+    expect(calls(requests, "POST", /confirmations$/)).toHaveLength(2);
+    expect(personas).toHaveLength(2);
+    expect(personas[1].path).toBe(personas[0].path);
+  });
+
+  it.each([
+    ["연결이 끊겨(0) 다시 누르면 같은 키", () => HttpResponse.error(), true],
+    [
+      "서버가 거절해(422) 다시 누르면 새 키",
+      () => productError(422, "RUN_INPUT_INVALID", "실행 입력을 만들지 못했습니다."),
+      false,
+    ],
+  ])("실행 시작 Idempotency-Key — %s", async (_name, failure, same) => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+    await goToReview(user);
+    server.use(http.post("*/api/v1/runs", failure, { once: true }));
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+    await screen.findByText("실행을 시작하지 못했어요");
+    await user.click(screen.getByRole("button", { name: "실행 시작" }));
+    await screen.findByText(/^실행 화면 mock-run-\d+$/);
+
+    const keys = calls(requests, "POST", /^\/api\/v1\/runs$/).map((request) =>
+      request.headers.get("Idempotency-Key"),
+    );
+    expect(keys).toHaveLength(2);
+    expect(keys[1] === keys[0]).toBe(same);
+  });
+
+  it("고친 입력을 저장하지 않고 시작 전 확인으로 돌아와도, 페르소나 생성 전에 그 부분을 저장한다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+    /* "변경 · 2단계" 로 가서 타겟을 고친 뒤 "다음" 없이 시작 전 확인 주소로 돌아옵니다 */
+    await user.click(screen.getByRole("link", { name: "타겟 고객 변경" }));
+    const target = await screen.findByLabelText("타겟 고객 설명");
+    await user.clear(target);
+    await user.type(target, "퇴근 후 주문하는 직장인");
+    await user.click(screen.getByRole("link", { name: "확인 화면으로" }));
+    expect(await screen.findByRole("list", { name: "입력 요약" })).toHaveTextContent(
+      "퇴근 후 주문하는 직장인",
+    );
+
+    await goToReview(user);
+
+    const patches = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
+    expect(patches).toHaveLength(3);
+    expect(JSON.parse(patches[2].body)).toEqual({
+      audience: { context: "퇴근 후 주문하는 직장인", ages: ["any"] },
+    });
+    expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 4 });
+  });
+
+  it("입력이 그대로면 페르소나 생성 전에 다시 저장하지 않는다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+    await goToReview(user);
+
+    expect(calls(requests, "PATCH", /^\/api\/v1\/plans\//)).toHaveLength(2);
+  });
+
+  it("확정하는 사이 다른 곳에서 계획이 바뀌면(409) 최신 revision 으로 다시 확정한다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToConfirm(user);
+    server.use(
+      http.post(
+        "*/api/v1/plans/:planId/confirmations",
+        () =>
+          productError(
+            409,
+            "REVISION_CONFLICT",
+            "다른 곳에서 계획이 바뀌었습니다. 최신 내용을 다시 불러와주세요.",
+          ),
+        { once: true },
+      ),
+    );
+    await goToReview(user);
+
+    expect(calls(requests, "POST", /confirmations$/)).toHaveLength(2);
+    expect(calls(requests, "GET", /^\/api\/v1\/plans\//)).toHaveLength(1);
+  });
+
+  it("테스트 계정이 모자라 탐색하지 못해도(TEST_ACCOUNTS_REQUIRED) 로그인 없이로 돌아갈 수 있다", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+
+    expect(
+      await screen.findByText(/테스트 계정을 4개 이상 등록해주세요 · 지금 0개/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /로그인 없이 테스트/ }));
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
+  });
+
+  it("서버에 저장된 테스트 계정을 불러와 에이전트 수를 맞추고, 저장할 때 기존 계정을 지우지 않는다", async () => {
+    await putTestAccounts(1, {
+      accounts: Array.from({ length: 8 }, (_, i) => ({
+        username: `saved${i}@x.example`,
+        password: "pw",
+      })),
+    });
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    expect(await screen.findByText(/테스트 계정 8개 등록/)).toBeInTheDocument();
+
+    /* 비밀번호를 다시 넣지 않고 저장해도 기존 계정은 id 로 보내 서버가 비밀번호를 유지합니다 */
+    await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
+    const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const [put] = calls(requests, "PUT", /test-accounts$/);
+    const sent = JSON.parse(put.body).accounts as { id?: string; password?: string }[];
+    expect(sent).toHaveLength(8);
+    expect(sent.every((account) => account.id && account.password === undefined)).toBe(true);
+
+    /* 서버 총원(8명)으로 진행합니다 */
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+    expect(await screen.findByText("테스트 계정 8개 → 에이전트 8명")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeEnabled();
+  });
+
+  it.each([
+    ["로그인 필요(401)", planErrorHandlers.discoveryUnauthorized, "로그인이 필요해요"],
+    ["권한 없음(403)", planErrorHandlers.discoveryForbidden, "이 프로젝트에서는 실행할 수 없어요"],
+  ])("%s 는 사이트 단계에서 알린다", async (_name, handler, text) => {
+    server.use(handler);
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.queryByLabelText("타겟 고객 설명")).not.toBeInTheDocument();
+  });
+
+  it("주소 확인이 실패해도 탐색이 되면 경고만 보여주고 다음으로 갈 수 있다", async () => {
+    server.use(planErrorHandlers.checkFailed);
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(
+      await screen.findByText("접근 확인 실패 · 주소를 찾을 수 없어요. 도메인을 다시 확인해주세요"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
+  });
+
+  it("테스트 계정을 저장하면 서버에 보내고, 다음에서 테스트 계정 모드로 다시 확인한다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
+    const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    await user.click(within(dialog).getByRole("radio", { name: "붙여넣기" }));
+    await user.click(within(dialog).getByLabelText("계정 붙여넣기"));
+    await user.paste(
+      ["u0@x.example,pw0", "u1@x.example,pw1", "u2@x.example,pw2", "u3@x.example,pw3"].join("\n"),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "목록에 넣기" }));
+    await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    const [put] = calls(requests, "PUT", /test-accounts$/);
+    expect(JSON.parse(put.body).accounts).toHaveLength(4);
+    expect(JSON.parse(put.body).accounts[0]).toEqual({ username: "u0@x.example", password: "pw0" });
+
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await screen.findByLabelText("타겟 고객 설명");
+    const discoveries = calls(requests, "POST", /discoveries$/);
+    expect(JSON.parse(discoveries[discoveries.length - 1].body).login_mode).toBe("test_account");
+  });
+
+  it("50대 이상 칩은 서버 연령 50plus 로 저장한다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "50대 이상" }));
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+    await screen.findByRole("heading", { name: "세그먼트 비율" });
+
+    const [patch] = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
+    expect(JSON.parse(patch.body).audience.ages).toEqual(["50plus"]);
   });
 });

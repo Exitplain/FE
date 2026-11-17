@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
@@ -10,21 +10,28 @@ import type { ApiError } from "@/types/api.type";
 import type { PanelSegment, PanelTraits } from "@/types/persona.type";
 import { cn } from "@/utils/cn";
 
-import { useGeneratePanel } from "../hooks/useNewTestMutations";
+import { useConfirmPlan } from "../hooks/useNewTestMutations";
+import { isDiscoveryExpiredError, toPanelSegments } from "../utils/newTest";
 import { StatusRow, StepFooter } from "./StepSection";
 
 type PersonaReviewStepProps = {
   projectId: string;
-  /* 실행 시작(confirm) 요청 상태 — 오류 안내는 이 화면에서 보여줍니다 */
+  /* 확정할 계획과 그 revision (P05c 까지 저장을 마친 값) */
+  planId: string;
+  revision: number;
+  /* 실행 시작(POST /api/v1/runs) 요청 상태 — 오류 안내는 이 화면에서 보여줍니다 */
   isStarting: boolean;
   error: ApiError | null;
-  /* 409 일 때 이동할 현재 실행 */
+  /* 409 RUN_IN_PROGRESS 일 때 이동할 진행 중인 실행 */
   currentRunId: string | null;
   onPrev: () => void;
-  onStart: () => void;
+  /* 확정한 계획(plan revision)으로 실행을 시작합니다 */
+  onStart: (planRevisionId: string) => void;
+  /* 탐색 결과가 만료돼 확정하지 못했을 때 */
+  onExpired: () => void;
 };
 
-/* 생성 중 단계가 넘어가는 간격. 실제 서버 진행률이 없어 시간으로 보여줍니다 */
+/* 생성 중 단계가 넘어가는 간격. 서버 진행률이 없어 시간으로 보여줍니다 */
 const GEN_STEP_MS = 400;
 
 /* Figma Card/Segment 의 견본 색 (세그먼트 순서대로) */
@@ -39,32 +46,43 @@ const TRAITS: { key: keyof PanelTraits; label: string }[] = [
 
 /*
   P06 페르소나 생성 중 → P07 페르소나 확인.
-  들어오면 타겟 고객 설명·세그먼트 인원으로 패널을 만들고, 끝나면 세그먼트 카드를 보여줍니다.
-  "실행 시작"을 누르면 그때 실행(confirm)을 시작합니다.
+  들어오면 계획을 확정하고(POST /api/v1/plans/{id}/confirmations) 그 revision 의 페르소나를 받아
+  세그먼트 카드로 보여줍니다. "실행 시작"을 누르면 그 확정본으로 실행을 시작합니다.
 */
 export default function PersonaReviewStep({
   projectId,
+  planId,
+  revision,
   isStarting,
   error,
   currentRunId,
   onPrev,
   onStart,
+  onExpired,
 }: PersonaReviewStepProps) {
-  const generate = useGeneratePanel();
+  const generate = useConfirmPlan();
   const { mutate } = generate;
 
-  /* 들어올 때 한 번만 만듭니다 (StrictMode 의 effect 두 번 실행에도 요청은 한 번) */
   const requested = useRef(false);
-  const request = () => {
-    const { targetDescription, segmentCounts } = useNewTestStore.getState();
-    mutate({ context: targetDescription.trim(), segments: segmentCounts });
-  };
+  /* 만료 콜백은 매번 새 함수라 최신 것을 ref 로 읽습니다 (확정 요청을 다시 보내는 조건이 아님) */
+  const expiredRef = useRef(onExpired);
+  useEffect(() => {
+    expiredRef.current = onExpired;
+  });
+  const request = useCallback(
+    () =>
+      mutate(
+        { planId, revision },
+        { onError: (failure) => isDiscoveryExpiredError(failure) && expiredRef.current() },
+      ),
+    [mutate, planId, revision],
+  );
+  /* 들어올 때 한 번만 확정합니다 (StrictMode 의 effect 두 번 실행에도 요청은 한 번) */
   useEffect(() => {
     if (requested.current) return;
     requested.current = true;
-    const { targetDescription, segmentCounts } = useNewTestStore.getState();
-    mutate({ context: targetDescription.trim(), segments: segmentCounts });
-  }, [mutate]);
+    request();
+  }, [request]);
 
   if (generate.isError) {
     return (
@@ -91,19 +109,22 @@ export default function PersonaReviewStep({
     return <Generating onPrev={onPrev} />;
   }
 
+  const segments = toPanelSegments(generate.data.personas);
+  const { planRevisionId } = generate.data;
+
   return (
     <div className="flex flex-col gap-12">
       <p role="status" className="sr-only">
-        페르소나 세그먼트 {generate.data.segments.length}개를 만들었어요
+        페르소나 세그먼트 {segments.length}개를 만들었어요
       </p>
       <ul aria-label="페르소나 세그먼트" className="grid grid-cols-4 gap-6">
-        {generate.data.segments.map((segment, index) => (
+        {segments.map((segment, index) => (
           <SegmentCard key={segment.id} segment={segment} swatch={SWATCHES[index % 4]} />
         ))}
       </ul>
 
       <div className="flex flex-col gap-10">
-        <p className="text-xs text-muted">행동 변수 0~100 · 타겟 고객 설명으로 생성(예시)</p>
+        <p className="text-xs text-muted">행동 변수 0~100 · 타겟 고객 설명으로 생성</p>
 
         {error && error.status === 409 && (
           <StatusRow>
@@ -120,12 +141,18 @@ export default function PersonaReviewStep({
           </StatusRow>
         )}
         {error && error.status !== 409 && (
+          /* 401 로그인 · 403 권한(샘플 프로젝트 등) · 그 밖은 서버 message */
           <p role="alert" className="flex items-center gap-2 text-caption">
             <Icon name="status-error" className="size-5 text-danger" />
             <span className="font-bold text-ink">실행을 시작하지 못했어요</span>
             <span className="text-subtle">
-              {error.status === 0 ? "서버에 연결할 수 없어요" : error.message} · 잠시 후 다시 시도해
-              주세요
+              {error.status === 0
+                ? "서버에 연결할 수 없어요 · 잠시 후 다시 시도해 주세요"
+                : error.status === 401
+                  ? "로그인이 필요해요"
+                  : error.status === 403
+                    ? "이 프로젝트에서는 실행할 수 없어요"
+                    : `${error.message} · 잠시 후 다시 시도해 주세요`}
             </span>
           </p>
         )}
@@ -134,7 +161,7 @@ export default function PersonaReviewStep({
           <Button variant="link" disabled={isStarting} onClick={onPrev}>
             이전
           </Button>
-          <Button disabled={isStarting} onClick={onStart}>
+          <Button disabled={isStarting} onClick={() => onStart(planRevisionId)}>
             {isStarting ? "시작하는 중…" : "실행 시작"}
           </Button>
         </StepFooter>
