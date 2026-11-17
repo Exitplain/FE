@@ -1,48 +1,42 @@
-import { defaultWorkspaceSettings, workspaceFixture } from "@/mocks/fixtures/workspace";
-import type { WorkspaceSettings, WorkspaceSnapshot } from "@/types/workspace.type";
+import axiosInstance from "./axiosInstance";
 
-import { getProjects } from "./project.api";
+/*
+  W04 워크스페이스 설정 — GET·PATCH /api/v1/workspace. 기준: BE backend/accounts/views.WorkspaceView
+  - 워크스페이스 이름은 관리(owner)만 바꿀 수 있습니다 (그 밖에는 403 FORBIDDEN)
+  - 내 이름은 누구나 바꿀 수 있고, 이메일(로그인 이메일)은 바꿀 수 없습니다
+  - 실행 기본값(run_defaults)은 보기 전용입니다
+*/
+export type WorkspaceRole = "owner" | "member" | "viewer";
 
-const SETTINGS_KEY = "exitplain-workspace-demo-settings";
+export type RunDefaults = {
+  viewport_width: number;
+  concurrency: number;
+  request_interval_seconds: number;
+  seed_count: number;
+  max_steps: number;
+  timeout_seconds: number;
+  /* 실행당 비용 상한 (USD). 정해지지 않았으면 null */
+  cost_cap: number | null;
+};
 
-/* API 연결 지점. persona API·MSW 핸들러는 변경하지 않습니다. 실제 API 응답은 이 타입으로 변환합니다. */
-export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  return { ...structuredClone(workspaceFixture), projects: await getProjects() };
+export type WorkspaceSettingsResponse = {
+  workspace: { id: string; name: string; role: WorkspaceRole } | null;
+  /* name 은 비어 있을 수 있습니다 */
+  me: { id: number; email: string; name: string | null };
+  run_defaults: RunDefaults;
+};
+
+/* 보낸 값만 바뀝니다. 정의 밖 필드를 보내면 422 (각 50자 이하) */
+export type WorkspaceSettingsPatch = { workspace_name?: string; my_name?: string };
+
+export async function getWorkspaceSettings(): Promise<WorkspaceSettingsResponse> {
+  const { data } = await axiosInstance.get<WorkspaceSettingsResponse>("/api/v1/workspace");
+  return data;
 }
 
-export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {
-  try {
-    const saved: unknown = JSON.parse(sessionStorage.getItem(SETTINGS_KEY) || "null");
-    if (
-      saved &&
-      typeof saved === "object" &&
-      "workspaceName" in saved &&
-      typeof saved.workspaceName === "string" &&
-      "displayName" in saved &&
-      typeof saved.displayName === "string" &&
-      "notificationEmail" in saved &&
-      typeof saved.notificationEmail === "string"
-    )
-      return {
-        workspaceName: saved.workspaceName,
-        displayName: saved.displayName,
-        notificationEmail: saved.notificationEmail,
-      };
-  } catch {
-    /* 오래된 데모 설정은 기본값으로 복원합니다. */
-  }
-  return { ...defaultWorkspaceSettings };
-}
-
-export async function saveWorkspaceSettings(
-  settings: WorkspaceSettings,
-): Promise<WorkspaceSettings> {
-  const saved = {
-    ...settings,
-    workspaceName: settings.workspaceName.trim(),
-    displayName: settings.displayName.trim(),
-    notificationEmail: settings.notificationEmail.trim(),
-  };
-  sessionStorage.setItem(SETTINGS_KEY, JSON.stringify(saved));
-  return saved;
+export async function updateWorkspaceSettings(
+  body: WorkspaceSettingsPatch,
+): Promise<WorkspaceSettingsResponse> {
+  const { data } = await axiosInstance.patch<WorkspaceSettingsResponse>("/api/v1/workspace", body);
+  return data;
 }

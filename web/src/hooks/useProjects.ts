@@ -15,7 +15,6 @@ export function useCreateProject() {
     /* 목록은 뒤에서 다시 받고, 만든 직후 개요로 바로 이동합니다 (기다리면 버튼이 "만드는 중…"에 머묾) */
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.projectsV1.all });
-      void client.invalidateQueries({ queryKey: ["workspace-demo", "snapshot"] });
     },
   });
 }
