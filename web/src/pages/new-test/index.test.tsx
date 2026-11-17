@@ -494,7 +494,7 @@ describe("P02~P07 새 테스트", () => {
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 
-  it("P02b — 사이트를 확인하는 동안에는 주소를 바꿀 수 없다", async () => {
+  it("P02b — 사이트를 확인하는 동안 지금 단계·지난 시간을 보여 주고 주소는 바꿀 수 없다", async () => {
     server.use(
       http.post("*/api/v1/projects/:projectId/discoveries", () => new Promise<Response>(() => {})),
     );
@@ -503,9 +503,9 @@ describe("P02~P07 새 테스트", () => {
 
     await user.click(screen.getByRole("button", { name: "확인" }));
 
-    expect(
-      await screen.findByText(/사이트 화면과 메뉴를 둘러보며 기능을 찾는 중이에요/),
-    ).toBeInTheDocument();
+    /* 주소 확인이 끝나 기능 탐색 단계 문구와 지난 시간을 보여 줍니다 */
+    expect(await screen.findByText("시작 화면의 메뉴와 기능을 읽는 중이에요")).toBeInTheDocument();
+    expect(screen.getByText(/지남 · 보통 1~2분 걸려요/)).toBeInTheDocument();
     expect(screen.getByLabelText("제품 URL")).toBeDisabled();
     expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();
   });

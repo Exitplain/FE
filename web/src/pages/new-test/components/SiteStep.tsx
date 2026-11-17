@@ -16,6 +16,7 @@ import {
 } from "../hooks/useNewTestMutations";
 import { validateSiteUrl } from "../utils/newTest";
 import AccountModal from "./AccountModal";
+import SiteCheckProgress from "./SiteCheckProgress";
 import StepSection, { StatusRow, StepFooter } from "./StepSection";
 
 type SiteStepProps = {
@@ -219,12 +220,7 @@ export default function SiteStep({
 
         {/* 상태 띠: 확인 전 안내 → 확인 중 → 접근 가능 / 접근 불가(E08) */}
         {isChecking ? (
-          <StatusRow>
-            <Icon name="search" className="size-5" />
-            <span className="text-subtle">
-              사이트 화면과 메뉴를 둘러보며 기능을 찾는 중이에요 · 1~2분 걸려요
-            </span>
-          </StatusRow>
+          <SiteCheckProgress phase={discover.phase} />
         ) : discover.isError ? (
           <div
             role="alert"
