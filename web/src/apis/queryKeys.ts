@@ -59,5 +59,7 @@ export const queryKeys = {
   },
   workspace: {
     overview: (workspaceId: string) => ["workspace", workspaceId, "overview"] as const,
+    /* W04 설정 (저장하면 응답으로 바로 채웁니다) */
+    settings: () => ["workspace", "settings"] as const,
   },
 };

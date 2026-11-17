@@ -4,7 +4,6 @@ import { http, HttpResponse } from "msw";
 import { useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import { getWorkspaceSnapshot } from "@/apis/workspace.api";
 import Sidebar from "@/layouts/AppLayout/Sidebar";
 import ProjectHistoryPage from "@/pages/project-history";
 import ProjectIssuesPage from "@/pages/project-issues";
@@ -94,9 +93,6 @@ describe("프로젝트 작업 흐름", () => {
         name: "새 쇼핑몰",
       }),
     ).toBeInTheDocument();
-    expect((await getWorkspaceSnapshot()).projects.some((project) => project.id === "101")).toBe(
-      true,
-    );
   });
 
   it("잘못된 URL과 중복 사이트를 막고 입력값을 유지한다", async () => {

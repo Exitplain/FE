@@ -63,9 +63,3 @@ export type WorkspaceSnapshot = {
     errors: number;
   };
 };
-
-export type WorkspaceSettings = {
-  workspaceName: string;
-  displayName: string;
-  notificationEmail: string;
-};
