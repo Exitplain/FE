@@ -1,6 +1,17 @@
 import type { RangeBarDatum } from "@/components/RangeBarChart/RangeBarChart";
 import type { MinMax, ReportData, ReportFunnelStageV1, ReportTaskV1 } from "@/types/report.type";
 
+/* 화면에 그리는 퍼널 한 단계 (실행 퍼널·7단계 공통). key 는 실행 퍼널이면 화면 경로, 7단계면 단계 키 */
+export type FunnelStageView = {
+  key: string;
+  name: string;
+  path: string | null;
+  reached: number;
+  reached_range: MinMax;
+  rate_of_valid: number | null;
+  dropouts_here: number;
+};
+
 import { formatDay } from "./reportView";
 
 /*
@@ -48,9 +59,40 @@ export function visibleStages(task: ReportTaskV1): ReportFunnelStageV1[] {
   );
 }
 
+/*
+  화면에 그릴 퍼널 단계. BE 가 실행 퍼널(journey_funnel: 실제로 지나간 화면)을 주면 그것을 쓰고,
+  없으면(예전 리포트) 7단계 퍼널에서 건너뛴 단계를 뺀 것을 쓴다.
+  실행 퍼널은 아무도 지나가지 않은 단계가 없고, 이름은 화면 역할 이름('상품 상세')이다.
+*/
+export function funnelStages(task: ReportTaskV1): FunnelStageView[] {
+  const journey = task.journey_funnel?.stages ?? [];
+  if (journey.length > 0) {
+    return [...journey]
+      .sort((a, b) => a.order - b.order)
+      .map((stage) => ({
+        key: stage.id,
+        name: stage.name,
+        path: stage.path,
+        reached: stage.reached,
+        reached_range: stage.reached_range,
+        rate_of_valid: stage.rate_of_valid,
+        dropouts_here: stage.dropouts_here,
+      }));
+  }
+  return visibleStages(task).map((stage) => ({
+    key: stage.key,
+    name: stage.name,
+    path: null,
+    reached: stage.reached,
+    reached_range: stage.reached_range,
+    rate_of_valid: stage.rate_of_valid,
+    dropouts_here: stage.dropouts_here,
+  }));
+}
+
 /* 예측 퍼널 막대: 시드별 도달 범위 + 유효 세션 대비 비율 */
 export function funnelRowsV1(task: ReportTaskV1): RangeBarDatum[] {
-  return visibleStages(task).map((stage, index) => {
+  return funnelStages(task).map((stage, index) => {
     const min = stage.reached_range.min ?? 0;
     const max = stage.reached_range.max ?? 0;
     const people = formatMinMax(stage.reached_range, "명");
@@ -64,9 +106,9 @@ export function funnelRowsV1(task: ReportTaskV1): RangeBarDatum[] {
   });
 }
 
-/* 막대 100% 기준: 첫 단계(랜딩)의 시드별 최대 도달 인원 */
+/* 막대 100% 기준: 첫 단계의 시드별 최대 도달 인원 */
 export function funnelMax(task: ReportTaskV1): number {
-  return visibleStages(task)[0]?.reached_range.max ?? 0;
+  return funnelStages(task)[0]?.reached_range.max ?? 0;
 }
 
 /*
@@ -74,7 +116,7 @@ export function funnelMax(task: ReportTaskV1): number {
   비율은 이 단계 도달 대비 여기서 떠난 세션 (둘 다 모든 시드 합). 랜딩에서 바로 떠난 경우도 셉니다
 */
 export function worstDropV1(task: ReportTaskV1) {
-  const stages = visibleStages(task);
+  const stages = funnelStages(task);
   let worst = -1;
   stages.forEach((stage, index) => {
     if (
@@ -112,14 +154,15 @@ export function causeRowsV1(task: ReportTaskV1) {
   열은 퍼널에서 보이는 단계와 같게 둡니다.
 */
 export function heatmapV1(task: ReportTaskV1) {
-  const visible = visibleStages(task);
-  const names = new Map(visible.map((stage) => [stage.key, stage.name]));
-  const columns = task.heatmap.stages
-    .map((key, index) => ({ key, index, name: names.get(key) }))
-    .filter((column): column is { key: typeof column.key; index: number; name: string } =>
-      Boolean(column.name),
-    );
-  const rows = task.heatmap.rows.map((row) => ({
+  const journey = task.journey_funnel;
+  const useJourney = Boolean(journey && journey.stages.length > 0);
+  const heatmap = useJourney && journey ? journey.heatmap : task.heatmap;
+  const names = new Map<string, string>(funnelStages(task).map((stage) => [stage.key, stage.name]));
+  if (useJourney) names.set("other", "기타 화면");
+  const columns = heatmap.stages
+    .map((key: string, index: number) => ({ key, index, name: names.get(key) }))
+    .filter((column): column is { key: string; index: number; name: string } => Boolean(column.name));
+  const rows = heatmap.rows.map((row) => ({
     id: row.segment_id,
     name: row.name,
     cells: columns.map((column) => row.dropouts[column.index] ?? 0),

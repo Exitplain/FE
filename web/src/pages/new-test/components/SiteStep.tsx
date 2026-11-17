@@ -222,7 +222,7 @@ export default function SiteStep({
           <StatusRow>
             <Icon name="search" className="size-5" />
             <span className="text-subtle">
-              시작 화면의 메뉴와 기능을 읽는 중이에요 · 몇 초 걸려요
+              사이트 화면과 메뉴를 둘러보며 기능을 찾는 중이에요 · 1~2분 걸려요
             </span>
           </StatusRow>
         ) : discover.isError ? (

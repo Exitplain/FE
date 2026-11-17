@@ -130,3 +130,68 @@ describe("report-2 화면 값", () => {
     ).toBe("11월 7일 · 부분 결과");
   });
 });
+
+describe("실행 퍼널 (journey_funnel)", () => {
+  const stage = (
+    id: string,
+    name: string,
+    order: number,
+    reached: number,
+    dropouts = 0,
+  ) => ({
+    id,
+    path: id,
+    name,
+    name_source: "model" as const,
+    order,
+    reached,
+    reached_range: { min: reached, max: reached },
+    rate_of_valid: reached / 10,
+    rate_of_previous: null,
+    dropouts_here: dropouts,
+    is_goal: id === "/order/success",
+  });
+  const journeyTask = () =>
+    orderTask({
+      journey_funnel: {
+        basis: "observed_screens",
+        valid_sessions: 10,
+        stages: [
+          stage("/cart", "장바구니", 2, 10),
+          stage("/", "홈", 0, 10),
+          stage("/product", "상품 상세", 1, 10, 3),
+          stage("/order/success", "주문 완료", 3, 7),
+        ],
+        other: { screens: 1, dropouts: 1 },
+        heatmap: {
+          stages: ["/", "/product", "/cart", "/order/success", "other"],
+          rows: [{ segment_id: "segment_1", name: "빠른 구매형", dropouts: [0, 3, 0, 0, 1] }],
+        },
+      },
+    });
+
+  it("있으면 7단계 대신 실제로 지나간 화면을 역할 이름으로 순서대로 보여준다", () => {
+    expect(funnelRowsV1(journeyTask()).map((row) => row.label)).toEqual([
+      "홈",
+      "상품 상세",
+      "장바구니",
+      "주문 완료",
+    ]);
+    expect(funnelMax(journeyTask())).toBe(10);
+  });
+
+  it("최대 이탈 구간도 실행 퍼널 기준", () => {
+    expect(worstDropV1(journeyTask())).toEqual({ label: "상품 상세 → 장바구니", dropouts: 3, percent: 30 });
+  });
+
+  it("히트맵 열은 실행 퍼널 단계 + 기타 화면", () => {
+    const { columns, rows } = heatmapV1(journeyTask());
+    expect(columns.map((column) => column.name)).toEqual(["홈", "상품 상세", "장바구니", "주문 완료", "기타 화면"]);
+    expect(rows[0].cells).toEqual([0, 3, 0, 0, 1]);
+  });
+
+  it("없거나 비어 있으면(예전 리포트) 7단계 퍼널 그대로", () => {
+    const empty = orderTask({ journey_funnel: { ...journeyTask().journey_funnel!, stages: [] } });
+    expect(funnelRowsV1(empty).map((row) => row.key)).toEqual(funnelRowsV1(orderTask()).map((row) => row.key));
+  });
+});
