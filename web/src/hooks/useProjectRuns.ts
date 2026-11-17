@@ -39,12 +39,17 @@ export function useProjectRuns(project?: RunsProject) {
   const failedProjects = results.filter((result) => result.isError).length;
   const failed = listFailed || (results.length > 0 && failedProjects === results.length);
   const pending = (!project && projects.isPending) || results.some((result) => result.isPending);
-  const runs: WorkspaceRun[] = results.flatMap((result, index) =>
-    (result.data?.items ?? []).map((item) => toWorkspaceRun(item, targets[index])),
+  /* 원본 실행(리포트 요약 포함)과 프로젝트 짝 — 대시보드가 원인·세션 수를 꺼낼 때 씁니다 */
+  const items: { project: RunsProject; item: RunItem }[] = results.flatMap((result, index) =>
+    (result.data?.items ?? []).map((item) => ({ project: targets[index], item })),
   );
+  const runs: WorkspaceRun[] = items.map(({ project: owner, item }) => toWorkspaceRun(item, owner));
 
   return {
     projects: targets,
+    /* 프로젝트 목록 화면 값 (W02·W01 에서만, C08 은 빈 배열) */
+    records: project ? [] : (projects.data ?? []),
+    items,
     runs,
     isPending: !failed && pending,
     isError: failed,

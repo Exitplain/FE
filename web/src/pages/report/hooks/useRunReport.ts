@@ -25,10 +25,11 @@ export function useRunReport(runId: string) {
   실행 상태 — GET /api/v1/runs/{id}. 차수·이름과, 리포트가 없을 때(404) 진행 중인지 판단하는 데 씁니다.
   진행 중이면 2초마다 다시 받아 끝나는 순간을 알아챕니다. (BE 에 SSE·WebSocket 은 없음)
 */
-export function useRunDetail(runId: string) {
+export function useRunDetail(runId: string, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.runs.detail(runId),
     queryFn: () => getRunDetail(runId),
+    enabled,
     retry: retryUnlessFinal,
     refetchInterval: (query) =>
       query.state.data && ACTIVE_RUN_STATUSES.includes(query.state.data.status)
