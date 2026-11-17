@@ -411,6 +411,10 @@ describe("P02~P07 새 테스트", () => {
     await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
     await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
     const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    await user.type(
+      within(dialog).getByLabelText(/로그인 화면 주소/),
+      "https://banchanroad.example/login",
+    );
 
     await user.click(within(dialog).getByRole("radio", { name: "붙여넣기" }));
     await user.click(within(dialog).getByLabelText("계정 붙여넣기"));
@@ -453,6 +457,10 @@ describe("P02~P07 새 테스트", () => {
     await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
     await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
     const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    await user.type(
+      within(dialog).getByLabelText(/로그인 화면 주소/),
+      "https://banchanroad.example/login",
+    );
     expect(
       within(dialog).getByText(
         "입력한 비밀번호는 암호화해서 저장하고, 화면에 다시 보여주지 않아요. 마지막으로 사용하거나 수정한 뒤 90일이 지나면 자동으로 삭제돼요.",
@@ -947,6 +955,10 @@ describe("P02~P07 제품 API 계약", () => {
     /* 비밀번호를 다시 넣지 않고 저장해도 기존 계정은 id 로 보내 서버가 비밀번호를 유지합니다 */
     await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
     const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    await user.type(
+      within(dialog).getByLabelText(/로그인 화면 주소/),
+      "https://banchanroad.example/login",
+    );
     await user.click(within(dialog).getByRole("button", { name: "계정 저장" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     const [put] = calls(requests, "PUT", /test-accounts$/);
@@ -995,6 +1007,10 @@ describe("P02~P07 제품 API 계약", () => {
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "테스트 계정 등록" }));
     const dialog = await screen.findByRole("dialog", { name: "테스트 계정 등록" });
+    await user.type(
+      within(dialog).getByLabelText(/로그인 화면 주소/),
+      "https://banchanroad.example/login",
+    );
     await user.click(within(dialog).getByRole("radio", { name: "붙여넣기" }));
     await user.click(within(dialog).getByLabelText("계정 붙여넣기"));
     await user.paste(

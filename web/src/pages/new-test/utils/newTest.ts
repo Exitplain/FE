@@ -271,6 +271,28 @@ export function validateSiteUrl(value: string): string | null {
 }
 
 /*
+  테스트 계정의 로그인 화면 주소 (BE login_url). 에이전트가 이 화면에서 계정으로 로그인한 뒤 테스트합니다.
+  비우면 서버가 로그인 상태로 사이트를 확인·실행하지 못해 반드시 받습니다.
+  프로젝트 사이트와 같은 출처인지는 서버가 확인합니다 (허용 출처가 사이트 주소 하나가 아닐 수 있음).
+*/
+export function validateLoginUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return "로그인 화면 주소를 입력해 주세요";
+  return validateSiteUrl(trimmed);
+}
+
+/* 로그인 화면 주소 예시 — 사이트 주소의 출처 + /login (주소가 올바르지 않으면 일반 예시) */
+export function loginUrlPlaceholder(siteUrl: string): string {
+  try {
+    const url = new URL(siteUrl.trim());
+    if (url.protocol === "https:" || url.protocol === "http:") return `${url.origin}/login`;
+  } catch {
+    /* 아래 일반 예시 */
+  }
+  return "https://example.com/login";
+}
+
+/*
   연령 선택 (BE: "any" 는 단독으로만)
   - 전체를 고르면 다른 연령을 지우고, 특정 연령을 고르면 전체를 지웁니다.
   - 마지막 하나를 끄면 전체로 돌아갑니다.

@@ -186,17 +186,23 @@ export function useTestAccounts(projectId: number) {
 }
 
 /*
-  P04 테스트 계정 저장 (PUT /api/v1/projects/{id}/test-accounts — 목록 전체를 바꿈).
+  P04 테스트 계정 저장 (PUT /api/v1/projects/{id}/test-accounts — 로그인 화면 주소와 목록 전체를 바꿈).
   서버에 있던 계정은 id 와 함께 보내고, 비밀번호를 비워 두면 서버가 기존 비밀번호를 유지합니다.
   응답의 id 를 같은 순서의 계정에 붙여 돌려줍니다 (비밀번호는 응답에 없어 화면 값을 그대로 둠).
 */
 export function useSaveTestAccounts() {
   const queryClient = useQueryClient();
-  return useMutation<TestAccount[], ApiError, { projectId: number; accounts: TestAccount[] }>({
+  return useMutation<
+    TestAccount[],
+    ApiError,
+    { projectId: number; loginUrl: string; accounts: TestAccount[] }
+  >({
     onSuccess: (_saved, { projectId }) =>
       void queryClient.invalidateQueries({ queryKey: queryKeys.testAccounts(projectId) }),
-    mutationFn: async ({ projectId, accounts }) => {
+    mutationFn: async ({ projectId, loginUrl, accounts }) => {
       const saved = await putTestAccounts(projectId, {
+        /* 목록 전체를 바꾸는 요청이라 빠뜨리면 서버의 로그인 화면 주소가 지워집니다 */
+        login_url: loginUrl,
         accounts: accounts.map((account) =>
           account.id
             ? {

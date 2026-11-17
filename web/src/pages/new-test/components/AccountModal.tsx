@@ -12,14 +12,20 @@ import { useNewTestStore } from "@/stores/useNewTestStore";
 import {
   ACCOUNT_MAX,
   findDuplicateUsernames,
+  loginUrlPlaceholder,
   parseAccountsText,
   type TestAccount,
+  validateLoginUrl,
 } from "../utils/newTest";
 
 type AccountModalProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (accounts: TestAccount[]) => void;
+  onSave: (accounts: TestAccount[], loginUrl: string) => void;
+  /* 서버에 저장된 로그인 화면 주소 (GET test-accounts 의 login_url) */
+  loginUrl?: string;
+  /* 프로젝트 사이트 주소 — 로그인 화면 주소 예시를 만듭니다 */
+  siteUrl?: string;
   /* 서버에 저장하는 중 (PUT /api/v1/projects/{id}/test-accounts) */
   saving?: boolean;
   /* 저장하지 못한 이유 (서버 message) */
@@ -39,7 +45,8 @@ const isBlank = (row: TestAccount) => row.username.trim() === "" && row.password
   저장하면 프로젝트 테스트 계정으로 서버에 보냅니다 (PUT /api/v1/projects/{id}/test-accounts).
   비밀번호는 서버가 암호화해서 저장하고 응답·브라우저 저장소(localStorage 등)에는 남기지 않습니다.
   저장에 실패하면(예: 503 암호화 서비스 연결 실패) 모달과 입력을 그대로 두고 서버 안내를 보여 다시 저장하게 합니다.
-  서버 에이전트가 아직 로그인 상태 실행을 지원하지 않아, 실행에는 계정 수(=에이전트 수)만 반영됩니다.
+  로그인 화면 주소(login_url)를 함께 저장하면, 에이전트가 그 화면에서 계정으로 로그인한 뒤
+  사이트 확인·실행을 합니다 (로그인 뒤에는 서버가 자료를 바꾸는 요청을 막습니다).
   Figma 의 원격 브라우저 단계(1. 브라우저 열기 ~ 3. 시작 화면 지정)와 P04c "로그인 확인"은
   서버 기능이 생기면 이 모달에 이어서 붙입니다.
 */
@@ -55,8 +62,13 @@ function AccountDialog({
   saving = false,
   error = null,
   retentionDays = 90,
+  loginUrl: savedLoginUrl = "",
+  siteUrl = "",
 }: Omit<AccountModalProps, "open">) {
   const baseId = useId();
+  const [loginUrl, setLoginUrl] = useState(savedLoginUrl);
+  const [loginUrlTouched, setLoginUrlTouched] = useState(false);
+  const loginUrlError = validateLoginUrl(loginUrl);
   const [mode, setMode] = useState<"manual" | "paste">("manual");
   const [rows, setRows] = useState<TestAccount[]>(() => {
     const saved = useNewTestStore.getState().accounts;
@@ -68,7 +80,7 @@ function AccountDialog({
   const duplicates = findDuplicateUsernames(rows);
   const filledCount = rows.filter(isFilled).length;
   const hasPartialRow = rows.some((row) => !isFilled(row) && !isBlank(row));
-  const canSave = filledCount > 0 && duplicates.size === 0 && !hasPartialRow;
+  const canSave = filledCount > 0 && duplicates.size === 0 && !hasPartialRow && !loginUrlError;
 
   const updateRow = (index: number, patch: Partial<TestAccount>) =>
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -109,11 +121,34 @@ function AccountDialog({
       title="테스트 계정 등록"
       description={`계정 1개로 에이전트 1명이 로그인해요 · 최대 ${ACCOUNT_MAX}개`}
       footer={
-        <Button disabled={!canSave || saving} onClick={() => onSave(rows.filter(isFilled))}>
+        <Button
+          disabled={!canSave || saving}
+          onClick={() => onSave(rows.filter(isFilled), loginUrl.trim())}
+        >
           {saving ? "저장 중…" : "계정 저장"}
         </Button>
       }
     >
+      <Field
+        label="로그인 화면 주소"
+        hint="필수"
+        help="에이전트가 이 화면에서 아래 계정으로 로그인한 뒤 테스트해요"
+        error={(loginUrlTouched && loginUrlError) || undefined}
+      >
+        {(control) => (
+          <Input
+            {...control}
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            value={loginUrl}
+            onChange={(event) => setLoginUrl(event.target.value)}
+            onBlur={() => setLoginUrlTouched(true)}
+            placeholder={loginUrlPlaceholder(siteUrl)}
+          />
+        )}
+      </Field>
+
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -252,8 +287,8 @@ function AccountDialog({
         <p className="text-xs text-muted">계정을 더 넣으면 최대 {ACCOUNT_MAX}명까지 늘어나요</p>
       </div>
       <p className="text-xs text-subtle">
-        실제 개인정보·결제 정보가 없는 테스트 계정만 넣어주세요 · 지금은 로그인 상태 실행을 지원하지
-        않아 저장만 해요
+        실제 개인정보·결제 정보가 없는 테스트 계정만 넣어주세요 · 로그인한 뒤에는 글쓰기·결제처럼
+        자료를 바꾸는 동작을 막고 둘러보기만 해요
       </p>
       {/* BE 요청 문구 (/privacy 와 같음) — 보관 기간은 서버 retention_days */}
       <p className="text-xs text-subtle">

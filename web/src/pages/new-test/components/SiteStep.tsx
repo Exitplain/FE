@@ -44,8 +44,8 @@ const timeFormat = new Intl.DateTimeFormat("ko-KR", {
   - 주소 확인이 실패해도 탐색은 진행하고 경고만 보여 줍니다 (응답 시간은 주소 확인 결과).
   - 로그인 방식·계정 수를 바꾸면 탐색(login_mode)과 에이전트 수가 달라져, "다음"에서 다시 확인합니다.
   - 확인하는 동안 주소를 잠가, 이전 요청의 응답이 바뀐 입력의 결과로 들어가지 않게 합니다.
-  - 로그인 연결은 사이트 확인이 끝난 뒤(P03)에 나옵니다. 테스트 계정은 서버에 저장(P04)하지만
-    서버 에이전트가 아직 로그인 상태 실행을 지원하지 않습니다.
+  - 로그인 연결은 사이트 확인이 끝난 뒤(P03)에 나옵니다. 테스트 계정과 로그인 화면 주소를 서버에 저장(P04)하면
+    에이전트가 그 화면에서 로그인한 뒤 사이트를 확인하고 실행합니다.
 */
 export default function SiteStep({
   projectId: v1ProjectId,
@@ -308,7 +308,7 @@ export default function SiteStep({
                   </span>
                   <span className="text-xs text-muted">
                     {accountCount > 0
-                      ? `테스트 계정 ${accountCount}개 등록 · 로그인 상태 실행은 아직 지원하지 않아요`
+                      ? `테스트 계정 ${accountCount}개 등록${savedAccounts.data?.login_url ? "" : " · 로그인 화면 주소를 등록해주세요"}`
                       : "테스트 계정 1개 = 에이전트 1명 · 최대 20개"}
                   </span>
                 </span>
@@ -341,9 +341,11 @@ export default function SiteStep({
         saving={saveAccounts.isPending}
         error={saveAccounts.error ? accountSaveError(saveAccounts.error) : null}
         retentionDays={savedAccounts.data?.retention_days}
-        onSave={(accounts) =>
+        loginUrl={savedAccounts.data?.login_url}
+        siteUrl={siteUrl}
+        onSave={(accounts, loginUrl) =>
           saveAccounts.mutate(
-            { projectId: v1ProjectId, accounts },
+            { projectId: v1ProjectId, loginUrl, accounts },
             {
               onSuccess: (saved) => {
                 actions.setLoginMode("account");
@@ -363,5 +365,10 @@ function accountSaveError(error: ApiError) {
   if (error.status === 0) return "서버에 연결할 수 없어요";
   if (error.status === 401) return "로그인이 필요해요";
   if (error.status === 403) return "이 프로젝트에서는 실행할 수 없어요";
+  /* 로그인 화면 주소가 프로젝트 사이트가 아닌 경우 등 — 서버가 칸별 안내를 줍니다 */
+  const loginUrlMessage = error.fields?.login_url;
+  if (Array.isArray(loginUrlMessage) && typeof loginUrlMessage[0] === "string") {
+    return loginUrlMessage[0];
+  }
   return error.message;
 }
