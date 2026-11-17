@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
+import PersonaAvatar from "@/components/PersonaAvatar/PersonaAvatar";
 import type { IconName } from "@/components/Icon/iconNames";
 import { buildPath } from "@/constants/routes";
 import { useNewTestStore } from "@/stores/useNewTestStore";
@@ -302,12 +303,16 @@ function SegmentCard({ segment, swatch }: { segment: PanelSegment; swatch: strin
         <h3 className="flex-1 font-medium text-ink">{segment.name}</h3>
         <span className="text-caption text-subtle">{segment.count}명</span>
       </div>
-      <div className="flex flex-col gap-1 rounded-lg bg-gray-50 p-3">
-        <p className="text-sm font-bold text-ink">대표 {segment.representative}</p>
-        {/* Figma "P-001~005" — 끝 코드는 숫자만 */}
-        <p className="text-xs text-muted">
-          {first}~{last.replace(/^P-/, "")}
-        </p>
+      <div className="flex items-center gap-3">
+        {/* Figma P07: 대표 칸 왼쪽의 연령대별 픽셀 캐릭터 */}
+        <PersonaAvatar avatar={segment.avatar} className="size-14" />
+        <div className="flex flex-1 flex-col gap-1 rounded-lg bg-gray-50 p-3">
+          <p className="text-sm font-bold text-ink">대표 {segment.representative}</p>
+          {/* Figma "P-001~005" — 끝 코드는 숫자만 */}
+          <p className="text-xs text-muted">
+            {first}~{last.replace(/^P-/, "")}
+          </p>
+        </div>
       </div>
       <ul aria-label="행동 변수" className="flex flex-col">
         {TRAITS.map(({ key, label }) => (

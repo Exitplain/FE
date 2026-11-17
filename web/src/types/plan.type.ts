@@ -122,6 +122,11 @@ export type SnapshotSegment = {
   variables: Record<"patience" | "digital_literacy" | "price_sensitivity" | "trust_need", number>;
   basis: string[];
   representative: string;
+  /* 화면 캐릭터 키 (20s·30s·40s·50plus). BE 가 세그먼트 연령대로 정한다. 예전 스냅샷에는 없다 */
+  avatar?: string;
+  /* LLM 생성기가 붙인 세그먼트 상황·연령대 (규칙 생성기에는 없다) */
+  situation?: string;
+  age_group?: string;
 };
 
 export type SnapshotPersona = {
@@ -132,6 +137,7 @@ export type SnapshotPersona = {
   is_representative: boolean;
   variables: SnapshotSegment["variables"];
   context: string;
+  avatar?: string;
 };
 
 /* POST /api/v1/plans/{id}/confirmations — 확정한 계획 (plan revision snapshot) */

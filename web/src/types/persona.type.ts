@@ -224,6 +224,8 @@ export type PanelSegment = {
   codes: [string, string];
   representative: string;
   traits: PanelTraits;
+  /* 화면 캐릭터 키 (public/personas/persona-<키>.svg) */
+  avatar?: string;
 };
 
 export type PersonaPanelRequest = { context: string; segments: number[] };

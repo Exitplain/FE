@@ -389,6 +389,7 @@ export function toPanelSegments(personas: RevisionPersonas): PanelSegment[] {
       count: segment.count,
       codes: [first, codes[codes.length - 1] ?? first],
       representative: segment.representative,
+      avatar: segment.avatar,
       traits: {
         patience: segment.variables.patience,
         digital: segment.variables.digital_literacy,
