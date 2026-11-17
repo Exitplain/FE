@@ -1,6 +1,6 @@
 /* 워크스페이스 전용 Figma 스타일. 기존 공통 토큰은 변경하지 않습니다. */
 .workspace-running-heading {
-  background: #131e50;
+  background: #0f1c4b; /* Figma W01 지금 실행 중 머리 */
   color: white;
 }
 .workspace-table {

@@ -109,6 +109,43 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
   });
 });
 
+describe("W01 지금 실행 중 — 실행 중인 테스트가 없을 때", () => {
+  it("카드에 안내를 두고, 카드의 새 테스트 시작하기로 W07 을 연다", async () => {
+    const user = userEvent.setup();
+    const done = new Date().toISOString();
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: "run-1",
+              sequence_no: 1,
+              name: "1차",
+              kind: "pretest",
+              status: "completed",
+              change_note: "",
+              parent_run_id: null,
+              created_at: done,
+              started_at: null,
+              finished_at: done,
+              report: null,
+            },
+          ],
+          next_cursor: null,
+          total: 1,
+        }),
+      ),
+    );
+    renderWithProviders(<DashboardPage />);
+
+    const card = await screen.findByRole("region", { name: "지금 실행 중" });
+    expect(within(card).getByText("실행 중인 테스트가 없어요")).toBeInTheDocument();
+    expect(within(card).queryByRole("link", { name: "실시간 보기" })).not.toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "새 테스트 시작하기" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
 describe("워크스페이스 대시보드", () => {
   it("W07에서 선택한 프로젝트의 기존 새 테스트 경로로 이동한다", async () => {
     const user = userEvent.setup();
