@@ -7,6 +7,8 @@ import type { WorkspaceSnapshot } from "@/types/workspace.type";
 import { cn } from "@/utils/cn";
 
 export default function RunningTestCard({ run }: { run: WorkspaceSnapshot["activeRun"] }) {
+  /* 세션 수를 아직 모르면(0) 막대를 비워 둡니다 */
+  const share = (value: number) => `${run.total ? (value / run.total) * 100 : 0}%`;
   const counts: { label: string; value: number; icon: IconName; danger?: boolean }[] = [
     { label: "진행 중", value: run.running, icon: "status-running" },
     { label: "대기", value: run.queued, icon: "status-wait" },
@@ -32,24 +34,24 @@ export default function RunningTestCard({ run }: { run: WorkspaceSnapshot["activ
           </Link>
         </div>
         <p className="text-sm font-medium">
-          {run.name} ({run.seed})
+          {run.name}
+          {run.seed && ` (${run.seed})`}
         </p>
       </header>
       <div className="space-y-4 p-4">
         <div className="space-y-2">
           <p className="text-xs">
-            세션 {run.completed + run.exited + run.errors} / {run.total} 종료
+            {run.total
+              ? `세션 ${run.completed + run.exited + run.errors} / ${run.total} 종료`
+              : "세션 진행 상황을 불러오는 중이에요"}
           </p>
           <div
             className="flex h-1.5 overflow-hidden rounded-full bg-gray-200"
             aria-label="세션 결과 분포"
           >
-            <span
-              className="bg-subtle"
-              style={{ width: `${(run.completed / run.total) * 100}%` }}
-            />
-            <span className="bg-danger" style={{ width: `${(run.exited / run.total) * 100}%` }} />
-            <span className="bg-muted" style={{ width: `${(run.errors / run.total) * 100}%` }} />
+            <span className="bg-subtle" style={{ width: share(run.completed) }} />
+            <span className="bg-danger" style={{ width: share(run.exited) }} />
+            <span className="bg-muted" style={{ width: share(run.errors) }} />
           </div>
         </div>
         <dl className="space-y-2">
