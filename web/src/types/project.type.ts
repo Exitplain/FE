@@ -13,6 +13,8 @@ export type ProjectOverview = {
   connection: { startPath: string; expiresLabel: string } | null;
   test: {
     status: WorkspaceRunStatus | null;
+    /* 마지막 사전 테스트 실행 id (진행 중이면 실행 화면, 끝났으면 리포트로 갑니다) */
+    runId: string | null;
     title: string | null;
     prediction: [number, number] | null;
     maxDropOff: string | null;

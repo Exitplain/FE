@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import RunStatus from "@/components/Workspace/RunStatus";
 import { buildPath } from "@/constants/routes";
 import type { ProjectOverview, ProjectRecord } from "@/types/project.type";
+import { formatRate } from "@/utils/workspaceRuns";
 
 export default function ProjectSummary({
   project,
@@ -22,7 +23,7 @@ export default function ProjectSummary({
         { label: "테스트", value: overview.test.title ?? "—" },
         {
           label: "목표 달성률 (예측)",
-          value: overview.test.prediction ? `${overview.test.prediction.join("~")}%` : "—",
+          value: overview.test.prediction ? formatRate(overview.test.prediction) : "—",
         },
         { label: "최대 이탈 구간", value: overview.test.maxDropOff ?? "—" },
         { label: "실행일", value: overview.test.dateLabel ?? "—" },

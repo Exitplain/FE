@@ -58,6 +58,9 @@ export function useCancelRun(runId: string) {
   return useMutation<RunDetail, ApiError>({
     mutationFn: () => cancelRun(runId),
     onSuccess: (detail) => queryClient.setQueryData(queryKeys.runs.detail(runId), detail),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectsV1.all });
+    },
   });
 }

@@ -9,11 +9,18 @@ import { cn } from "@/utils/cn";
 export default function DiagnosisLoop({
   project,
   overview,
+  loading = false,
 }: {
   project: ProjectRecord;
   overview: ProjectOverview;
+  loading?: boolean;
 }) {
   const current = overview.phase - 1;
+  /* 사전 테스트가 진행 중이면 새로 시작하는 대신 그 실행 화면으로 보냅니다 */
+  const runningId =
+    overview.test.status === "running" || overview.test.status === "queued"
+      ? overview.test.runId
+      : null;
   const stages = [
     {
       title: "사전 테스트",
@@ -72,6 +79,17 @@ export default function DiagnosisLoop({
                 <Icon name="status-done" />
                 완료
               </p>
+            ) : index === current && loading ? (
+              <p role="status" className="text-xs text-muted">
+                불러오는 중…
+              </p>
+            ) : index === current && index === 0 && runningId ? (
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                to={buildPath("testRun", { projectId: project.id, runId: runningId })}
+              >
+                진행 중 테스트 보기
+              </Link>
             ) : index === current ? (
               <Link
                 className={buttonVariants({ variant: "outline" })}
