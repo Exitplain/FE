@@ -115,21 +115,30 @@ export default function DashboardPage() {
             failed={week.failed}
             projectCount={projects.length}
           />
-          <div className="grid gap-x-14 gap-y-16 pt-6 xl:grid-cols-3">
-            <div className="xl:col-span-2">
+          {/*
+            Figma W01 비율(왼쪽 704 : 오른쪽 320)대로 나누되 화면 폭에 맞춰 늘고 줄어듭니다. 오른쪽은 최소 300.
+            xl 미만에서는 한 열로 쌓입니다.
+            "지금 실행 중" 카드는 루프 위치 제목보다 40px 위에서 시작하고, 목표 달성률은 최근 문제보다 조금 아래에서 시작합니다.
+          */}
+          <div className="grid items-start gap-x-14 gap-y-16 pt-6 xl:grid-cols-[minmax(0,11fr)_minmax(300px,5fr)]">
+            <div className="xl:pt-10">
               <ProjectLoops
                 projects={projects.map((project) => projectLoop(project, query.items))}
               />
             </div>
-            {activeCard ? <RunningTestCard run={activeCard} /> : <div />}
-            <div className="xl:col-span-2">
-              <RecentIssues
-                issues={issues.data}
-                failed={issues.isError}
-                loggedOut={issues.error instanceof ApiError && issues.error.status === 401}
-              />
+            <RunningTestCard
+              run={activeCard ?? null}
+              onStart={() => setStartOpen(true)}
+              partial={query.failedProjects > 0}
+            />
+            <RecentIssues
+              issues={issues.data}
+              failed={issues.isError}
+              loggedOut={issues.error instanceof ApiError && issues.error.status === 401}
+            />
+            <div className="xl:pt-6">
+              <RecentGoals runs={runs} />
             </div>
-            <RecentGoals runs={runs} />
           </div>
         </>
       )}
