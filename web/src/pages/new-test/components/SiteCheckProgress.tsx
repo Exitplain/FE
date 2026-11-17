@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import Icon from "@/components/Icon/Icon";
 
-import type { DiscoverPhase } from "../hooks/useNewTestMutations";
+import type { DiscoverPhase } from "@/stores/useSiteCheckStore";
 
 /* 이 시간이 지나면 "평소보다 오래 걸려요" 로 바꿉니다 (보통 1~2분) */
 const SLOW_AFTER_SECONDS = 120;
@@ -25,17 +25,23 @@ const formatElapsed = (seconds: number) =>
   - 실제 단계(주소 확인 → 기능 탐색 → 계획 만들기) 문구
   - 지난 시간, 2분이 넘으면 오래 걸린다는 안내
   를 보여 줍니다. 단계가 바뀌면 화면 읽기 도구에도 알립니다(role=status).
-  확인을 시작할 때 그려지고 끝나면 사라져, 시간은 그릴 때부터 셉니다.
+  시간은 확인을 시작한 시각(startedAt)부터 셉니다. 다른 화면에 갔다 와도 이어서 셉니다.
 */
-export default function SiteCheckProgress({ phase }: { phase: DiscoverPhase | null }) {
-  const [elapsed, setElapsed] = useState(0);
+export default function SiteCheckProgress({
+  phase,
+  startedAt,
+}: {
+  phase: DiscoverPhase | null;
+  /* 확인을 시작한 시각. 다른 화면에 갔다 와도 처음부터 다시 세지 않게 받습니다 (없으면 그릴 때부터) */
+  startedAt?: number | null;
+}) {
+  const [from] = useState(() => startedAt ?? Date.now());
+  const since = () => Math.max(0, Math.floor((Date.now() - from) / 1000));
+  const [elapsed, setElapsed] = useState(since);
   useEffect(() => {
-    const startedAt = Date.now();
-    const timer = window.setInterval(
-      () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
-      1000,
-    );
+    const timer = window.setInterval(() => setElapsed(since()), 1000);
     return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 시작 시각은 그릴 때 한 번만 정합니다
   }, []);
   const slow = elapsed >= SLOW_AFTER_SECONDS;
 

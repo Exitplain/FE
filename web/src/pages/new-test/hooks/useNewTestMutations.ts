@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   checkSite,
@@ -15,6 +15,12 @@ import {
 } from "@/apis/plan.api";
 import { queryKeys } from "@/apis/queryKeys";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import {
+  RESULT_TTL_MS,
+  type SiteCheckRequest,
+  type SiteCheckResult,
+  useSiteCheckStore,
+} from "@/stores/useSiteCheckStore";
 import { ApiError } from "@/types/api.type";
 import type { Plan, PlanPatch, RevisionPersonas, RunCreated, SiteCheck } from "@/types/plan.type";
 
@@ -27,41 +33,151 @@ export type DiscoverInput = {
   variant: "fixed" | "problem";
 };
 
+export type { DiscoverPhase } from "@/stores/useSiteCheckStore";
+
+/* 위저드가 지금 이 요청의 입력을 보고 있으면 결과를 넣어도 됩니다 */
+function wizardMatches(projectKey: string, request: SiteCheckRequest) {
+  const wizard = useNewTestStore.getState();
+  return (
+    wizard.projectId === projectKey &&
+    wizard.siteUrl === request.siteUrl &&
+    wizard.variant === request.variant &&
+    wizard.loginMode === request.loginMode
+  );
+}
+
 /*
   P02·P03 사이트 확인 → 기능 탐색 → 계획 만들기 (POST check → discoveries → plans).
   - 주소 확인(check)이 실패해도 탐색은 진행합니다. 결과는 plan.check 로 경고만 보여 줍니다.
     로그인 필요(401)·권한 없음(403)은 탐색도 같은 결과라 바로 오류로 돌려줍니다.
-  - 탐색은 서버가 브라우저로 시작 화면을 읽어 수 초 걸립니다.
+  - 탐색은 서버가 브라우저로 시작 화면을 읽어 1~2분 걸립니다.
+  - 화면이 아니라 useSiteCheckStore 에서 돌아, 확인 중에 다른 화면에 갔다 와도 끊기지 않습니다.
+    결과는 위저드가 같은 입력을 보고 있으면 바로 넣고, 아니면 남겨 두었다가 돌아왔을 때 넣습니다(restoreSiteCheck).
 */
-/* 사이트 확인 중 지금 하는 일 (P02b 상태 띠 문구) */
-export type DiscoverPhase = "check" | "discover" | "plan";
-
-export function useDiscoverPlan() {
-  /* 탐색이 1~2분 걸려 멈춘 것처럼 보이지 않게 지금 단계를 화면에 알려 줍니다 */
-  const [phase, setPhase] = useState<DiscoverPhase | null>(null);
-  const mutation = useMutation<{ plan: WizardPlan; server: Plan }, ApiError, DiscoverInput>({
-    mutationFn: async ({ projectId, entryUrl, loginMode, variant }) => {
-      setPhase("check");
-      let check: SiteCheck | null = null;
-      try {
-        check = (await checkSite(projectId)).check;
-      } catch (error) {
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403))
-          throw error;
-      }
-      setPhase("discover");
-      const discovery = await createDiscovery(projectId, {
-        entry_url: entryUrl,
-        login_mode: loginMode === "account" ? "test_account" : "none",
-        variant,
-      });
-      setPhase("plan");
-      const server = await createPlan(projectId, discovery.id);
-      return { plan: toWizardPlan(discovery, server, check), server };
-    },
-    onSettled: () => setPhase(null),
+export async function runSiteCheck(
+  projectKey: string,
+  input: DiscoverInput,
+  request: SiteCheckRequest,
+): Promise<SiteCheckResult> {
+  const store = useSiteCheckStore.getState();
+  store.setJob(projectKey, {
+    request,
+    status: "pending",
+    phase: "check",
+    startedAt: Date.now(),
+    finishedAt: null,
+    result: null,
+    error: null,
   });
-  return { ...mutation, phase };
+  /* 이 작업이 아직 그 프로젝트의 최신 작업일 때만 상태를 바꿉니다 (지운 뒤 늦게 끝난 응답 무시) */
+  const current = () => useSiteCheckStore.getState().jobs[projectKey]?.request === request;
+  try {
+    let check: SiteCheck | null = null;
+    try {
+      check = (await checkSite(input.projectId)).check;
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
+    }
+    if (current()) store.updateJob(projectKey, { phase: "discover" });
+    const discovery = await createDiscovery(input.projectId, {
+      entry_url: input.entryUrl,
+      login_mode: input.loginMode === "account" ? "test_account" : "none",
+      variant: input.variant,
+    });
+    if (current()) store.updateJob(projectKey, { phase: "plan" });
+    const server = await createPlan(input.projectId, discovery.id);
+    const result = { plan: toWizardPlan(discovery, server, check), server };
+    if (current()) {
+      if (wizardMatches(projectKey, request)) {
+        useNewTestStore.getState().setPlan(result.plan, result.server);
+        store.clearJob(projectKey);
+      } else {
+        store.updateJob(projectKey, {
+          status: "success",
+          phase: null,
+          result,
+          finishedAt: Date.now(),
+        });
+      }
+    }
+    return result;
+  } catch (cause) {
+    const error =
+      cause instanceof ApiError ? cause : new ApiError({ status: 0, message: String(cause) });
+    if (current()) {
+      store.updateJob(projectKey, { status: "error", phase: null, error, finishedAt: Date.now() });
+      /* 다시 확인이 실패하면 이전 결과로 다음 단계에 가지 않도록 지웁니다 */
+      if (wizardMatches(projectKey, request)) useNewTestStore.getState().clearPlan();
+    }
+    throw error;
+  }
+}
+
+/*
+  위저드에 들어올 때(초기화 직후) 그 프로젝트의 사이트 확인을 이어 받습니다.
+  - 확인 중이면 그때의 사이트 입력을 다시 채웁니다 (끝나면 runSiteCheck 이 결과를 넣음)
+  - 끝났으면 입력과 결과(계획)까지 넣습니다. 서버 계획이 만료되는 15분이 지났으면 버립니다.
+    StrictMode 에서 두 번 불려도 같은 결과가 되게 넣은 뒤에도 지우지 않습니다 (다음 확인·주소 입력 때 지워짐)
+  - 실패했던 확인은 이어 받지 않고 지웁니다 (돌아오면 처음부터)
+*/
+export function restoreSiteCheck(projectKey: string) {
+  const store = useSiteCheckStore.getState();
+  const job = store.jobs[projectKey];
+  if (!job) return;
+  const expired =
+    job.status === "success" &&
+    (job.finishedAt == null || Date.now() - job.finishedAt > RESULT_TTL_MS);
+  if (job.status === "error" || expired) {
+    store.clearJob(projectKey);
+    return;
+  }
+  const wizard = useNewTestStore.getState();
+  wizard.setSiteUrl(job.request.siteUrl);
+  wizard.setVariant(job.request.variant);
+  wizard.setLoginMode(job.request.loginMode);
+  if (job.status === "success" && job.result) {
+    useNewTestStore.getState().setPlan(job.result.plan, job.result.server);
+  }
+}
+
+/*
+  사이트 단계 화면이 쓰는 확인 상태. 작업은 store 에 있어 화면이 사라졌다 돌아와도 그대로입니다.
+  mutate 의 onSuccess·onError 는 화면이 그대로 있을 때만 부릅니다 (다음 단계로 이동 등 화면 일).
+*/
+export function useDiscoverPlan(projectKey: string) {
+  const job = useSiteCheckStore((state) => state.jobs[projectKey]);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const mutate = (
+    variables: DiscoverInput & { request: SiteCheckRequest },
+    callbacks: {
+      onSuccess?: (result: SiteCheckResult) => void;
+      onError?: (error: ApiError) => void;
+    },
+  ) => {
+    if (useSiteCheckStore.getState().jobs[projectKey]?.status === "pending") return;
+    const { request, ...input } = variables;
+    runSiteCheck(projectKey, input, request).then(
+      (result) => mounted.current && callbacks.onSuccess?.(result),
+      (error: ApiError) => mounted.current && callbacks.onError?.(error),
+    );
+  };
+  return {
+    isPending: job?.status === "pending",
+    isError: job?.status === "error",
+    error: job?.status === "error" ? job.error : null,
+    phase: job?.phase ?? null,
+    startedAt: job?.startedAt ?? null,
+    /* 실패한 시각 (E08 안내) */
+    failedAt: job?.status === "error" && job.finishedAt ? new Date(job.finishedAt) : null,
+    mutate,
+    reset: () => useSiteCheckStore.getState().clearJob(projectKey),
+  };
 }
 
 function isRevisionConflict(error: unknown) {

@@ -20,7 +20,7 @@ import PersonaReviewStep from "./components/PersonaReviewStep";
 import PersonaStep from "./components/PersonaStep";
 import SiteStep from "./components/SiteStep";
 import TaskTargetStep from "./components/TaskTargetStep";
-import { useSavePlan, useStartRun } from "./hooks/useNewTestMutations";
+import { restoreSiteCheck, useSavePlan, useStartRun } from "./hooks/useNewTestMutations";
 import {
   agentRange,
   clampStep,
@@ -99,6 +99,8 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
   /* 화면에 그리기 전에 이 프로젝트의 입력으로 시작하고, 떠날 때 지웁니다 */
   useLayoutEffect(() => {
     useNewTestStore.getState().reset(project.id, project.url);
+    /* 확인 중에 다른 화면에 갔다 왔으면 그 사이트 확인을 이어 받습니다 (끝났으면 결과까지) */
+    restoreSiteCheck(project.id);
     return () => useNewTestStore.getState().reset("", "");
   }, [project.id, project.url]);
 
