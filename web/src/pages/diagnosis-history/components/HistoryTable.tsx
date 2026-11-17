@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import RunStatus from "@/components/Workspace/RunStatus";
 import { buildPath } from "@/constants/routes";
 import type { WorkspaceRun } from "@/types/workspace.type";
+import { formatRate } from "@/utils/workspaceRuns";
 
 export default function HistoryTable({
   runs,
@@ -48,7 +49,7 @@ export default function HistoryTable({
             {!hideProject && <th>프로젝트</th>}
             <th>유형</th>
             <th>상태</th>
-            <th>목표 달성률 (예측 · 과업별)</th>
+            <th>목표 달성률 (과업별)</th>
             <th aria-sort={ascending ? "ascending" : "descending"}>
               <button type="button" onClick={onSort} className="whitespace-nowrap text-ink">
                 실행일 {ascending ? "↑" : "↓"}
@@ -85,9 +86,7 @@ export default function HistoryTable({
                 <RunStatus status={run.status} />
               </td>
               <td className="whitespace-nowrap">
-                {run.predictions.length
-                  ? run.predictions.map((range) => `${range.join("~")}%`).join(" · ")
-                  : "—"}
+                {run.predictions.length ? run.predictions.map(formatRate).join(" · ") : "—"}
               </td>
               <td className="text-right whitespace-nowrap">{run.dateLabel}</td>
             </tr>

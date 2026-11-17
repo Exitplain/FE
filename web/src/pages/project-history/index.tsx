@@ -7,7 +7,7 @@ export default function ProjectHistoryPage() {
   return (
     <DiagnosisHistoryPage
       key={project.id}
-      projectId={project.id}
+      project={{ id: project.id, name: project.name }}
       header={
         <ProjectContextHeader
           project={project}

@@ -4,8 +4,8 @@ import { createProject, getProjects } from "@/apis/project.api";
 import { queryKeys } from "@/apis/queryKeys";
 
 /* 사이드바·C02 프로젝트 목록 (내 프로젝트 + 샘플). 로그인·로그아웃 때 useApplySession 이 다시 받게 합니다 */
-export function useProjects() {
-  return useQuery({ queryKey: queryKeys.projectsV1.list(), queryFn: getProjects });
+export function useProjects({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: queryKeys.projectsV1.list(), queryFn: getProjects, enabled });
 }
 
 export function useCreateProject() {

@@ -32,7 +32,7 @@ const STAGE_DETAIL: Record<WorkspaceRunStatus, string> = {
 };
 
 /* 서버가 아직 모르는 상태를 보내도 화면이 비지 않게 null(테스트 전)로 둡니다 */
-function runStatusOf(status: RunStatus | undefined): WorkspaceRunStatus | null {
+export function runStatusOf(status: RunStatus | undefined): WorkspaceRunStatus | null {
   return (status && RUN_STATUS[status]) ?? null;
 }
 

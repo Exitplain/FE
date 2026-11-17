@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
@@ -8,6 +9,7 @@ import Sidebar from "@/layouts/AppLayout/Sidebar";
 import ProjectHistoryPage from "@/pages/project-history";
 import ProjectIssuesPage from "@/pages/project-issues";
 import { getMyProjects } from "@/apis/project.v1.api";
+import { server } from "@/mocks/node";
 import { createTestProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
@@ -140,16 +142,37 @@ describe("프로젝트 작업 흐름", () => {
 
 describe("프로젝트별 기록·문제 격리", () => {
   it("다른 프로젝트 쿼리가 있어도 해당 프로젝트의 기록만 표시한다", async () => {
+    const requested: string[] = [];
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", ({ params }) => {
+        requested.push(String(params.projectId));
+        const name = params.projectId === "1" ? "4차 · 첫 주문" : "1차 · 예약";
+        const item = {
+          id: `run-${String(params.projectId)}`,
+          sequence_no: 1,
+          name,
+          kind: "pretest",
+          status: "completed",
+          change_note: "",
+          parent_run_id: null,
+          created_at: new Date().toISOString(),
+          started_at: null,
+          finished_at: null,
+          report: null,
+        };
+        return HttpResponse.json({ items: [item], next_cursor: null, total: 1 });
+      }),
+    );
     renderWithProviders(<ProjectHistoryPage />, {
       route: "/projects/1/history?project=101",
       path: "/projects/:projectId/history",
     });
-    expect(
-      await screen.findByRole("link", { name: "4차 · 첫 주문 완료 외 1개" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "1차 · 예약 완료" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "4차 · 첫 주문" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "1차 · 예약" })).not.toBeInTheDocument();
+    expect(requested).toEqual(["1"]);
     expect(screen.queryByRole("combobox", { name: "프로젝트 필터" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("checkbox")).toHaveLength(5);
+    /* 전체 선택 + 실행 1개 */
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
 
   it("프로젝트의 문제 개수와 원인 필터가 독립적으로 계산된다", async () => {

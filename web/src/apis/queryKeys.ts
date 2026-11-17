@@ -32,6 +32,8 @@ export const queryKeys = {
     detail: (runId: string) => [...queryKeys.runs.all, "detail", runId] as const,
     sessions: (runId: string) => [...queryKeys.runs.all, "sessions", runId] as const,
     events: (runId: string) => [...queryKeys.runs.all, "events", runId] as const,
+    /* 진단 기록(W02·C08)·대시보드가 쓰는 프로젝트별 최근 실행 (최대 100개) */
+    recent: (projectId: number) => [...queryKeys.runs.all, projectId, "recent"] as const,
   },
   /* 제품 API 리포트. 리포트 화면은 실행이 끝나는 순간(useRunDetail) 다시 받습니다 */
   reports: {

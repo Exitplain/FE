@@ -1,7 +1,6 @@
 import Icon from "@/components/Icon/Icon";
 import Input from "@/components/Input/Input";
 import WorkspaceSelect from "@/components/Workspace/WorkspaceSelect";
-import type { WorkspaceProject } from "@/types/workspace.type";
 
 import type { RunFilters } from "../utils/filterRuns";
 
@@ -12,7 +11,7 @@ export default function HistoryFilters({
   hideProject = false,
 }: {
   filters: RunFilters;
-  projects: WorkspaceProject[];
+  projects: { id: string; name: string }[];
   onChange: (key: keyof RunFilters, value: string) => void;
   hideProject?: boolean;
 }) {

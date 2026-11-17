@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/Button/buttonVariants";
 import Modal from "@/components/Modal/Modal";
 import { buildPath } from "@/constants/routes";
 import type { WorkspaceRun } from "@/types/workspace.type";
+import { formatRate } from "@/utils/workspaceRuns";
 
 export default function CompareRunsModal({
   open,
@@ -39,12 +40,13 @@ export default function CompareRunsModal({
             {run.predictions.map((range, index) => (
               <div key={index} className="space-y-2">
                 <p className="text-caption">
-                  과업 {index + 1} · {range.join("~")}%
+                  과업 {index + 1} · {formatRate(range)}
                 </p>
                 <div className="relative h-2 rounded bg-gray-100">
                   <span
                     className="absolute h-full rounded bg-subtle"
-                    style={{ left: `${range[0]}%`, width: `${range[1] - range[0]}%` }}
+                    /* 값이 하나면 1% 너비의 점으로 */
+                    style={{ left: `${range[0]}%`, width: `${Math.max(range[1] - range[0], 1)}%` }}
                   />
                 </div>
               </div>
