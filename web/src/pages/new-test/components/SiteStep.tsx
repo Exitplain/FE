@@ -67,14 +67,20 @@ export default function SiteStep({
   /*
     서버에 이미 저장된 테스트 계정을 한 번 받아 둡니다 (비밀번호는 없음).
     에이전트 수를 서버와 맞추고, 계정 저장(목록 전체 교체)이 기존 계정을 지우지 않게 하려는 것입니다.
+    화면의 계정이 모두 서버에 저장된 것(id 있음)이면 새로 받은 목록으로 바꿉니다
+    (확정 직전 다른 곳에서 계정이 바뀌어 다시 받는 경우 — 저장된 비밀번호는 서버가 유지합니다).
+    아직 저장하지 않은 계정(id 없음)이 있으면 입력을 지우지 않게 건드리지 않습니다.
   */
   const savedAccounts = useTestAccounts(v1ProjectId);
   const accountsLoaded = useRef(false);
   useEffect(() => {
-    if (accountsLoaded.current || !savedAccounts.isSuccess) return;
+    /* 캐시가 store 보다 오래됐을 수 있어 들어올 때 새로 받은 응답으로만 맞춥니다 */
+    if (accountsLoaded.current || !savedAccounts.isSuccess || savedAccounts.isFetching) return;
     accountsLoaded.current = true;
     const items = savedAccounts.data?.items ?? [];
-    if (items.length === 0 || useNewTestStore.getState().accounts.length > 0) return;
+    const local = useNewTestStore.getState().accounts;
+    if (!local.every((account) => account.id)) return;
+    if (items.length === 0 && local.length === 0) return;
     useNewTestStore
       .getState()
       .setAccounts(
@@ -82,7 +88,7 @@ export default function SiteStep({
           .sort((a, b) => a.position - b.position)
           .map((item) => ({ id: item.id, username: item.username, password: "" })),
       );
-  }, [savedAccounts.isSuccess, savedAccounts.data]);
+  }, [savedAccounts.isSuccess, savedAccounts.isFetching, savedAccounts.data]);
   const discover = useDiscoverPlan();
   const saveAccounts = useSaveTestAccounts();
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -317,7 +323,11 @@ export default function SiteStep({
       )}
 
       <StepFooter>
-        <Button disabled={isChecking} onClick={() => (plan && !stale ? onNext() : check(true))}>
+        {/* 테스트 계정 모드에서 서버 계정을 다시 받는 중이면 기다립니다 (옛 계정 수로 넘어가지 않게) */}
+        <Button
+          disabled={isChecking || (loginMode === "account" && savedAccounts.isFetching)}
+          onClick={() => (plan && !stale ? onNext() : check(true))}
+        >
           다음: 과업 · 타겟
         </Button>
       </StepFooter>

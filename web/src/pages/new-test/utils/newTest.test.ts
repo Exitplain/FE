@@ -229,12 +229,14 @@ describe("isDiscoveryExpiredError", () => {
 });
 
 describe("confirmFixStep — 확정 409 를 고칠 단계", () => {
-  it("계정 수·세그먼트 합계는 3단계, 계정 부족은 1단계, 그 밖은 다시 시도(null)", () => {
+  it("계정 부족·계정 수 변경은 1단계, 과업·타겟은 2단계, 세그먼트 합계는 3단계, 그 밖은 다시 시도(null)", () => {
     const conflict = (code: string, blocking?: string[]) =>
       new ApiError({ status: 409, message: "", code, fields: blocking ? { blocking } : {} });
 
-    expect(confirmFixStep(conflict("TEST_ACCOUNT_COUNT_MISMATCH"))).toBe("persona");
-    expect(confirmFixStep(conflict("NO_TASKS", ["SEGMENT_TOTAL"]))).toBe("persona");
+    expect(confirmFixStep(conflict("TEST_ACCOUNT_COUNT_MISMATCH"))).toBe("site");
+    expect(confirmFixStep(conflict("SEGMENT_TOTAL", ["SEGMENT_TOTAL"]))).toBe("persona");
+    /* 여러 이유면 앞 단계부터 */
+    expect(confirmFixStep(conflict("NO_TASKS", ["NO_TASKS", "SEGMENT_TOTAL"]))).toBe("task");
     expect(
       confirmFixStep(conflict("SEGMENT_TOTAL", ["SEGMENT_TOTAL", "TEST_ACCOUNTS_REQUIRED"])),
     ).toBe("site");

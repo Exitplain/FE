@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
@@ -5,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import Stepper from "@/components/Stepper/Stepper";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
+import { queryKeys } from "@/apis/queryKeys";
 import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
 import { useRunList } from "@/hooks/useRunList";
@@ -58,6 +60,7 @@ export default function NewTestPage() {
 function NewTestWizard({ project }: { project: CurrentProject }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const save = useSavePlan();
   const startRun = useStartRun();
   const runs = useRunList(project.v1Id);
@@ -255,6 +258,15 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           onPrev={() => goTo("confirm")}
           onStart={start}
           onExpired={() => backToSite(EXPIRED_NOTICE)}
+          /*
+            서버의 테스트 계정이 바뀌었으면 받아 둔 목록을 버리고 1단계에서 다시 받습니다 (SiteStep 이 새로 받아 맞춤).
+            계정 수가 계획과 달라지므로 1단계 "다음"이 다시 확인(재탐색)해 인원 기준을 맞춥니다.
+            여기서 store 계정을 먼저 비우면 주소가 바뀌기 전 렌더에서 인원이 어긋나 3단계로 돌아가므로 비우지 않습니다.
+          */
+          onAccountsChanged={() => {
+            queryClient.removeQueries({ queryKey: queryKeys.testAccounts(project.v1Id) });
+            goTo("site");
+          }}
         />
       </div>
     );

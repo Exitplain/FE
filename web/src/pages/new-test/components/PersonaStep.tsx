@@ -7,6 +7,7 @@ import { useNewTestStore } from "@/stores/useNewTestStore";
 import { cn } from "@/utils/cn";
 
 import {
+  ACCOUNT_MAX,
   agentRange,
   inRange,
   RUN_CONDITION_DETAILS,
@@ -120,7 +121,7 @@ export default function PersonaStep({
             <p className="text-caption text-subtle">
               {fromAccounts
                 ? `테스트 계정 ${accountCount}개 → 에이전트 ${range.total}명`
-                : `에이전트 ${range.min}~${range.max}명 · 로그인 테스트는 계정 수만큼 (최대 ${range.max})`}
+                : `에이전트 ${range.min === range.max ? range.min : `${range.min}~${range.max}`}명 · 로그인 테스트는 계정 수만큼 (최대 ${ACCOUNT_MAX})`}
             </p>
             {/* 불러오는 중에는 "보정 전"으로 잘못 보이지 않게 비워 둡니다 */}
             {calibratedLabel !== undefined && (

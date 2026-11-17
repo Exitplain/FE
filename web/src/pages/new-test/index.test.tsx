@@ -253,11 +253,25 @@ describe("P02~P07 새 테스트", () => {
     expect(await screen.findByRole("list", { name: "페르소나 세그먼트" })).toBeInTheDocument();
   });
 
-  it("확정 직전 테스트 계정 수가 바뀌면(409) 다시 시도 대신 3단계로 가는 링크를 보여준다", async () => {
+  it("확정 직전 서버의 테스트 계정 수가 바뀌면(409) 1단계에서 계정을 다시 받고 인원 기준을 맞춘다", async () => {
     const user = userEvent.setup();
+    const accounts = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({ username: `u${i}@x.example`, password: "pw" }));
+    /* 서버에 저장된 계정 8개를 위저드가 받아 옵니다 */
+    await putTestAccounts(1, { accounts: accounts(8) });
     await renderWizard();
-    await goToConfirm(user);
+    await checkSite(user);
+    expect(await screen.findByText(/테스트 계정 8개 등록/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+    expect(await screen.findByText("테스트 계정 8개 → 에이전트 8명")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 시작 전 확인" }));
+    await screen.findByRole("list", { name: "입력 요약" });
 
+    /* 다른 탭에서 계정을 5개로 바꿨습니다 */
+    await putTestAccounts(1, { accounts: accounts(5) });
     server.use(
       http.post(
         "*/api/v1/plans/:planId/confirmations",
@@ -281,8 +295,13 @@ describe("P02~P07 새 테스트", () => {
       "테스트 계정 수와 페르소나 수가 달라요. 3단계에서 인원을 다시 맞춰주세요.",
     );
     expect(screen.queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("link", { name: "변경 · 3단계" }));
-    expect(await screen.findByRole("list", { name: "세그먼트별 인원" })).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "변경 · 1단계" }));
+
+    /* 서버 계정을 다시 받아 5개로 보이고, 다음에서 다시 확인해 에이전트 5명으로 맞춥니다 */
+    expect(await screen.findByText(/테스트 계정 5개 등록/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.click(await screen.findByRole("button", { name: "다음: 페르소나" }));
+    expect(await screen.findByText("테스트 계정 5개 → 에이전트 5명")).toBeInTheDocument();
   });
 
   it("P05a — 과업을 하나도 고르지 않으면 다음으로 가지 않는다", async () => {

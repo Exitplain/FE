@@ -29,6 +29,8 @@ type PersonaReviewStepProps = {
   onStart: (planRevisionId: string) => void;
   /* 탐색 결과가 만료돼 확정하지 못했을 때 */
   onExpired: () => void;
+  /* 서버의 테스트 계정이 바뀌었거나 모자라 확정하지 못했을 때 — 계정을 다시 받으며 1단계로 갑니다 */
+  onAccountsChanged: () => void;
 };
 
 /* 생성 중 단계가 넘어가는 간격. 서버 진행률이 없어 시간으로 보여줍니다 */
@@ -59,6 +61,7 @@ export default function PersonaReviewStep({
   onPrev,
   onStart,
   onExpired,
+  onAccountsChanged,
 }: PersonaReviewStepProps) {
   const generate = useConfirmPlan();
   const { mutate } = generate;
@@ -103,7 +106,19 @@ export default function PersonaReviewStep({
           </Button>
           {fixStep ? (
             <Link
-              to={{ search: fixStep === "site" ? "" : `?step=${fixStep}` }}
+              to={{ search: `?step=${fixStep}` }}
+              /*
+                1단계는 계정을 다시 받으며 함께 이동합니다 — 계정을 먼저 비우면 인원 기준이 어긋나
+                위저드가 3단계로 주소를 바로잡기 때문에, 이동과 계정 정리를 부모에서 한 번에 합니다.
+              */
+              onClick={
+                fixStep === "site"
+                  ? (event) => {
+                      event.preventDefault();
+                      onAccountsChanged();
+                    }
+                  : undefined
+              }
               className="text-caption font-bold text-ink hover:underline"
             >
               변경 · {STEPS.indexOf(fixStep) + 1}단계

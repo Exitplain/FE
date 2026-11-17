@@ -52,11 +52,19 @@ describe("useNewTestStore", () => {
     expect(useNewTestStore.getState().segmentCounts).toEqual([3, 3, 2, 2]);
   });
 
-  it("시드는 처음 계획이면 서버 값으로, 다시 받은 계획이면 고른 값을 유지한다", () => {
+  it("시드는 계획을 다시 받거나 만료로 지운 뒤 새로 받아도 고른 값을 유지하고, 서버 범위로 맞춘다", () => {
     setPlan();
     useNewTestStore.getState().setSeedCount(3);
     setPlan();
     expect(useNewTestStore.getState().seedCount).toBe(3);
+
+    useNewTestStore.getState().clearPlan();
+    setPlan();
+    expect(useNewTestStore.getState().seedCount).toBe(3);
+
+    const { plan, server } = newPlan();
+    useNewTestStore.getState().setPlan({ ...plan, seedRange: { min: 1, max: 2 } }, server);
+    expect(useNewTestStore.getState().seedCount).toBe(2);
   });
 
   it("세그먼트 인원은 1명 아래로 내려가지 않는다 (서버 최소 1명)", () => {

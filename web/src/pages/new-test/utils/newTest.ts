@@ -60,14 +60,17 @@ export function isDiscoveryExpiredError(error: unknown) {
 
 /*
   확정(409)을 다시 시도해도 같은 이유로 막히는 오류는 고칠 단계로 보냅니다.
-  - 테스트 계정 수와 페르소나 수가 다름 · 세그먼트 합계 → 3단계(페르소나)
-  - 테스트 계정이 4개보다 적음 → 1단계(사이트 · 테스트 계정)
+  - 테스트 계정이 4개보다 적음 · 확정 직전 서버의 계정 수가 바뀜 → 1단계(사이트 · 테스트 계정)
+    계획을 만든 뒤 계정 수가 바뀌면 화면의 인원 기준도 옛 값이라, 계정을 다시 받고 다시 확인해야 합니다.
+  - 과업·타겟이 비었음 → 2단계, 세그먼트 합계 → 3단계
   code 나 fields.blocking 에 있는 코드로 찾고, 없으면 null(다시 시도)입니다.
 */
 const CONFIRM_FIX_STEP: Record<string, StepKey> = {
-  TEST_ACCOUNT_COUNT_MISMATCH: "persona",
-  SEGMENT_TOTAL: "persona",
+  TEST_ACCOUNT_COUNT_MISMATCH: "site",
   TEST_ACCOUNTS_REQUIRED: "site",
+  NO_TASKS: "task",
+  NO_AUDIENCE: "task",
+  SEGMENT_TOTAL: "persona",
 };
 
 export function confirmFixStep(error: unknown): StepKey | null {

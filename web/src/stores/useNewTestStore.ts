@@ -118,7 +118,8 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
     다시 탐색해도 이전에 고른 과업 중 새 결과에 있는 것은 유지하고, 없으면 서버 계획의 기본 과업(추천)을 고릅니다.
     세그먼트 인원은 지금 값의 합계가 서버 범위(로그인 없이 4~20명, 테스트 계정이면 계정 수) 안이면 유지하고,
     아니면 서버 기본값으로 맞춥니다.
-    시드는 처음 받은 계획이면 서버 값으로, 다시 탐색한 계획이면 고른 값을 유지합니다 (다르면 "다음"에서 저장).
+    시드는 고른 값을 유지하되 서버 범위(1~3회) 안으로 맞춥니다. 처음 값은 BE 기본값(1회)과 같고,
+    만료·주소 변경으로 계획을 다시 만들어도 고른 값이 남습니다 (서버 값과 다르면 "다음"에서 저장).
   */
   setPlan: (plan, server) =>
     set((state) => {
@@ -132,7 +133,7 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
           state.segmentCounts.length === counts.length
             ? state.segmentCounts
             : counts,
-        seedCount: state.plan ? state.seedCount : plan.seedCount,
+        seedCount: Math.min(Math.max(state.seedCount, plan.seedRange.min), plan.seedRange.max),
       };
     }),
   updatePlan: (update) => set((state) => (state.plan ? { plan: update(state.plan) } : state)),

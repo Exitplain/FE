@@ -399,7 +399,11 @@ export function patchPlan(
   if ("limits" in body) {
     const limits = body.limits as Partial<Plan["limits"]>;
     const seed = limits.seed_count;
-    if (seed !== undefined && !(seed >= SEED_RANGE.min && seed <= SEED_RANGE.max)) {
+    /* BE LimitsSerializer: 정수만, catalog.LIMIT_RANGES 범위 */
+    if (
+      seed !== undefined &&
+      !(Number.isInteger(seed) && seed >= SEED_RANGE.min && seed <= SEED_RANGE.max)
+    ) {
       throw invalid(
         "limits.seed_count",
         `${SEED_RANGE.min}~${SEED_RANGE.max} 사이 값을 입력해주세요.`,
