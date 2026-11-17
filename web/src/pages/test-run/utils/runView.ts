@@ -1,6 +1,6 @@
 import type { IconName } from "@/components/Icon/iconNames";
 import type { StatusTone } from "@/components/StatusBadge/StatusBadge";
-import type { PersonaRun, PersonaSession, SessionStatus, Stage } from "@/types/persona.type";
+import type { PersonaSession, SessionStatus, Stage } from "@/types/persona.type";
 
 /*
   실행 화면이 어떤 상태를 보여줄지
@@ -8,30 +8,19 @@ import type { PersonaRun, PersonaSession, SessionStatus, Stage } from "@/types/p
   - completed: 실행 종료 (분석 화면을 보고 있었다면 리포트로 자동 이동)
   - failed (E05): 끝났는데 모든 세션이 기술 실패(실행 오류·한도 도달)
   - stopped (E12): 비용 상한에 닿아 중간에 멈춤 (부분 결과)
-  임시 stage 필드(mock)가 있으면 그것을 따르고, 없으면(BE 개발 서버) 세션 상태로 판단합니다.
+  - cancelled: 중지한 실행 (제품 API)
+  제품 API 실행 상태에서 단계를 정하는 건 utils/runAdapter.ts v1Phase 입니다.
 */
 export type RunPhase =
-  "idle" | "preparing" | "running" | "analyzing" | "completed" | "failed" | "stopped";
-
-const TECHNICAL_FAILURE: SessionStatus[] = ["agent_failure", "budget_exceeded"];
-
-export function runPhase(run: PersonaRun): RunPhase {
-  if (run.status === "idle") return "idle";
-  if (run.status === "completed") {
-    if (run.stopped) return "stopped";
-    const allFailed =
-      run.sessions.length > 0 &&
-      run.sessions.every((session) => TECHNICAL_FAILURE.includes(session.status));
-    return allFailed ? "failed" : "completed";
-  }
-  if (run.stage === "preparing" || run.stage === "running" || run.stage === "analyzing") {
-    return run.stage;
-  }
-  const started = run.sessions.some(
-    (session) => session.steps > 0 || !["queued", "running"].includes(session.status),
-  );
-  return started ? "running" : "preparing";
-}
+  | "idle"
+  | "preparing"
+  | "running"
+  | "analyzing"
+  | "completed"
+  | "failed"
+  | "stopped"
+  /* 제품 API: 중지한 실행 */
+  | "cancelled";
 
 /* Figma P09 필터 탭 묶음. 기술 실패(실행 오류·한도 도달)는 이탈률에 섞지 않고 오류로 셉니다 */
 export type SessionGroup = "running" | "success" | "dropout" | "queued" | "error";
@@ -105,6 +94,9 @@ export function sessionBadge(status: SessionStatus): {
     case "budget_exceeded":
       /* E12 — 행동 횟수·시간 한도 */
       return { icon: "status-error", label: "한도 도달", tone: "alert" };
+    case "cancelled":
+      /* 제품 API: 실행을 중지해 멈춘 세션 (임시 문구) */
+      return { icon: "close", label: "중지", tone: "muted" };
     default:
       return { icon: "status-error", label: "오류", tone: "alert" };
   }

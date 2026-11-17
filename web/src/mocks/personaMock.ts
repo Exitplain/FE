@@ -1299,3 +1299,10 @@ export function reportSource(runId: string) {
     technical: TECHNICAL,
   };
 }
+
+/* 제품 API 실행 mock(mocks/runV1Mock.ts)의 재료: 현재 실행 또는 끝난 실행 (없으면 undefined) */
+export function findMockRun(runId: string): PersonaRun | undefined {
+  if (state.run.id === runId) return structuredClone(state.run);
+  const saved = state.history.find((run) => run.id === runId);
+  return saved ? structuredClone(saved) : undefined;
+}

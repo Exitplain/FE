@@ -55,6 +55,9 @@ const STAGE_KEY: Record<Stage, FunnelKey | null> = {
   signup: "signup",
   checkout: "payment",
   complete: "complete",
+  browse: "browse",
+  detail: "detail",
+  payment: "payment",
   other: null,
 };
 

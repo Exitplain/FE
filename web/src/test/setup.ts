@@ -9,6 +9,7 @@ import { resetReportMock } from "@/mocks/handlers/reports";
 import { server } from "@/mocks/node";
 import { resetPersonaMock } from "@/mocks/personaMock";
 import { resetPlanMock } from "@/mocks/planMock";
+import { resetRunV1Mock } from "@/mocks/runV1Mock";
 import { useRetestStore } from "@/stores/useRetestStore";
 
 /*
@@ -62,6 +63,7 @@ afterEach(() => {
   resetProjectMock();
   resetReportMock();
   resetPlanMock();
+  resetRunV1Mock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });
   sessionStorage.clear();

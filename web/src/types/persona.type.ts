@@ -77,8 +77,17 @@ export type ConfirmRequest = {
 
 export type RunStatus = "idle" | "running" | "completed";
 
+/* 제품 API 세션은 site_failure · blocked_auth · cancelled 도 있습니다 (개발 API 에는 queued) */
 export type SessionStatus =
-  "queued" | "running" | "success" | "simulated_dropout" | "agent_failure" | "budget_exceeded";
+  | "queued"
+  | "running"
+  | "success"
+  | "simulated_dropout"
+  | "agent_failure"
+  | "budget_exceeded"
+  | "site_failure"
+  | "blocked_auth"
+  | "cancelled";
 
 /* 사이트 화면 단계 (BE agent/frustration.py STAGES) */
 export type Stage =
@@ -93,6 +102,10 @@ export type Stage =
   | "coupon"
   | "account"
   | "subscription"
+  /* 제품 API 퍼널 단계 (agent/funnel.py) */
+  | "browse"
+  | "detail"
+  | "payment"
   | "other";
 
 export type PersonaProfile = {
@@ -177,6 +190,8 @@ export type PersonaSession = PersonaProfile & {
   seed?: number;
   utterances?: ThinkAloud[];
   elapsed_ms?: number;
+  /* 제품 API: 최근(없으면 마지막) 화면 스크린샷 주소 (/api/v1/observations/{id}/screenshot) */
+  screenshot_url?: string | null;
   tokens?: number;
   cost_usd?: number;
 };
@@ -288,6 +303,9 @@ export type PersonaRun = {
   analysis?: { step: 1 | 2 | 3 };
   panel?: PanelSegment[];
   stopped?: RunStopped;
+  /* 제품 API: 실행 차수·이름 (GET /api/v1/runs/{id} sequence_no · name "1차·첫 주문 외 1개") */
+  sequence_no?: number;
+  name?: string;
 };
 
 /* ─── 실행 목록 (GET /api/personas/reports) ─────────────────────────────── */
