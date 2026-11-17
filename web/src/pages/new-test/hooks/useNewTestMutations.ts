@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import {
   checkSite,
@@ -33,9 +33,15 @@ export type DiscoverInput = {
     로그인 필요(401)·권한 없음(403)은 탐색도 같은 결과라 바로 오류로 돌려줍니다.
   - 탐색은 서버가 브라우저로 시작 화면을 읽어 수 초 걸립니다.
 */
+/* 사이트 확인 중 지금 하는 일 (P02b 상태 띠 문구) */
+export type DiscoverPhase = "check" | "discover" | "plan";
+
 export function useDiscoverPlan() {
-  return useMutation<{ plan: WizardPlan; server: Plan }, ApiError, DiscoverInput>({
+  /* 탐색이 1~2분 걸려 멈춘 것처럼 보이지 않게 지금 단계를 화면에 알려 줍니다 */
+  const [phase, setPhase] = useState<DiscoverPhase | null>(null);
+  const mutation = useMutation<{ plan: WizardPlan; server: Plan }, ApiError, DiscoverInput>({
     mutationFn: async ({ projectId, entryUrl, loginMode, variant }) => {
+      setPhase("check");
       let check: SiteCheck | null = null;
       try {
         check = (await checkSite(projectId)).check;
@@ -43,15 +49,19 @@ export function useDiscoverPlan() {
         if (error instanceof ApiError && (error.status === 401 || error.status === 403))
           throw error;
       }
+      setPhase("discover");
       const discovery = await createDiscovery(projectId, {
         entry_url: entryUrl,
         login_mode: loginMode === "account" ? "test_account" : "none",
         variant,
       });
+      setPhase("plan");
       const server = await createPlan(projectId, discovery.id);
       return { plan: toWizardPlan(discovery, server, check), server };
     },
+    onSettled: () => setPhase(null),
   });
+  return { ...mutation, phase };
 }
 
 function isRevisionConflict(error: unknown) {
