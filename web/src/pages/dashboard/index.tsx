@@ -116,10 +116,11 @@ export default function DashboardPage() {
             projectCount={projects.length}
           />
           {/*
-            Figma W01 배치: 왼쪽 704 · 오른쪽 320 (사이 56).
+            Figma W01 비율(왼쪽 704 : 오른쪽 320)대로 나누되 화면 폭에 맞춰 늘고 줄어듭니다. 오른쪽은 최소 300.
+            xl 미만에서는 한 열로 쌓입니다.
             "지금 실행 중" 카드는 루프 위치 제목보다 40px 위에서 시작하고, 목표 달성률은 최근 문제보다 조금 아래에서 시작합니다.
           */}
-          <div className="grid items-start gap-x-14 gap-y-16 pt-6 xl:grid-cols-[minmax(0,704px)_320px]">
+          <div className="grid items-start gap-x-14 gap-y-16 pt-6 xl:grid-cols-[minmax(0,11fr)_minmax(300px,5fr)]">
             <div className="xl:pt-10">
               <ProjectLoops
                 projects={projects.map((project) => projectLoop(project, query.items))}

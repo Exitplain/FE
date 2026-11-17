@@ -64,7 +64,7 @@ export function RecentIssues({
             <Link
               key={issue.id}
               to={`${buildPath("issues")}?issue=${encodeURIComponent(issue.id)}`}
-              className="grid grid-cols-[minmax(0,1fr)_144px_104px] items-center border-b border-line py-3 last:border-0 hover:bg-gray-50"
+              className="grid grid-cols-[minmax(0,1fr)_minmax(48px,0.3fr)_minmax(96px,0.25fr)] items-center gap-x-4 border-b border-line py-3 last:border-0 hover:bg-gray-50"
             >
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="truncate text-sm leading-5 font-medium text-ink">
@@ -91,7 +91,7 @@ export function RecentIssues({
 
 /*
   Figma W01 최근 테스트별 목표 달성률 — 이름 13px · 날짜 12px 회색 · 범위 막대 96×6 · 값 13px Medium.
-  프로젝트 이름이 길 수 있어 이름 칸만 늘고 줄어들며(말줄임), 날짜(56)·막대+값(142) 칸은 폭을 고정해 행끼리 맞춥니다.
+  열 폭은 행마다 같고 화면 폭에 맞춰 늘고 줄어듭니다. 이름은 말줄임(차수는 늘 표시), 막대는 남는 폭만큼 늘어납니다.
   달성률은 범위가 아니라 값 하나라, 그 자리에 짧은 구간(최소 6px)을 그립니다.
 */
 export function RecentGoals({ runs }: { runs: WorkspaceRun[] }) {
@@ -123,7 +123,7 @@ export function RecentGoals({ runs }: { runs: WorkspaceRun[] }) {
                 /* 이름과 차수를 따로 그려(말줄임) 읽기 도구에는 한 문장으로 알려 줍니다 */
                 aria-label={`${run.projectName} ${order} · ${formatDay(run.date)} · ${result}`}
                 to={buildPath("report", { projectId: run.projectId, runId: run.id })}
-                className="grid h-8 grid-cols-[minmax(0,1fr)_56px_142px] items-center gap-x-2 rounded px-1 hover:bg-gray-50"
+                className="grid h-8 grid-cols-[minmax(0,1fr)_56px_minmax(120px,1fr)] items-center gap-x-2 rounded px-1 hover:bg-gray-50"
               >
                 {/* 프로젝트 이름만 말줄임하고 차수는 늘 보입니다 ("반찬로드 테… 4차") */}
                 <span className="flex min-w-0 gap-1 text-caption text-gray-800">
@@ -138,7 +138,7 @@ export function RecentGoals({ runs }: { runs: WorkspaceRun[] }) {
                   </span>
                 ) : (
                   <span className="flex items-center gap-1.5">
-                    <span className="relative h-1.5 w-24 shrink-0 overflow-hidden rounded-[3px] bg-gray-200">
+                    <span className="relative h-1.5 min-w-16 flex-1 overflow-hidden rounded-[3px] bg-gray-200">
                       <span
                         className="absolute inset-y-0 rounded-[3px] bg-muted"
                         style={{
