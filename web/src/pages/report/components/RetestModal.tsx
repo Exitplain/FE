@@ -1,99 +1,145 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { createRun, getPlanRevision } from "@/apis/plan.api";
+import { queryKeys } from "@/apis/queryKeys";
 import Button from "@/components/Button/Button";
 import Field from "@/components/Field/Field";
 import Input from "@/components/Input/Input";
 import Modal from "@/components/Modal/Modal";
 import TextArea from "@/components/TextArea/TextArea";
 import { buildPath } from "@/constants/routes";
-import { useRetestStore } from "@/stores/useRetestStore";
-import type { PersonaReport } from "@/types/persona.type";
+import { ApiError } from "@/types/api.type";
+import type { PlanRevisionDetail } from "@/types/plan.type";
 
-import { useStartRetest } from "../hooks/useStartRetest";
-import { formatDay } from "../utils/reportView";
-
-const MAX_NAME = 60;
+/* BE RunCreateSerializer.change_note 최대 길이 */
 const MAX_NOTE = 500;
 
-/* 패널 코드 범위 (mock·Figma P07 규칙 P-001~P-020) */
-const panelCodes = (size: number) => `P-001~P-${String(size).padStart(3, "0")}`;
+/* 없음·로그인 필요·권한 없음은 다시 물어도 같아서 바로 대체 문구로 둡니다 */
+const retryUnlessFinal = (count: number, error: Error) =>
+  !(error instanceof ApiError && [401, 403, 404].includes(error.status)) && count < 1;
+
+/* Idempotency-Key. randomUUID 는 HTTPS·localhost 에서만 있어 없으면 시각·난수로 만듭니다 */
+const newKey = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+/* 패널 "P-001~P-020" · 페르소나 수 · 시드 수 (확정 계획 data). 코드는 BE 가 순서대로 매깁니다 */
+function conditionsOf(revision: PlanRevisionDetail | undefined) {
+  const codes = (revision?.data.personas ?? []).map((persona) => persona.code);
+  return {
+    personas: codes.length,
+    panel:
+      codes.length === 0
+        ? null
+        : codes.length === 1
+          ? codes[0]
+          : `${codes[0]}~${codes[codes.length - 1]}`,
+    seeds: revision?.data.limits?.seed_count ?? null,
+  };
+}
 
 /*
-  Figma P17 수정 후 재테스트 — 같은 패널·시드로 다시 실행해 차이만 비교합니다.
-  이름·고친 내용·자동 비교는 API 필드가 없어 브라우저에만 둡니다 (useRetestStore, 임시).
-  이름·고친 내용은 아직 보여주는 화면이 없어 기록만 해 둡니다 (서버 명세가 나오면 실행 정보로).
+  BE runs/naming.build_run_name 과 같은 규칙 — "4차·첫 주문 완료" · 과업이 여럿이면 "4차·첫 주문 완료 외 1개"
+  재테스트 이름은 BE 가 실행을 만들 때 이 규칙으로 정합니다 (차수 = 프로젝트의 가장 큰 차수 + 1)
+*/
+function expectedRunName(sequenceNo: number, revision: PlanRevisionDetail | undefined) {
+  const names = (revision?.data.tasks ?? [])
+    .map((task) => String(task.name || task.id).slice(0, 60))
+    .filter(Boolean);
+  if (names.length === 0) return `${sequenceNo}차`;
+  if (names.length === 1) return `${sequenceNo}차·${names[0]}`;
+  return `${sequenceNo}차·${names[0]} 외 ${names.length - 1}개`;
+}
+
+/*
+  Figma P17 수정 후 재테스트 — 같은 확정 계획(페르소나·시드)으로 다시 실행합니다.
+  POST /api/v1/runs { plan_revision_id, base_run_id, change_note } 후 새 실행 화면(P08)으로 갑니다. 이전 실행은 남습니다.
+  - 테스트 이름은 BE 가 정해서, 시작하면 붙을 이름을 미리 보여 주고 바꾸지는 못하게 둡니다
+  - 보정 줄·"끝나면 자동으로 비교하기" 는 BE 보정·비교 API 가 없어 두지 않습니다
+  - 시작 요청 중에는 닫지 않습니다 (닫아도 실행은 만들어지고 화면이 이동해 혼란스러움)
 */
 export default function RetestModal({
   open,
   onClose,
   projectId,
-  report,
-  order,
-  nextOrder,
-  taskName,
+  runId,
+  sequenceNo,
+  nextSequenceNo,
+  planRevisionId,
 }: {
   open: boolean;
   onClose: () => void;
   projectId: string;
-  report: PersonaReport;
-  /* 지금 리포트의 차수 (없으면 null) */
-  order: number | null;
-  nextOrder: number;
-  taskName: string;
+  runId: string;
+  sequenceNo: number | undefined;
+  /* 새 실행이 받을 차수 (실행 목록의 가장 큰 차수 + 1) */
+  nextSequenceNo: number | undefined;
+  planRevisionId: string;
 }) {
   const navigate = useNavigate();
-  const start = useStartRetest();
-  /* "3차와" · "이전 실행과" (받침에 따라 조사가 다릅니다) */
-  const withBase = order ? `${order}차와` : "이전 실행과";
-  const defaultName = `${taskName} · ${nextOrder}차 (재테스트)`;
-  const [name, setName] = useState(defaultName);
+  const client = useQueryClient();
   const [note, setNote] = useState("");
-  const [autoCompare, setAutoCompare] = useState(true);
-  const conditions = report.conditions;
+  /* 같은 모달에서 다시 눌러도 같은 키를 보내 실행이 두 번 생기지 않게 합니다 */
+  const [idempotencyKey] = useState(newKey);
+  const revision = useQuery({
+    queryKey: queryKeys.planRevision(planRevisionId),
+    queryFn: () => getPlanRevision(planRevisionId),
+    enabled: open,
+    staleTime: Infinity,
+    retry: retryUnlessFinal,
+  });
+  const start = useMutation<Awaited<ReturnType<typeof createRun>>, Error>({
+    mutationFn: () =>
+      createRun(
+        { plan_revision_id: planRevisionId, base_run_id: runId, change_note: note.trim() },
+        idempotencyKey,
+      ),
+  });
+
+  /* "3차와" · "이전 실행과" */
+  const withBase = sequenceNo ? `${sequenceNo}차와` : "이전 실행과";
+  const conditions = conditionsOf(revision.data);
+  const loading = revision.isPending;
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     if (start.isPending) return;
-    start.mutate(report, {
-      onSuccess: (run) => {
-        /* 실행 ID 가 없으면 비교 대상과 이어 둘 수 없어 기록하지 않습니다 */
-        if (run.id) {
-          useRetestStore.getState().register(run.id, {
-            baseRunId: report.run_id,
-            name: name.trim() || defaultName,
-            note: note.trim(),
-            autoCompare,
-          });
-        }
+    start.mutate(undefined, {
+      onSuccess: (created) => {
+        void client.invalidateQueries({ queryKey: queryKeys.runs.all });
         onClose();
-        navigate(buildPath("testRun", { projectId, runId: run.id ?? "current" }));
+        navigate(buildPath("testRun", { projectId, runId: created.run_id }));
       },
     });
   };
-  /* 시작 요청 중에 닫히면 이어서 할 일(기록·이동)을 잃으므로 끝날 때까지 닫지 않습니다 */
   const close = () => {
     if (!start.isPending) onClose();
   };
 
   const error =
-    start.error?.status === 409
+    start.error instanceof ApiError && start.error.status === 409
       ? "이미 실행 중인 테스트가 있어요. 끝난 뒤 다시 시작해 주세요."
-      : start.isError
-        ? "재테스트를 시작하지 못했어요. 잠시 뒤 다시 시도해 주세요."
-        : null;
+      : start.error instanceof ApiError && start.error.status === 422
+        ? start.error.message
+        : start.isError
+          ? "재테스트를 시작하지 못했어요. 잠시 뒤 다시 시도해 주세요."
+          : null;
 
   const rows = [
     [
       "패널",
-      conditions ? `${withBase} 동일 · ${panelCodes(conditions.panel_size)}` : `${withBase} 동일`,
+      loading
+        ? "불러오는 중…"
+        : `${withBase} 동일${conditions.panel ? ` · ${conditions.panel}` : ""}`,
     ],
-    ["시드", conditions ? `${withBase} 동일 · ${conditions.seeds}회` : `${withBase} 동일`],
     [
-      "보정",
-      conditions?.calibrated_at
-        ? `ON · 보정 적용됨(${formatDay(conditions.calibrated_at)})`
-        : "OFF · 보정 전",
+      "시드",
+      loading
+        ? "불러오는 중…"
+        : `${withBase} 동일${conditions.seeds ? ` · ${conditions.seeds}회` : ""}`,
     ],
   ];
 
@@ -104,9 +150,9 @@ export default function RetestModal({
       size="sm"
       title="수정 후 재테스트"
       description={
-        conditions
-          ? `사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나 ${conditions.panel_size}명과 같은 시드 ${conditions.seeds}개로 다시 실행해서 차이만 비교해요.`
-          : "사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나와 시드로 다시 실행해서 차이만 비교해요."
+        conditions.personas && conditions.seeds
+          ? `사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나 ${conditions.personas}명과 같은 시드 ${conditions.seeds}개로 다시 실행해요.`
+          : "사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나와 시드로 다시 실행해요."
       }
       footer={
         <>
@@ -120,13 +166,17 @@ export default function RetestModal({
       }
     >
       <form id="retest-form" onSubmit={submit} className="flex flex-col gap-4">
-        <Field label="테스트 이름">
+        <Field label="테스트 이름" help="이 이름으로 실행돼요 · 바꿀 수 없어요">
           {(control) => (
             <Input
               {...control}
-              value={name}
-              maxLength={MAX_NAME}
-              onChange={(event) => setName(event.target.value)}
+              readOnly
+              value={
+                loading || !nextSequenceNo
+                  ? ""
+                  : `${expectedRunName(nextSequenceNo, revision.data)} (재테스트)`
+              }
+              placeholder="불러오는 중…"
             />
           )}
         </Field>
@@ -143,7 +193,6 @@ export default function RetestModal({
           )}
         </Field>
 
-        {/* 임시: 패널·시드는 API 로 지정할 수 없어 지난 실행 조건을 표시만 합니다 */}
         <dl aria-label="실행 조건" className="flex flex-col rounded-lg bg-gray-50 px-3 py-1">
           {rows.map(([label, value]) => (
             <div key={label} className="flex min-h-10 items-center justify-between text-xs">
@@ -152,16 +201,6 @@ export default function RetestModal({
             </div>
           ))}
         </dl>
-
-        <label className="flex min-h-10 items-center gap-3 text-caption text-ink">
-          <input
-            type="checkbox"
-            checked={autoCompare}
-            onChange={(event) => setAutoCompare(event.target.checked)}
-            className="size-5 accent-ink"
-          />
-          끝나면 {withBase} 자동으로 비교하기
-        </label>
 
         {error && (
           <p role="alert" className="text-caption text-danger">

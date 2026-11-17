@@ -27,6 +27,7 @@ import {
   ReportUnavailable,
 } from "./components/ReportStates";
 import ReportToolbar from "./components/ReportToolbar";
+import RetestModal from "./components/RetestModal";
 import SegmentHeatmap from "./components/SegmentHeatmap";
 import ShareModal from "./components/ShareModal";
 import TechnicalFailures from "./components/TechnicalFailures";
@@ -59,7 +60,7 @@ const CAUSE_PREVIEW = 3;
   - 리포트: GET /api/v1/runs/{id}/reports (로그인 + 프로젝트 소유자만. 샘플 프로젝트도 같음)
   - 실행: GET /api/v1/runs/{id} — 차수와, 리포트가 아직 없을 때(404) 진행 중인지 판단
   - 과업은 주소 ?task= 로 둡니다 (새로 고침·공유해도 같은 과업)
-  재테스트(P17)는 제품 API 로 옮기는 PR 에서 다시 붙입니다.
+  - 수정 후 재테스트(P17): 끝난 실행만, 같은 확정 계획으로 새 실행을 만듭니다
 */
 export default function ReportPage() {
   const { runId } = useParams();
@@ -84,9 +85,16 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
   const report = useRunReport(runId);
   const run = useRunDetail(runId);
   const runs = useRunList(project.v1Id);
+  /* 재테스트가 받을 차수 — BE 처럼 프로젝트의 가장 큰 차수 + 1 (목록은 최신순) */
+  const latestSequence = Math.max(
+    run.data?.sequence_no ?? 0,
+    ...(runs.data?.pages.flatMap((page) => page.items.map((item) => item.sequence_no)) ?? []),
+  );
+  const nextSequenceNo = latestSequence > 0 ? latestSequence + 1 : undefined;
   const openLogin = useDemoSessionStore((state) => state.openLogin);
   const [params, setParams] = useSearchParams();
   const [shareOpen, setShareOpen] = useState(false);
+  const [retestOpen, setRetestOpen] = useState(false);
 
   const data = report.data?.data;
   const tasks = data?.tasks ?? [];
@@ -167,6 +175,10 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
               <Button variant="secondary" icon="link" onClick={() => setShareOpen(true)}>
                 공유 링크 복사
               </Button>
+              {/* 진행 중인 실행은 아직 고칠 결과가 없어 재테스트하지 않습니다 */}
+              {run.data && ["completed", "partially_completed"].includes(run.data.status) && (
+                <Button onClick={() => setRetestOpen(true)}>수정 후 재테스트</Button>
+              )}
             </>
           )
         }
@@ -188,6 +200,17 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
           <ReportNoTasks />
         ))}
       {report.data && <ReportFooter report={report.data} projectId={project.id} runId={runId} />}
+      {report.data && (
+        <RetestModal
+          open={retestOpen}
+          onClose={() => setRetestOpen(false)}
+          projectId={project.id}
+          runId={runId}
+          sequenceNo={run.data?.sequence_no}
+          nextSequenceNo={nextSequenceNo}
+          planRevisionId={report.data.plan_revision_id}
+        />
+      )}
       {report.data && (
         <ShareModal
           open={shareOpen}
