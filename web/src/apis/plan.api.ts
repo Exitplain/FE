@@ -3,6 +3,7 @@ import type {
   DiscoveryRequest,
   Plan,
   PlanPatch,
+  PlanRevisionDetail,
   PlanSnapshot,
   RevisionPersonas,
   RunCreated,
@@ -73,6 +74,14 @@ export async function confirmPlan(planId: string, revision: number): Promise<Pla
   const { data } = await axiosInstance.post<PlanSnapshot>(
     `/api/v1/plans/${encodeURIComponent(planId)}/confirmations`,
     { revision },
+  );
+  return data;
+}
+
+/* 확정한 계획 (P17 재테스트가 같은 페르소나·시드로 다시 실행하는지 보여 줄 때) */
+export async function getPlanRevision(planRevisionId: string): Promise<PlanRevisionDetail> {
+  const { data } = await axiosInstance.get<PlanRevisionDetail>(
+    `/api/v1/plan-revisions/${encodeURIComponent(planRevisionId)}`,
   );
   return data;
 }

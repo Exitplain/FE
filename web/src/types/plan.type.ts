@@ -149,6 +149,18 @@ export type PlanSnapshot = {
   persona_generator: string;
 };
 
+/*
+  GET /api/v1/plan-revisions/{id} — 확정 계획 (BE plans.services.snapshot_dict).
+  data 는 확정할 때의 계획 전체라, 화면에서 쓰는 값만 적어 둡니다 (재테스트 P17: 페르소나·시드 수)
+*/
+export type PlanRevisionDetail = PlanSnapshot & {
+  data: {
+    personas?: { code: string }[];
+    limits?: { seed_count?: number };
+    total_sessions?: number;
+  };
+};
+
 /* GET /api/v1/plan-revisions/{id}/personas */
 export type RevisionPersonas = {
   segments: SnapshotSegment[];

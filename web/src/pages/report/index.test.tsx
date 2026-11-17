@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -171,14 +171,67 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     );
   });
 
-  it("v1 리포트에 없는 개선 Top 3·실측 비교·재테스트는 보여주지 않는다", async () => {
+  it("v1 리포트에 없는 개선 Top 3·실측 비교는 보여주지 않는다", async () => {
     serveReport();
     renderReport(await completeRun());
 
     await screen.findByRole("table", { name: "예측 퍼널" });
     expect(screen.queryByRole("heading", { name: /개선 Top 3/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/실측 비교/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "수정 후 재테스트" })).not.toBeInTheDocument();
+  });
+
+  it("P17 — 같은 확정 계획으로 재테스트를 시작하고 새 실행 화면으로 간다", async () => {
+    const user = userEvent.setup();
+    const created: { body: unknown; key: string | null }[] = [];
+    serveReport();
+    server.use(
+      http.get("*/api/v1/plan-revisions/:id", () =>
+        HttpResponse.json({
+          plan_revision_id: "plan-revision-1",
+          plan_id: "plan-1",
+          plan_revision: 1,
+          confirmed_at: "2026-11-07T00:00:00Z",
+          persona_generator: "",
+          data: {
+            personas: Array.from({ length: 20 }, (_, i) => ({
+              code: `P-${String(i + 1).padStart(3, "0")}`,
+            })),
+            limits: { seed_count: 3 },
+          },
+        }),
+      ),
+      http.post("*/api/v1/runs", async ({ request }) => {
+        created.push({ body: await request.json(), key: request.headers.get("Idempotency-Key") });
+        return HttpResponse.json(
+          { run_id: "run-new", status: "queued", status_url: "/api/v1/runs/run-new" },
+          { status: 202 },
+        );
+      }),
+    );
+    const runId = await completeRun();
+    renderReport(runId);
+
+    await user.click(await screen.findByRole("button", { name: "수정 후 재테스트" }));
+    const dialog = screen.getByRole("dialog", { name: "수정 후 재테스트" });
+    expect(await within(dialog).findByText("1차와 동일 · P-001~P-020")).toBeInTheDocument();
+    expect(within(dialog).getByText("1차와 동일 · 3회")).toBeInTheDocument();
+    expect(within(dialog).getByRole("textbox", { name: "테스트 이름" })).toBeDisabled();
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /무엇을 고쳤나요/ }),
+      "가입 입력 줄임",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "재테스트 시작" }));
+
+    /* 시작하면 모달을 닫고 새 실행 화면(P08)으로 이동합니다 (이 테스트는 리포트 경로만 그려 화면이 비워짐) */
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(created).toHaveLength(1);
+    expect(created[0].body).toEqual({
+      plan_revision_id: "plan-revision-1",
+      /* 이 리포트의 실행을 이전 실행으로 남깁니다 */
+      base_run_id: runId,
+      change_note: "가입 입력 줄임",
+    });
+    expect(created[0].key).toBeTruthy();
   });
 
   it("주소의 ?task= 로 과업을 고르고, 과업 칩으로 바꾼다", async () => {

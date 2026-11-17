@@ -45,6 +45,8 @@ export const queryKeys = {
     session: (reportId: string, taskId: string, seed: number, personaId: string) =>
       [...queryKeys.reports.all, reportId, "session", taskId, seed, personaId] as const,
   },
+  /* 확정 계획 (바뀌지 않아 한 번 받으면 됩니다) */
+  planRevision: (planRevisionId: string) => ["planRevision", planRevisionId] as const,
   /* 발견한 문제 (W03 전체 · C09 프로젝트). 실행이 끝나면 runs 와 함께 다시 받을 수 있게 따로 둡니다 */
   issues: {
     all: ["issues"] as const,
