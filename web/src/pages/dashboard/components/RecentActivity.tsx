@@ -108,7 +108,7 @@ export function RecentGoals({ runs }: { runs: WorkspaceRun[] }) {
               className="flex flex-wrap items-center gap-2 text-xs hover:underline"
             >
               <span className="flex-1 whitespace-nowrap">
-                {run.projectName} {run.title.split(" · ")[0]}
+                {run.projectName} {run.title.split(/\s*·\s*/)[0]}
               </span>
               <span className="text-muted">{run.dateLabel}</span>
               {run.status === "failed" ? (

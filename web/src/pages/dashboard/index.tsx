@@ -18,14 +18,20 @@ import { RecentGoals, RecentIssues } from "./components/RecentActivity";
 import RunningTestCard from "./components/RunningTestCard";
 import StartTestModal from "./components/StartTestModal";
 import SummaryCards from "./components/SummaryCards";
-import { activeItemOf, runningCard, waitingCard, weekCounts } from "./utils/dashboardData";
+import {
+  activeItemOf,
+  projectLoop,
+  runningCard,
+  waitingCard,
+  weekCounts,
+} from "./utils/dashboardData";
 
 import "@/components/Workspace/workspace.css";
 
 /*
   W01 대시보드 — 내 프로젝트(+샘플)의 실행 목록(리포트 요약 포함)으로 만듭니다.
   프로젝트 단위 GET /projects/{id}/dashboard 와 같은 값(최근 달성률·주요 원인)이 실행 목록에 이미 있어 따로 부르지 않습니다.
-  보정 조정안·실측 비교는 BE 에 없어 숨깁니다.
+  보정 조정안·실측 비교는 BE 에 없어 0 으로 보여 줍니다 (실제 값도 0).
 */
 export default function DashboardPage() {
   const query = useProjectRuns();
@@ -104,10 +110,16 @@ export default function DashboardPage() {
         </>
       ) : (
         <>
-          <SummaryCards completed={week.completed} failed={week.failed} />
+          <SummaryCards
+            completed={week.completed}
+            failed={week.failed}
+            projectCount={projects.length}
+          />
           <div className="grid gap-x-14 gap-y-16 pt-6 xl:grid-cols-3">
             <div className="xl:col-span-2">
-              <ProjectLoops projects={projects} />
+              <ProjectLoops
+                projects={projects.map((project) => projectLoop(project, query.items))}
+              />
             </div>
             {activeCard ? <RunningTestCard run={activeCard} /> : <div />}
             <div className="xl:col-span-2">

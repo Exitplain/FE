@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RunDetail, RunItem } from "@/types/run.type";
 
-import { activeItemOf, runningCard, weekCounts } from "./dashboardData";
+import { activeItemOf, projectLoop, runningCard, weekCounts } from "./dashboardData";
 
 const item = (id: string, created_at: string, overrides: Partial<RunItem> = {}): RunItem => ({
   id,
@@ -73,6 +73,53 @@ describe("대시보드 값", () => {
       completed: 3,
       exited: 8,
       errors: 1,
+    });
+  });
+
+  it("루프 위치 — 진행 중이면 사전 테스트, 끝낸 테스트가 있으면 실측 분석, 실패만 있으면 다시 테스트", () => {
+    const project = { id: "1", name: "반찬로드", lastTestStatus: null } as unknown as Parameters<
+      typeof projectLoop
+    >[0];
+    const at = (n: number) => `2026-11-${String(n).padStart(2, "0")}T00:00:00Z`;
+    const entry = (
+      id: string,
+      day: number,
+      status: RunItem["status"],
+      kind: RunItem["kind"] = "pretest",
+    ) => ({
+      project: banchan,
+      item: item(id, at(day), { status, kind, sequence_no: day }),
+    });
+
+    expect(projectLoop(project, [])).toMatchObject({ stage: 0, action: "첫 테스트 시작" });
+    expect(projectLoop(project, [entry("a", 1, "failed")])).toMatchObject({
+      stage: 1,
+      action: "다시 테스트",
+    });
+    expect(
+      projectLoop(project, [entry("a", 1, "completed"), entry("b", 2, "running")]),
+    ).toMatchObject({ stage: 1, actionHref: "/projects/1/runs/b" });
+    expect(
+      projectLoop(project, [
+        entry("a", 1, "completed"),
+        entry("b", 2, "failed"),
+        entry("c", 3, "running", "cause_repro"),
+      ]),
+    ).toMatchObject({
+      stage: 4,
+      stageLabel: "실측 분석",
+      stageDetail: "4 / 7 · 실측 연결 전",
+      actionHref: "/projects/1/analytics",
+    });
+
+    /* 직접 멈춘 실행은 실패와 구분 */
+    expect(projectLoop(project, [entry("a", 1, "cancelled")]).stageDetail).toBe(
+      "1 / 7 · 테스트 중지",
+    );
+    /* 이 프로젝트의 실행 목록을 못 받았으면 프로젝트 목록의 마지막 사전 테스트로 대신 */
+    expect(projectLoop({ ...project, lastTestStatus: "completed" }, [])).toMatchObject({
+      stage: 4,
+      action: "실측 데이터 연결하기",
     });
   });
 });
