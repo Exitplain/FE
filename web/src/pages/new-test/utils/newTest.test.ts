@@ -30,6 +30,8 @@ import {
   toggleAgeChip,
   toPanelSegments,
   toWizardPlan,
+  loginUrlPlaceholder,
+  validateLoginUrl,
   validateSiteUrl,
 } from "./newTest";
 
@@ -316,5 +318,15 @@ describe("toggleAgeChip (Figma 연령 칩)", () => {
 
   it("전체는 단독으로만 고른다", () => {
     expect(toggleAgeChip(["30s"], ["any"])).toEqual(["any"]);
+  });
+});
+
+describe("validateLoginUrl", () => {
+  it("로그인 화면 주소는 비울 수 없고 http(s) 주소여야 한다", () => {
+    expect(validateLoginUrl("")).toBe("로그인 화면 주소를 입력해 주세요");
+    expect(validateLoginUrl("lecq.co.kr/login")).not.toBeNull();
+    expect(validateLoginUrl(" https://lecq.co.kr/login ")).toBeNull();
+    expect(loginUrlPlaceholder("https://lecq.co.kr/home?x=1")).toBe("https://lecq.co.kr/login");
+    expect(loginUrlPlaceholder("")).toBe("https://example.com/login");
   });
 });
