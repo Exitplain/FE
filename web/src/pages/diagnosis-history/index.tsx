@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import Button from "@/components/Button/Button";
 import WorkspacePageHeader from "@/components/Workspace/WorkspacePageHeader";
 import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
-import { useWorkspaceData } from "@/hooks/useWorkspaceData";
+import { type RunsProject, useProjectRuns } from "@/hooks/useProjectRuns";
 
 import CompareRunsModal from "./components/CompareRunsModal";
 import HistoryFilters from "./components/HistoryFilters";
@@ -13,11 +13,15 @@ import { comparisonReason, filterRuns, type RunFilters } from "./utils/filterRun
 
 import "@/components/Workspace/workspace.css";
 
+/* project 를 주면 C08(그 프로젝트의 기록), 없으면 W02(모든 프로젝트) */
 export default function DiagnosisHistoryPage({
-  projectId,
+  project,
   header,
-}: { projectId?: string; header?: ReactNode } = {}) {
-  const query = useWorkspaceData();
+}: { project?: RunsProject; header?: ReactNode } = {}) {
+  const projectId = project?.id;
+  const query = useProjectRuns(project);
+  /* 기간 필터 기준 시각 (화면을 연 때) */
+  const [asOf] = useState(() => new Date().toISOString());
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -48,16 +52,12 @@ export default function DiagnosisHistoryPage({
     setParams((previous) => {
       const next = new URLSearchParams(previous);
       Object.keys(defaults).forEach((key) => next.delete(key));
-      next.delete("state");
       return next;
     });
   };
-  const runs =
-    query.data && !query.isEmpty ? filterRuns(query.data.runs, filters, query.data.asOf) : [];
-  const selectedRuns =
-    query.data?.runs.filter(
-      (run) => selected.includes(run.id) && (!projectId || run.projectId === projectId),
-    ) ?? [];
+  const runs = filterRuns(query.runs, filters, asOf);
+  /* 필터로 숨긴 실행은 선택에서 뺍니다 (보이지 않는 실행끼리 비교하지 않게) */
+  const selectedRuns = runs.filter((run) => selected.includes(run.id));
   const reason = comparisonReason(selectedRuns);
   const applied = Object.entries(filters).filter(
     ([key, value]) => value !== defaults[key as keyof RunFilters] && key !== "sort",
@@ -72,7 +72,7 @@ export default function DiagnosisHistoryPage({
       )}
       <HistoryFilters
         filters={filters}
-        projects={query.data?.projects ?? []}
+        projects={query.projects}
         onChange={update}
         hideProject={Boolean(projectId)}
       />
@@ -86,7 +86,7 @@ export default function DiagnosisHistoryPage({
               onClick={() => update(key as keyof RunFilters, defaults[key as keyof RunFilters])}
               className="rounded-full bg-gray-50 px-3 py-2"
             >
-              {query.data?.projects.find((p) => p.id === value)?.name ?? value} ×
+              {query.projects.find((p) => p.id === value)?.name ?? value} ×
             </button>
           ))}
           <Button variant="link" onClick={reset}>
@@ -94,12 +94,12 @@ export default function DiagnosisHistoryPage({
           </Button>
         </div>
       )}
-      {selected.length > 0 && (
+      {selectedRuns.length > 0 && (
         <section
           aria-label="선택한 실행"
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 p-4"
         >
-          <span className="text-sm">{selected.length}개 선택됨</span>
+          <span className="text-sm">{selectedRuns.length}개 선택됨</span>
           <div className="flex items-center gap-3">
             <Button variant="link" onClick={() => setSelected([])}>
               선택 해제
@@ -111,23 +111,28 @@ export default function DiagnosisHistoryPage({
               title={reason || undefined}
               onClick={() => setCompareOpen(true)}
             >
-              선택한 {selected.length}개 비교
+              선택한 {selectedRuns.length}개 비교
             </Button>
           </div>
           {reason && <p className="w-full text-xs text-muted">{reason}</p>}
         </section>
       )}
-      {query.isLoading ? (
+      {query.isPending ? (
         <WorkspaceState kind="loading" title="기록을 불러오는 중이에요" />
       ) : query.isError ? (
         <WorkspaceState
           kind="error"
           title="진단 기록을 불러오지 못했어요"
           description="잠시 후 다시 시도해 주세요. 실행 중인 테스트에는 영향이 없어요."
-          action={<WorkspaceRetry onClick={query.retry} />}
+          action={<WorkspaceRetry onClick={query.refetch} />}
         />
       ) : (
         <>
+          {query.failedProjects > 0 && (
+            <p role="status" className="text-xs text-danger">
+              프로젝트 {query.failedProjects}개의 기록을 불러오지 못했어요. 받은 기록만 보여 줘요.
+            </p>
+          )}
           <HistoryTable
             hideProject={Boolean(projectId)}
             runs={runs}
@@ -164,7 +169,7 @@ export default function DiagnosisHistoryPage({
             <p className="text-xs text-muted">
               {runs.length}개 실행 ·{" "}
               {filters.period === "all" ? "전체 기간" : `최근 ${filters.period}일`} · 실행일{" "}
-              {filters.sort === "oldest" ? "오래된순" : "최신순"} · 샘플 데이터
+              {filters.sort === "oldest" ? "오래된순" : "최신순"}
             </p>
           )}
         </>
