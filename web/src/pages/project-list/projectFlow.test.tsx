@@ -10,6 +10,7 @@ import ProjectHistoryPage from "@/pages/project-history";
 import ProjectIssuesPage from "@/pages/project-issues";
 import { getMyProjects } from "@/apis/project.v1.api";
 import { server } from "@/mocks/node";
+import { issueFixture, issueList } from "@/test/issues";
 import { createTestProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
@@ -175,17 +176,54 @@ describe("프로젝트별 기록·문제 격리", () => {
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
 
-  it("프로젝트의 문제 개수와 원인 필터가 독립적으로 계산된다", async () => {
+  it("C09 는 그 프로젝트의 문제만 받아 묶음 수를 센다", async () => {
+    const studio = await createTestProject();
+    const requested: string[] = [];
+    server.use(
+      http.get("*/api/v1/projects/:projectId/issues", ({ params }) => {
+        requested.push(String(params.projectId));
+        return HttpResponse.json(
+          issueList([
+            issueFixture({ project_id: Number(studio) }),
+            issueFixture({
+              id: "order:/:navigation",
+              project_id: Number(studio),
+              cause: "탐색 실패",
+              stage: "랜딩",
+            }),
+          ]),
+        );
+      }),
+      http.get("*/api/v1/issues", () => HttpResponse.error()),
+    );
     renderWithProviders(<ProjectIssuesPage />, {
-      route: "/projects/1/issues",
+      route: `/projects/${studio}/issues`,
       path: "/projects/:projectId/issues",
     });
     expect(
       await screen.findByRole("button", { name: "입력 부담 · 가입 단계" }),
     ).toBeInTheDocument();
+    expect(requested).toEqual([studio]);
+    expect(screen.getByText(/2개 묶음/)).toBeInTheDocument();
+  });
+
+  it("샘플 프로젝트 C09 는 문제를 묻지 않고 안내한다 (BE 는 소유자만)", async () => {
+    const requested: string[] = [];
+    server.use(
+      http.get("*/api/v1/projects/:projectId/issues", ({ params }) => {
+        requested.push(String(params.projectId));
+        return HttpResponse.json(issueList([]));
+      }),
+    );
+    renderWithProviders(<ProjectIssuesPage />, {
+      route: "/projects/1/issues",
+      path: "/projects/:projectId/issues",
+    });
     expect(
-      screen.queryByRole("button", { name: "기술 오류·지연 · 랜딩 단계" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText(/3개 묶음/)).toBeInTheDocument();
+      await screen.findByRole("heading", {
+        name: "샘플 프로젝트는 문제 모아 보기를 지원하지 않아요",
+      }),
+    ).toBeInTheDocument();
+    expect(requested).toEqual([]);
   });
 });

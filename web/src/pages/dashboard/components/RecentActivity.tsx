@@ -2,40 +2,79 @@ import { Link } from "react-router-dom";
 
 import Icon from "@/components/Icon/Icon";
 import { buildPath } from "@/constants/routes";
-import type { WorkspaceRun } from "@/types/workspace.type";
+import type { WorkspaceIssue, WorkspaceRun } from "@/types/workspace.type";
 import { formatRate } from "@/utils/workspaceRuns";
 
-import type { DashboardIssue } from "../utils/dashboardData";
+/* 대시보드에 보여 줄 최근 문제 수 (BE 가 판정 · 이탈 수 순서로 줍니다) */
+const RECENT_ISSUES = 3;
 
 /*
-  최근 발견한 문제 — 프로젝트별 최근 리포트의 주요 이탈 원인. 누르면 그 실행의 리포트로 갑니다.
-  "발견한 문제" 화면(W03)은 아직 BE API 가 없어 전체 보기 링크는 두지 않습니다.
+  최근 발견한 문제 — GET /api/v1/issues 의 앞 3개. 누르면 발견한 문제(W03)에서 그 문제를 엽니다.
+  불러오지 못하면(로그인 전 401 등) 짧게 안내만 하고 대시보드의 다른 부분은 그대로 둡니다.
 */
-export function RecentIssues({ issues }: { issues: DashboardIssue[] }) {
+export function RecentIssues({
+  issues,
+  failed = false,
+  loggedOut = false,
+}: {
+  issues: WorkspaceIssue[] | undefined;
+  failed?: boolean;
+  /* 로그인 전(401): 오류가 아니라 안내 */
+  loggedOut?: boolean;
+}) {
   return (
     <section className="space-y-3">
-      <header className="flex flex-wrap items-baseline gap-3">
-        <h2 className="text-lg font-bold">최근 발견한 문제</h2>
-        <span className="text-xs text-muted">영향 = 이탈한 가상 세션 수</span>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-lg font-bold">최근 발견한 문제</h2>
+          <span className="text-xs text-muted">영향 = 가상 세션 수</span>
+        </div>
+        {issues && issues.length > 0 && (
+          <Link to={buildPath("issues")} className="text-caption underline">
+            문제 {issues.length}개 전체 보기
+          </Link>
+        )}
       </header>
-      {issues.length === 0 ? (
-        <p className="py-4 text-caption text-subtle">아직 이탈 원인이 기록된 테스트가 없어요</p>
+      {loggedOut ? (
+        <p className="py-4 text-caption text-subtle">
+          로그인하면 내 프로젝트에서 발견한 문제를 모아 보여 줘요
+        </p>
+      ) : failed ? (
+        <p className="py-4 text-caption text-subtle">발견한 문제를 불러오지 못했어요</p>
+      ) : !issues ? (
+        <p className="py-4 text-caption text-subtle">불러오는 중이에요</p>
+      ) : issues.length === 0 ? (
+        <p className="py-4 text-caption text-subtle">아직 발견한 문제가 없어요</p>
       ) : (
         <div>
-          {issues.map((issue) => (
+          {issues.slice(0, RECENT_ISSUES).map((issue) => (
             <Link
               key={issue.id}
-              to={buildPath("report", { projectId: issue.projectId, runId: issue.runId })}
+              to={`${buildPath("issues")}?issue=${encodeURIComponent(issue.id)}`}
               className="grid grid-cols-6 items-center gap-4 border-b border-line py-4 last:border-0 hover:bg-gray-50 sm:grid-cols-12"
             >
-              <span className="col-span-4 min-w-0 sm:col-span-9">
-                <span className="block text-sm font-medium">{issue.cause}</span>
+              <span className="col-span-6 min-w-0 sm:col-span-7">
+                <span className="block text-sm font-medium">
+                  {issue.cause} · {issue.stage}
+                </span>
                 <span className="mt-1 block text-xs text-muted">
-                  {issue.projectName} · {issue.runTitle}
+                  {issue.projectName} · {issue.task}
                 </span>
               </span>
-              <span className="col-span-2 text-right text-caption tabular-nums sm:col-span-3">
-                {issue.dropouts}명
+              <span className="col-span-2 text-center text-caption tabular-nums">
+                {issue.impact[0] === issue.impact[1] ? issue.impact[0] : issue.impact.join("~")}
+              </span>
+              <span className="col-span-4 flex items-center gap-2 text-caption whitespace-nowrap text-subtle sm:col-span-3">
+                <Icon
+                  name={
+                    issue.verdict === "계속 발생"
+                      ? "verdict-repeat"
+                      : issue.verdict === "새로 발견"
+                        ? "verdict-new"
+                        : "verdict-before"
+                  }
+                />
+                {issue.verdict}
               </span>
             </Link>
           ))}

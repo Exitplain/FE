@@ -19,7 +19,7 @@ export default function IssueDetailModal({
       open
       onClose={onClose}
       title={`${issue.cause} · ${issue.stage}`}
-      description={`${issue.projectName} · ${issue.task} · 샘플 데이터`}
+      description={`${issue.projectName} · ${issue.task}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -37,7 +37,9 @@ export default function IssueDetailModal({
       <dl className="grid grid-cols-3 gap-4 rounded-xl bg-gray-50 p-5">
         <div>
           <dt className="text-xs text-muted">영향 (가상 세션)</dt>
-          <dd className="mt-2 font-bold">{issue.impact.join("~")}개</dd>
+          <dd className="mt-2 font-bold">
+            {issue.impact[0] === issue.impact[1] ? issue.impact[0] : issue.impact.join("~")}개
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">처음 발견</dt>
