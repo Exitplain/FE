@@ -7,7 +7,9 @@ import { isPersonaAvatar } from "./personaAvatars";
 describe("PersonaAvatar", () => {
   it("정해진 키면 연령대 캐릭터 이미지를 그린다", () => {
     const { container } = render(<PersonaAvatar avatar="50plus" />);
-    expect(container.querySelector("img")?.getAttribute("src")).toBe("/personas/persona-50plus.svg");
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/personas/persona-50plus.svg",
+    );
   });
 
   it("모르는 키·빈 값이면 아무것도 그리지 않는다 (임의 경로를 만들지 않음)", () => {

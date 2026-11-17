@@ -495,7 +495,9 @@ describe("P02~P07 새 테스트", () => {
 
     await user.click(screen.getByRole("button", { name: "확인" }));
 
-    expect(await screen.findByText(/사이트 화면과 메뉴를 둘러보며 기능을 찾는 중이에요/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/사이트 화면과 메뉴를 둘러보며 기능을 찾는 중이에요/),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("제품 URL")).toBeDisabled();
     expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();
   });

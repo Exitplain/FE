@@ -132,13 +132,7 @@ describe("report-2 화면 값", () => {
 });
 
 describe("실행 퍼널 (journey_funnel)", () => {
-  const stage = (
-    id: string,
-    name: string,
-    order: number,
-    reached: number,
-    dropouts = 0,
-  ) => ({
+  const stage = (id: string, name: string, order: number, reached: number, dropouts = 0) => ({
     id,
     path: id,
     name,
@@ -181,17 +175,29 @@ describe("실행 퍼널 (journey_funnel)", () => {
   });
 
   it("최대 이탈 구간도 실행 퍼널 기준", () => {
-    expect(worstDropV1(journeyTask())).toEqual({ label: "상품 상세 → 장바구니", dropouts: 3, percent: 30 });
+    expect(worstDropV1(journeyTask())).toEqual({
+      label: "상품 상세 → 장바구니",
+      dropouts: 3,
+      percent: 30,
+    });
   });
 
   it("히트맵 열은 실행 퍼널 단계 + 기타 화면", () => {
     const { columns, rows } = heatmapV1(journeyTask());
-    expect(columns.map((column) => column.name)).toEqual(["홈", "상품 상세", "장바구니", "주문 완료", "기타 화면"]);
+    expect(columns.map((column) => column.name)).toEqual([
+      "홈",
+      "상품 상세",
+      "장바구니",
+      "주문 완료",
+      "기타 화면",
+    ]);
     expect(rows[0].cells).toEqual([0, 3, 0, 0, 1]);
   });
 
   it("없거나 비어 있으면(예전 리포트) 7단계 퍼널 그대로", () => {
     const empty = orderTask({ journey_funnel: { ...journeyTask().journey_funnel!, stages: [] } });
-    expect(funnelRowsV1(empty).map((row) => row.key)).toEqual(funnelRowsV1(orderTask()).map((row) => row.key));
+    expect(funnelRowsV1(empty).map((row) => row.key)).toEqual(
+      funnelRowsV1(orderTask()).map((row) => row.key),
+    );
   });
 });

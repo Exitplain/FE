@@ -161,7 +161,9 @@ export function heatmapV1(task: ReportTaskV1) {
   if (useJourney) names.set("other", "기타 화면");
   const columns = heatmap.stages
     .map((key: string, index: number) => ({ key, index, name: names.get(key) }))
-    .filter((column): column is { key: string; index: number; name: string } => Boolean(column.name));
+    .filter((column): column is { key: string; index: number; name: string } =>
+      Boolean(column.name),
+    );
   const rows = heatmap.rows.map((row) => ({
     id: row.segment_id,
     name: row.name,
