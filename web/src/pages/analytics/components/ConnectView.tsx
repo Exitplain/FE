@@ -1,22 +1,25 @@
-import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
+import { issueMeasurement } from "@/apis/measurement.api";
+import { queryKeys } from "@/apis/queryKeys";
 import characterDefault from "@/assets/characters/character-default.svg";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import { useToastStore } from "@/stores/useToastStore";
 
-import {
-  COLLECT_ITEMS,
-  INSTALL_CHECKS,
-  NOT_COLLECT_ITEMS,
-  SCRIPT_SNIPPET,
-} from "../data/analyticsMock";
-import { useAnalyticsMockStore } from "../data/useAnalyticsMockStore";
+import { COLLECT_ITEMS, INSTALL_CHECKS, NOT_COLLECT_ITEMS } from "../data/analyticsMock";
+import { CHECK_TIMEOUT_MS, useMeasurement } from "../hooks/useMeasurement";
 
-/* 설치 확인에 걸리는 시간 (임시: 실제로는 첫 이벤트가 올 때까지 기다립니다) */
-const CHECK_MS = 1500;
+type InstallState = "idle" | "checking" | "failed";
 
-type InstallState = "idle" | "checking" | "done" | "failed";
+const timeFormat = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 /* E03 실측 미연결 — 스크립트 한 줄로 실측을 모으도록 안내 */
 export function NotConnected({ onConnect }: { onConnect: () => void }) {
@@ -37,39 +40,85 @@ export function NotConnected({ onConnect }: { onConnect: () => void }) {
   );
 }
 
+/* 배포 주소가 없는 프로젝트(코드만 받은 경우 등)는 실제 방문자가 없어 실측을 모을 수 없습니다 */
+export function NotDeployed({ message }: { message?: string }) {
+  return (
+    <section
+      aria-labelledby="not-deployed-title"
+      className="flex flex-col items-center gap-2 py-16 text-center"
+    >
+      <img src={characterDefault} alt="" className="mb-10 h-40 w-auto" />
+      <h2 id="not-deployed-title" className="text-lg font-bold text-ink">
+        배포된 사이트가 있어야 실측할 수 있어요
+      </h2>
+      <p className="text-sm text-subtle">
+        {message ?? "실측 분석은 실제 방문자가 오는 배포 주소가 있어야 해요."}
+      </p>
+    </section>
+  );
+}
+
 /*
   R01~R04 실측 데이터 연결 — 1. 스크립트 설치 · 2. 설치 확인 · 3. 단계 매핑(설치 확인 뒤 열림).
-  임시: 반찬로드·스튜디오 예약은 바로 성공(R03), 그 밖의 프로젝트는 처음 한 번 실패(R04)를 보여줍니다.
+  키는 화면을 열 때 발급합니다 (이미 있으면 같은 키). 설치 확인은 첫 수집이 올 때까지 상태를 다시 받습니다.
 */
 export default function ConnectView({
   projectId,
   onMapping,
 }: {
-  projectId: string;
+  projectId: number;
   onMapping: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [install, setInstall] = useState<InstallState>("idle");
   const [showAll, setShowAll] = useState(false);
-  const failedOnce = useAnalyticsMockStore((state) => state.failedOnce[projectId] ?? false);
+  const status = useMeasurement(projectId, { polling: install === "checking" });
+  const data = status.data;
+  const installed = Boolean(data?.installed);
+
+  const { mutate: issue, error: issueError } = useMutation({
+    mutationFn: () => issueMeasurement(projectId),
+    onSuccess: (next) => queryClient.setQueryData(queryKeys.measurement(projectId), next),
+  });
+  const issued = useRef(false);
+  useEffect(() => {
+    if (!data || !data.available || data.key || issued.current) return;
+    issued.current = true;
+    issue();
+  }, [data, issue]);
 
   useEffect(() => {
-    if (install !== "checking") return;
-    const timer = window.setTimeout(() => {
-      const fails = !["1"].includes(projectId) && !failedOnce;
-      if (fails) useAnalyticsMockStore.getState().markFailed(projectId);
-      setInstall(fails ? "failed" : "done");
-    }, CHECK_MS);
+    if (install !== "checking" || installed) return;
+    const timer = window.setTimeout(() => setInstall("failed"), CHECK_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
-  }, [install, projectId, failedOnce]);
+  }, [install, installed]);
 
+  const snippet = data?.snippet ?? null;
   const copy = async () => {
+    if (!snippet) return;
     try {
-      await navigator.clipboard.writeText(SCRIPT_SNIPPET);
+      await navigator.clipboard.writeText(snippet);
       useToastStore.getState().show("코드를 복사했어요");
     } catch {
       useToastStore.getState().show("복사하지 못했어요 · 코드를 직접 선택해 주세요", "info");
     }
   };
+
+  if (status.isError) {
+    return (
+      <div className="flex flex-col items-start gap-4 rounded-xl bg-gray-50 p-6">
+        <p role="alert" className="text-sm text-subtle">
+          {status.error.message}
+        </p>
+        <Button variant="secondary" onClick={() => void status.refetch()}>
+          다시 불러오기
+        </Button>
+      </div>
+    );
+  }
+  if (data && !data.available) return <NotDeployed message={data.message} />;
+
+  const checking = install === "checking" && !installed;
 
   return (
     <div className="flex flex-col gap-10">
@@ -78,18 +127,25 @@ export default function ConnectView({
           <h2 id="install-title" className="text-lg font-bold text-ink">
             1. 스크립트 설치
           </h2>
-          <Button onClick={() => void copy()}>코드 복사</Button>
+          <Button disabled={!snippet} onClick={() => void copy()}>
+            코드 복사
+          </Button>
         </div>
         <p className="text-caption text-subtle">
           모든 페이지 &lt;head&gt;에 아래 한 줄을 넣어주세요
         </p>
         <code className="block overflow-x-auto rounded-lg bg-gray-50 p-3 text-caption text-ink">
-          {SCRIPT_SNIPPET}
+          {snippet ?? issueError?.message ?? "코드를 만드는 중이에요…"}
         </code>
+        {data && data.origins.length > 0 && (
+          <p className="text-caption text-subtle">
+            {data.origins.join(", ")} 에서 온 수집만 받아요
+          </p>
+        )}
         <div className="flex flex-col gap-2 text-caption">
           <p className="flex items-center gap-2 text-subtle">
             <span className="font-bold text-ink">모으는 것 · 모으지 않는 것</span>
-            단계 진입만 익명 수집 · 개인정보·에이전트 제외
+            화면 이동만 익명 수집 · 개인정보·에이전트 제외
             <button
               type="button"
               aria-expanded={showAll}
@@ -113,37 +169,46 @@ export default function ConnectView({
           <h2 id="verify-title" className="text-lg font-bold text-ink">
             2. 설치 확인
           </h2>
-          <Button disabled={install === "checking"} onClick={() => setInstall("checking")}>
-            {install === "checking" ? "확인 중…" : "설치 확인"}
+          <Button
+            disabled={!snippet || checking}
+            onClick={() => {
+              setInstall("checking");
+              void status.refetch();
+            }}
+          >
+            {checking ? "확인 중…" : "설치 확인"}
           </Button>
         </div>
         <p className="text-caption text-subtle">설치 후 사이트를 열고 확인을 누르세요</p>
         <p role="status" className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption">
-          {install === "idle" && (
-            <>
-              <Icon name="circle" className="size-5 text-subtle" />
-              <span className="text-subtle">아직 확인하지 않았어요</span>
-            </>
-          )}
-          {install === "checking" && (
-            <span className="font-bold text-ink">
-              ··· 첫 이벤트 대기 중 · 사이트를 새 탭에서 열어보세요
-            </span>
-          )}
-          {install === "done" && (
+          {installed && data ? (
             <>
               <Icon name="status-done" className="size-5" />
-              <span className="font-bold text-ink">첫 이벤트를 받았어요 · step_landing 14:38</span>
+              <span className="font-bold text-ink">
+                수집을 받고 있어요 · {data.last_origin}{" "}
+                {data.last_received_at && timeFormat.format(new Date(data.last_received_at))}
+              </span>
+              <span className="text-subtle">
+                최근 24시간 {data.sessions_24h}세션 · {data.events_24h}건
+              </span>
             </>
-          )}
-          {install === "failed" && (
+          ) : checking ? (
+            <span className="font-bold text-ink">
+              ··· 첫 수집 대기 중 · 사이트를 새 탭에서 열어보세요
+            </span>
+          ) : install === "failed" ? (
             <>
               <Icon name="status-error" className="size-5 text-danger" />
-              <span className="font-bold text-ink">5분 동안 이벤트가 오지 않았어요</span>
+              <span className="font-bold text-ink">5분 동안 수집이 오지 않았어요</span>
+            </>
+          ) : (
+            <>
+              <Icon name="circle" className="size-5 text-subtle" />
+              <span className="text-subtle">아직 받은 수집이 없어요</span>
             </>
           )}
         </p>
-        {install === "failed" && (
+        {install === "failed" && !installed && (
           <ul aria-label="확인할 것" className="flex flex-col">
             {INSTALL_CHECKS.map((item) => (
               <li
@@ -163,20 +228,15 @@ export default function ConnectView({
         className="flex items-center justify-between gap-4 rounded-xl bg-gray-50 p-4"
       >
         <div className="flex flex-col gap-2">
-          <h2
-            id="mapping-title"
-            className={install === "done" ? "font-bold text-ink" : "text-subtle"}
-          >
+          <h2 id="mapping-title" className={installed ? "font-bold text-ink" : "text-subtle"}>
             3. 단계 매핑
           </h2>
           <p className="flex items-center gap-2 text-caption text-subtle">
-            <Icon name={install === "done" ? "status-done" : "status-wait"} className="size-5" />
-            {install === "done"
-              ? "수집된 단계를 사전 테스트 퍼널에 연결해요"
-              : "설치를 확인하면 열려요"}
+            <Icon name={installed ? "status-done" : "status-wait"} className="size-5" />
+            {installed ? "수집된 단계를 사전 테스트 퍼널에 연결해요" : "설치를 확인하면 열려요"}
           </p>
         </div>
-        {install === "done" && <Button onClick={onMapping}>단계 매핑하기</Button>}
+        {installed && <Button onClick={onMapping}>단계 매핑하기</Button>}
       </section>
     </div>
   );

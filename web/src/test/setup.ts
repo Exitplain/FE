@@ -4,6 +4,7 @@ import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { resetCsrfToken } from "@/apis/axiosInstance";
+import { resetMeasurementMock } from "@/mocks/handlers/measurements";
 import { resetProjectMock } from "@/mocks/handlers/projects";
 import { resetReportMock } from "@/mocks/handlers/reports";
 import { resetSourceMock } from "@/mocks/handlers/sources";
@@ -66,6 +67,7 @@ afterEach(() => {
   resetReportMock();
   resetPlanMock();
   resetSourceMock();
+  resetMeasurementMock();
   resetRunV1Mock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });

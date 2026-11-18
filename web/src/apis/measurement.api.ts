@@ -1,0 +1,32 @@
+import type { MeasurementStatus, MeasurementSteps } from "@/types/measurement.type";
+
+import axiosInstance from "./axiosInstance";
+
+/*
+  실측 수집 (R01~R05). 로그인 + 프로젝트 소유자만 됩니다.
+  고객 사이트가 부르는 /api/v1/e.js · /api/v1/collect 는 FE 가 부르지 않습니다.
+*/
+
+export async function getMeasurement(projectId: number): Promise<MeasurementStatus> {
+  const { data } = await axiosInstance.get<MeasurementStatus>(
+    `/api/v1/projects/${projectId}/measurement`,
+  );
+  return data;
+}
+
+/* 수집 키 발급. 이미 있으면 같은 키를 돌려줍니다. 배포 주소가 없으면 409 NOT_DEPLOYED */
+export async function issueMeasurement(projectId: number): Promise<MeasurementStatus> {
+  const { data } = await axiosInstance.post<MeasurementStatus>(
+    `/api/v1/projects/${projectId}/measurement`,
+    {},
+  );
+  return data;
+}
+
+export async function getMeasurementSteps(projectId: number, days = 7): Promise<MeasurementSteps> {
+  const { data } = await axiosInstance.get<MeasurementSteps>(
+    `/api/v1/projects/${projectId}/measurement/steps`,
+    { params: { days } },
+  );
+  return data;
+}

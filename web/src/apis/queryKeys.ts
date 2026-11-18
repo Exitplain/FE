@@ -56,6 +56,8 @@ export const queryKeys = {
   },
   /* 프로젝트 테스트 계정 (P04). 저장하면 응답으로 바로 채웁니다 */
   testAccounts: (projectId: number) => ["testAccounts", projectId] as const,
+  /* 실측 수집 설치 상태 (R01~R04). 설치 확인 중에는 짧게 다시 받습니다 */
+  measurement: (projectId: number) => ["measurement", projectId] as const,
   calibration: {
     all: ["calibration"] as const,
     history: (projectId: string) => [...queryKeys.calibration.all, projectId, "history"] as const,
