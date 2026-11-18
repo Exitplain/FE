@@ -5,6 +5,7 @@ import type {
   CalibrationRecord,
   HumanObservationList,
   ObservationInput,
+  ProposalStrength,
 } from "@/types/calibration.type";
 
 import axiosInstance from "./axiosInstance";
@@ -23,10 +24,14 @@ export async function getCalibrations(projectId: string) {
 }
 
 /* 조정안 (K01). 적용할 수 없으면 available=false 와 reason */
-export async function getCalibrationProposal(projectId: string, days = 7) {
+export async function getCalibrationProposal(
+  projectId: string,
+  days = 7,
+  strength: ProposalStrength = "normal",
+) {
   const { data } = await axiosInstance.get<CalibrationProposal>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/calibration/proposal`,
-    { params: { days } },
+    { params: { days, strength } },
   );
   return data;
 }
@@ -34,7 +39,7 @@ export async function getCalibrationProposal(projectId: string, days = 7) {
 /* 적용 (K02). 숫자는 서버가 조정안을 다시 계산해 쓰고, 여기서는 고른 행의 key 만 보냅니다 */
 export async function applyCalibration(
   projectId: string,
-  body: { expected_revision: number; keys: string[]; days?: number },
+  body: { expected_revision: number; keys: string[]; days?: number; strength?: ProposalStrength },
 ) {
   const { data } = await axiosInstance.post<CalibrationRecord>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/calibrations`,

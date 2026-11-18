@@ -19,7 +19,8 @@ import { useCurrentProject, type CurrentProject } from "@/components/Projects/cu
 import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
 import { useToastStore } from "@/stores/useToastStore";
-import type { CalibrationRecord } from "@/types/calibration.type";
+import SegmentedTabs from "@/components/SegmentedTabs/SegmentedTabs";
+import type { CalibrationRecord, ProposalStrength } from "@/types/calibration.type";
 
 import {
   ApplyModal,
@@ -27,6 +28,7 @@ import {
   NoProposal,
   ProposalView,
   CompareSection,
+  ErrorTrend,
 } from "./components/CalibrationViews";
 import ObservationView from "./components/ObservationView";
 import ParticipantLinks from "./components/ParticipantLinks";
@@ -57,9 +59,10 @@ function Calibration({ project }: { project: CurrentProject }) {
   const [confirming, setConfirming] = useState(false);
   const crumb = `${project.name} / 보정 · 테스트`;
   const history = useCalibrations(project.id);
+  const [strength, setStrength] = useState<ProposalStrength>("normal");
   const proposal = useQuery({
-    queryKey: [...queryKeys.calibration.all, project.id, "proposal"] as const,
-    queryFn: () => getCalibrationProposal(project.id),
+    queryKey: [...queryKeys.calibration.all, project.id, "proposal", strength] as const,
+    queryFn: () => getCalibrationProposal(project.id, 7, strength),
     enabled: !project.isSample,
   });
   const records = history.data ?? [];
@@ -84,6 +87,7 @@ function Calibration({ project }: { project: CurrentProject }) {
       applyCalibration(project.id, {
         expected_revision: proposal.data?.base_revision ?? revision,
         keys: (proposal.data?.items ?? []).map((item) => item.key),
+        strength,
       }),
     onSuccess: async () => {
       setConfirming(false);
@@ -196,6 +200,7 @@ function Calibration({ project }: { project: CurrentProject }) {
     return (
       <div className="flex flex-col gap-12">
         {header()}
+        <ErrorTrend history={records} />
         {historyTable}
         {observeLink}
       </div>
@@ -205,15 +210,51 @@ function Calibration({ project }: { project: CurrentProject }) {
   const data = proposal.data;
 
   if (data.available && data.items.length > 0) {
+    const unit = data.basis?.evidence === "observations" ? "명" : "세션";
     return (
       <div className="flex flex-col gap-12">
         {header(
           <>
-            <StatusBadge icon="settings" label="조정안 있음" tone="strong" />
-            <Button onClick={() => setConfirming(true)}>보정 적용</Button>
+            <StatusBadge
+              icon="settings"
+              label={data.provisional ? "임시 조정안" : "조정안 있음"}
+              tone={data.provisional ? "muted" : "strong"}
+            />
+            <Button disabled={data.provisional} onClick={() => setConfirming(true)}>
+              보정 적용
+            </Button>
           </>,
-          "예측·실측 차이로 값을 제안해요 · 적용해야 반영돼요",
+          data.basis?.evidence === "observations"
+            ? "사람 관측(가장 불편했던 화면)으로 값을 제안해요 · 적용해야 반영돼요"
+            : "예측·실측 차이로 값을 제안해요 · 적용해야 반영돼요",
         )}
+        {data.provisional && (
+          <p
+            role="status"
+            className="flex flex-col gap-1 rounded-lg bg-gray-50 p-4 text-caption text-ink"
+          >
+            <span className="font-bold">
+              임시값이에요 · {data.basis?.count ?? 0}/{data.min_evidence}
+              {unit}
+            </span>
+            <span className="text-subtle">
+              지금 모인 만큼으로 계산한 미리 보기예요. {data.min_evidence}
+              {unit}부터 실제 값으로 바뀌고 보정을 적용할 수 있어요.
+            </span>
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-subtle">조정 강도</span>
+          <SegmentedTabs
+            label="조정 강도"
+            options={[
+              { value: "normal", label: "기본" },
+              { value: "gentle", label: "약하게 (절반)" },
+            ]}
+            value={strength}
+            onChange={setStrength}
+          />
+        </div>
         {compareSection}
         <ProposalView proposal={data} />
         <div className="flex gap-6">
@@ -246,6 +287,7 @@ function Calibration({ project }: { project: CurrentProject }) {
           </>,
         )}
         {compareSection}
+        <ErrorTrend history={records} />
         {historyTable}
         {observeLink}
       </div>

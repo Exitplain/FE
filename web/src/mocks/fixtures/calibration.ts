@@ -23,17 +23,33 @@ export const CALIBRATIONS: Record<string, CalibrationRecord[]> = {
 };
 
 /* 조정안이 있는 상태의 예시 (Figma K01) */
-export function sampleProposal(projectId: number, baseRevision: number): CalibrationProposal {
+export function sampleProposal(
+  projectId: number,
+  baseRevision: number,
+  options: { provisional?: boolean; strength?: "normal" | "gentle" } = {},
+): CalibrationProposal {
+  const gentle = options.strength === "gentle";
+  const count = options.provisional ? 6 : 24;
   return {
     project_id: projectId,
     available: true,
     base_revision: baseRevision,
     days: 7,
+    strength: options.strength ?? "normal",
+    min_evidence: 10,
+    provisional: Boolean(options.provisional),
+    ...(options.provisional
+      ? {
+          message: `지금은 ${count}세션이라 임시값이에요. 10세션부터 실제 값으로 바뀌고 적용할 수 있어요.`,
+        }
+      : {}),
     basis: {
       report_id: "report-mock-1",
       run_sequence: 3,
       days: 7,
       device: "all",
+      evidence: "measurement",
+      count,
       mean_error: 4.5,
       gaps: [
         {
@@ -57,7 +73,7 @@ export function sampleProposal(projectId: number, baseRevision: number): Calibra
         cause: "navigation",
         label: "마찰 가중치 · 탐색 실패",
         current: 1,
-        proposed: 1.15,
+        proposed: gentle ? 1.05 : 1.15,
         reason: "첫 주문 완료 · 장바구니 화면에서 가장 많이 겪은 마찰이 탐색 실패이에요",
       },
       {
@@ -68,7 +84,7 @@ export function sampleProposal(projectId: number, baseRevision: number): Calibra
         cause: null,
         label: "인내심 임계치",
         current: 1,
-        proposed: 0.85,
+        proposed: gentle ? 0.95 : 0.85,
         reason: "첫 주문 완료 · 장바구니: 실측 이탈이 예측보다 커요 (-16.0%p)",
       },
     ],

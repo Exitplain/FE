@@ -4,6 +4,7 @@ import characterDefault from "@/assets/characters/character-default.svg";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import Modal from "@/components/Modal/Modal";
+import TrendLineChart from "@/components/TrendLineChart/TrendLineChart";
 import type {
   CalibrationCompare,
   CalibrationProposal,
@@ -45,8 +46,12 @@ function basisText(proposal: CalibrationProposal) {
   const basis = proposal.basis;
   if (!basis) return "";
   const run = basis.run_sequence ? `${basis.run_sequence}차` : "사전 테스트";
+  if (basis.evidence === "observations") {
+    const picks = (basis.picks ?? []).map((pick) => pick.stage_name).join(" · ");
+    return `${run} vs 사람 관측 ${basis.count}명 · 가장 불편했던 화면 기준${picks ? ` · 많이 고른 화면 ${picks}` : ""}`;
+  }
   const gaps = basis.gaps.map((gap) => gap.stage_name).join(" · ");
-  return `${run} vs 실측 ${basis.days}일 · 오차 ${basis.mean_error ?? "—"}%p${gaps ? ` · 차이 구간 ${gaps}` : ""}`;
+  return `${run} vs 실측 ${basis.days}일 (${basis.count}세션) · 오차 ${basis.mean_error ?? "—"}%p${gaps ? ` · 차이 구간 ${gaps}` : ""}`;
 }
 
 /* K01 보정 조정안 — 바뀌는 행과, 바뀌지 않는 세그먼트("변화 없음")를 함께 보여줍니다 */
@@ -72,11 +77,17 @@ export function ProposalView({ proposal }: { proposal: CalibrationProposal }) {
             value: "다음 테스트 후",
             note: "적용한 뒤 새 사전 테스트 결과로 확인해요",
           },
-          {
-            label: "차이 구간",
-            value: `${proposal.basis?.gaps.length ?? 0}곳`,
-            note: "실측이 예측 범위 밖",
-          },
+          proposal.basis?.evidence === "observations"
+            ? {
+                label: "사람이 많이 고른 화면",
+                value: `${proposal.basis.picks?.length ?? 0}곳`,
+                note: "모델 마찰이 낮았던 화면",
+              }
+            : {
+                label: "차이 구간",
+                value: `${proposal.basis?.gaps.length ?? 0}곳`,
+                note: "실측이 예측 범위 밖",
+              },
         ]}
       />
       <section aria-labelledby="adjust-title" className="flex flex-col gap-3">
@@ -397,5 +408,37 @@ export function NoProposal({
         {action && <div className="mt-4">{action}</div>}
       </section>
     </>
+  );
+}
+
+/* 보정 이력별 예측 오차 추이 (꺾은선). 보정 전 = 조정안 기준 오차, 보정 후 = 그 보정으로 돈 첫 테스트 오차 */
+export function ErrorTrend({ history }: { history: CalibrationRecord[] }) {
+  const points = [...history]
+    .filter((row) => row.restored_from === null && row.error_before_pp !== null)
+    .sort((a, b) => a.revision - b.revision)
+    .map((row) => ({
+      x: `r${row.revision}`,
+      before: row.error_before_pp,
+      after: row.error_after_pp,
+    }));
+  if (points.length === 0) return null;
+  return (
+    <section aria-labelledby="error-trend-title" className="flex flex-col gap-3">
+      <h2 id="error-trend-title" className="text-lg font-bold text-ink">
+        예측 오차 추이
+      </h2>
+      <TrendLineChart
+        title="보정별 예측 오차 추이"
+        unit="%p"
+        data={points}
+        series={[
+          { key: "before", label: "보정 전 오차", color: "#a3a3a3", dashed: true },
+          { key: "after", label: "보정 후 오차", color: "#171717" },
+        ]}
+      />
+      <p className="text-xs text-muted">
+        낮을수록 예측이 실제와 가까워요 · 보정 후 오차는 그 보정으로 돈 첫 테스트가 끝나야 생겨요
+      </p>
+    </section>
   );
 }
