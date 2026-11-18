@@ -40,6 +40,8 @@ export type DiscoverInput = {
   entryUrl: string;
   loginMode: "none" | "account";
   variant: "fixed" | "problem";
+  /* 코드로 확인 (받은 정적 사이트 스냅샷). 있으면 entryUrl 대신 이 코드의 미리보기를 둘러봅니다 */
+  sourceSnapshotId?: string;
 };
 
 export type { DiscoverPhase } from "@/stores/useSiteCheckStore";
@@ -137,17 +139,26 @@ export async function runSiteCheck(
   const current = () => useSiteCheckStore.getState().jobs[projectKey]?.request === request;
   try {
     let check: SiteCheck | null = null;
-    try {
-      check = (await checkSite(input.projectId)).check;
-    } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
+    /* 코드로 확인할 때는 프로젝트 주소에 접속해 보지 않습니다 (서버가 받은 코드를 미리보기로 엽니다) */
+    if (!input.sourceSnapshotId) {
+      try {
+        check = (await checkSite(input.projectId)).check;
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403))
+          throw error;
+      }
     }
     if (current()) store.updateJob(projectKey, { phase: "discover" });
-    const started = await createDiscovery(input.projectId, {
-      entry_url: input.entryUrl,
-      login_mode: input.loginMode === "account" ? "test_account" : "none",
-      variant: input.variant,
-    });
+    const started = await createDiscovery(
+      input.projectId,
+      input.sourceSnapshotId
+        ? { source_snapshot_id: input.sourceSnapshotId, login_mode: "none", variant: input.variant }
+        : {
+            entry_url: input.entryUrl,
+            login_mode: input.loginMode === "account" ? "test_account" : "none",
+            variant: input.variant,
+          },
+    );
     const discovery = await waitForDiscovery(started, (progress) => {
       if (current()) store.updateJob(projectKey, { progress });
     });

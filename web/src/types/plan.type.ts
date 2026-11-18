@@ -22,6 +22,8 @@ export type SiteCheckResponse = { project_id: number; check: SiteCheck };
 
 export type DiscoveryRequest = {
   entry_url?: string;
+  /* 코드로 확인 (BE sources 스냅샷 id). 있으면 entry_url 은 보내지 않습니다 */
+  source_snapshot_id?: string;
   login_mode?: "none" | "test_account";
   variant?: "fixed" | "problem";
 };

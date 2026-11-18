@@ -90,6 +90,7 @@ function finish(s: SourceSnapshot, git: boolean): SourceSnapshot {
       counts: { routes: 15, edges: 17, global_edges: 27, unresolved: 0 },
     },
     files_available: true,
+    previewable: true,
     progress: progress(SCRIPT.length, { kind: "ready", message: "코드를 준비했어요" }),
   };
 }
