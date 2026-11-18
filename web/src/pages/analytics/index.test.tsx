@@ -69,6 +69,7 @@ describe("R01~R11 실측 분석", () => {
     expect(await screen.findByText(new RegExp(`data-project="${key}"`))).toBeInTheDocument();
     expect(screen.getByText("https://shop.example.com 에서 온 수집만 받아요")).toBeInTheDocument();
     expect(screen.getByText("설치를 확인하면 열려요")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "사이트 열기 ↗" })).toHaveAttribute("target", "_blank");
 
     await user.click(screen.getByRole("button", { name: "설치 확인" }));
     expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();

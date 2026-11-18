@@ -234,7 +234,11 @@ function Analytics({ project }: { project: CurrentProject }) {
           actions={unlinkBadge}
           activeTab="analytics"
         />
-        <ConnectView projectId={project.v1Id} onMapping={() => goTo("mapping")} />
+        <ConnectView
+          projectId={project.v1Id}
+          siteUrl={/^https?:\/\//.test(project.url) ? project.url : undefined}
+          onMapping={() => goTo("mapping")}
+        />
       </div>
     );
   }
