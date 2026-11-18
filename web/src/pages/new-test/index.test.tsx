@@ -1218,3 +1218,92 @@ describe("P02b 사이트 확인 — 다른 화면에 갔다 와도 이어진다"
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 });
+
+describe("P02 어떻게 테스트할까요? — 코드만 있어요", () => {
+  async function chooseCode(user: ReturnType<typeof userEvent.setup>) {
+    await renderWizard();
+    await user.click(screen.getByRole("radio", { name: /코드만 있어요/ }));
+  }
+
+  it("기본은 URL 이고, 코드를 고르면 같은 화면에서 저장소 입력이 펼쳐지고 다음은 막힌다", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    expect(screen.getByRole("radio", { name: /배포된 URL이 있어요/ })).toBeChecked();
+    expect(screen.getByLabelText("제품 URL")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: /코드만 있어요/ }));
+    expect(screen.queryByLabelText("제품 URL")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("저장소 주소")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "공개 git 저장소" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeDisabled();
+    expect(
+      screen.getByText("미리보기가 준비되면 코드로도 다음 단계로 갈 수 있어요"),
+    ).toBeInTheDocument();
+
+    /* URL 로 돌아가면 기존 흐름 그대로 */
+    await user.click(screen.getByRole("radio", { name: /배포된 URL이 있어요/ }));
+    await checkSite(user);
+  });
+
+  it("공개 git 저장소를 받아 commit·정적 사이트·화면 경로와 저장하지 않은 파일을 알려 준다", async () => {
+    const requests: { path: string; body: string }[] = [];
+    server.events.on("request:start", async ({ request }) => {
+      if (request.method === "POST" && request.url.includes("source-snapshots")) {
+        requests.push({ path: new URL(request.url).pathname, body: await request.clone().text() });
+      }
+    });
+    onTestFinished(() => server.events.removeAllListeners());
+    const user = userEvent.setup();
+    await chooseCode(user);
+    await user.type(screen.getByLabelText("저장소 주소"), "https://github.com/acme/banchanroad");
+    await user.type(screen.getByLabelText("브랜치"), "main");
+    await user.click(screen.getByRole("button", { name: "코드 받기" }));
+
+    expect(
+      await screen.findByText(
+        "코드를 준비했어요 · commit a2d43dd · 파일 11개 · 정적 사이트 · 화면 경로 15개",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/비밀값으로 보이는 파일 1개는 저장하지 않았어요/)).toBeInTheDocument();
+    expect(requests).toEqual([
+      {
+        path: "/api/v1/projects/1/source-snapshots",
+        body: JSON.stringify({ git_url: "https://github.com/acme/banchanroad", ref: "main" }),
+      },
+    ]);
+  });
+
+  it("받기에 실패하면 서버 안내를 보여 주고, 주소 형식이 틀리면 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    await chooseCode(user);
+    await user.type(screen.getByLabelText("저장소 주소"), "github.com/acme");
+    await user.click(screen.getByRole("button", { name: "코드 받기" }));
+    expect(
+      screen.getByText("https 로 시작하는 공개 저장소 주소를 입력해주세요"),
+    ).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("저장소 주소"));
+    await user.type(screen.getByLabelText("저장소 주소"), "https://github.com/acme/missing");
+    await user.click(screen.getByRole("button", { name: "코드 받기" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "저장소를 받지 못했어요. 공개 저장소인지, 브랜치 이름이 맞는지 확인해주세요.",
+    );
+  });
+
+  it("zip 을 올려 받는다 (commit 없이 내용으로 고정)", async () => {
+    const user = userEvent.setup();
+    await chooseCode(user);
+    await user.click(screen.getByRole("button", { name: "zip 업로드" }));
+    await user.upload(
+      screen.getByLabelText("zip 파일"),
+      new File(["PK"], "demo-shop.zip", { type: "application/zip" }),
+    );
+    await user.click(screen.getByRole("button", { name: "코드 받기" }));
+    expect(
+      await screen.findByText("코드를 준비했어요 · 파일 11개 · 정적 사이트 · 화면 경로 15개"),
+    ).toBeInTheDocument();
+  });
+});

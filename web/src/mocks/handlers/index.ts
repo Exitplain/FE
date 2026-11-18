@@ -3,6 +3,7 @@ import { personaHandlers } from "./personas";
 import { planHandlers } from "./plans";
 import { projectHandlers } from "./projects";
 import { reportHandlers } from "./reports";
+import { sourceHandlers } from "./sources";
 
 /*
   BE 없이 화면을 개발하기 위한 mock 핸들러. (`npm run dev:mock`, 테스트)
@@ -18,4 +19,5 @@ export const handlers = [
   ...projectHandlers,
   ...reportHandlers,
   ...planHandlers,
+  ...sourceHandlers,
 ];

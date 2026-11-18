@@ -16,6 +16,8 @@ import {
 } from "../hooks/useNewTestMutations";
 import { validateSiteUrl } from "../utils/newTest";
 import AccountModal from "./AccountModal";
+import CodeSourcePanel from "./CodeSourcePanel";
+import InputModeCards from "./InputModeCards";
 import SiteCheckProgress from "./SiteCheckProgress";
 import StepSection, { StatusRow, StepFooter } from "./StepSection";
 
@@ -54,8 +56,9 @@ export default function SiteStep({
   onDiscovered,
   onNext,
 }: SiteStepProps) {
-  const { projectId, siteUrl, variant, loginMode, accountCount, plan } = useNewTestStore(
+  const { projectId, siteUrl, variant, loginMode, accountCount, plan, inputMode } = useNewTestStore(
     useShallow((state) => ({
+      inputMode: state.inputMode,
       projectId: state.projectId,
       siteUrl: state.siteUrl,
       variant: state.variant,
@@ -95,6 +98,7 @@ export default function SiteStep({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const isChecking = discover.isPending;
+  const codeMode = inputMode === "code";
 
   /* thenNext: "다음"을 눌렀는데 아직 확인 전이면 확인이 끝난 뒤 바로 다음 단계로 갑니다 */
   const check = (thenNext = false) => {
@@ -176,100 +180,111 @@ export default function SiteStep({
         </StatusRow>
       )}
 
-      <StepSection title="대상 사이트">
-        <div className="flex items-end gap-3">
-          <Field label="제품 URL" hint="필수" error={urlError ?? undefined} className="flex-1">
-            {(control) => (
-              <Input
-                {...control}
-                type="url"
-                inputMode="url"
-                disabled={isChecking}
-                value={siteUrl}
-                onChange={(event) => {
-                  actions.setSiteUrl(event.target.value);
-                  setUrlError(null);
-                  /* 새 주소는 아직 확인 전이라 이전 실패 안내를 지웁니다 */
-                  if (discover.isError) {
-                    discover.reset();
-                  }
-                }}
-                onKeyDown={(event) => {
-                  /* 한글 조합 중 Enter(Safari 는 keyCode 229)는 글자 확정이라 무시합니다 */
-                  if (
-                    event.key !== "Enter" ||
-                    event.nativeEvent.isComposing ||
-                    event.keyCode === 229
-                  ) {
-                    return;
-                  }
-                  check();
-                }}
-              />
-            )}
-          </Field>
-          <Button
-            variant="secondary"
-            onClick={() => check()}
-            disabled={isChecking}
-            className={urlError ? "mb-6" : undefined}
-          >
-            {isChecking ? "확인 중…" : plan || discover.isError ? "다시 확인" : "확인"}
-          </Button>
-        </div>
-
-        {/* 상태 띠: 확인 전 안내 → 확인 중 → 접근 가능 / 접근 불가(E08) */}
-        {isChecking ? (
-          <SiteCheckProgress
-            phase={discover.phase}
-            startedAt={discover.startedAt}
-            events={discover.progress}
-          />
-        ) : discover.isError ? (
-          <div
-            role="alert"
-            className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption"
-          >
-            <Icon name="status-error" className="size-5 text-danger" />
-            <span className="flex-1 font-bold text-ink">
-              {unreachable
-                ? `사이트 응답 없음 · 점검·방화벽 가능성${discover.failedAt ? ` · ${timeFormat.format(discover.failedAt)}` : ""}`
-                : errorStatus === 0
-                  ? "서버에 연결할 수 없어요"
-                  : errorText}
-            </span>
-            {errorStatus != null && errorStatus > 0 && (
-              <span className="text-xs text-muted">오류 코드 {errorStatus}</span>
-            )}
-          </div>
-        ) : plan && checkFailed ? (
-          /* 주소 확인은 실패했지만 탐색은 됐습니다 — 경고만 보여 주고 진행할 수 있게 둡니다 */
-          <StatusRow>
-            <Icon name="status-error" className="size-5" />
-            <span className="font-bold text-ink">
-              {`접근 확인 실패 · ${plan.check?.message ?? "사이트에 접속할 수 없어요"}`}
-            </span>
-          </StatusRow>
-        ) : plan ? (
-          <StatusRow>
-            <Icon name="check" className="size-5" />
-            <span className="font-bold text-ink">{reachable}</span>
-          </StatusRow>
+      <StepSection title="어떻게 테스트할까요?">
+        <InputModeCards
+          value={inputMode}
+          disabled={isChecking}
+          onChange={(mode) => actions.setInputMode(mode)}
+        />
+        {codeMode ? (
+          <CodeSourcePanel projectId={v1ProjectId} />
         ) : (
-          <StatusRow>
-            <Icon name="search" className="size-5" />
-            <span className="text-subtle">URL 형식과 사이트 접근 여부를 먼저 확인해요</span>
-          </StatusRow>
-        )}
-        {unreachable && !isChecking && (
-          <p className="text-caption text-subtle">
-            로그인이 필요하면 아래 ‘로그인 연결’을 써보세요
-          </p>
+          <>
+            <div className="flex items-end gap-3">
+              <Field label="제품 URL" hint="필수" error={urlError ?? undefined} className="flex-1">
+                {(control) => (
+                  <Input
+                    {...control}
+                    type="url"
+                    inputMode="url"
+                    disabled={isChecking}
+                    value={siteUrl}
+                    onChange={(event) => {
+                      actions.setSiteUrl(event.target.value);
+                      setUrlError(null);
+                      /* 새 주소는 아직 확인 전이라 이전 실패 안내를 지웁니다 */
+                      if (discover.isError) {
+                        discover.reset();
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      /* 한글 조합 중 Enter(Safari 는 keyCode 229)는 글자 확정이라 무시합니다 */
+                      if (
+                        event.key !== "Enter" ||
+                        event.nativeEvent.isComposing ||
+                        event.keyCode === 229
+                      ) {
+                        return;
+                      }
+                      check();
+                    }}
+                  />
+                )}
+              </Field>
+              <Button
+                variant="secondary"
+                onClick={() => check()}
+                disabled={isChecking}
+                className={urlError ? "mb-6" : undefined}
+              >
+                {isChecking ? "확인 중…" : plan || discover.isError ? "다시 확인" : "확인"}
+              </Button>
+            </div>
+
+            {/* 상태 띠: 확인 전 안내 → 확인 중 → 접근 가능 / 접근 불가(E08) */}
+            {isChecking ? (
+              <SiteCheckProgress
+                phase={discover.phase}
+                startedAt={discover.startedAt}
+                events={discover.progress}
+              />
+            ) : discover.isError ? (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption"
+              >
+                <Icon name="status-error" className="size-5 text-danger" />
+                <span className="flex-1 font-bold text-ink">
+                  {unreachable
+                    ? `사이트 응답 없음 · 점검·방화벽 가능성${discover.failedAt ? ` · ${timeFormat.format(discover.failedAt)}` : ""}`
+                    : errorStatus === 0
+                      ? "서버에 연결할 수 없어요"
+                      : errorText}
+                </span>
+                {errorStatus != null && errorStatus > 0 && (
+                  <span className="text-xs text-muted">오류 코드 {errorStatus}</span>
+                )}
+              </div>
+            ) : plan && checkFailed ? (
+              /* 주소 확인은 실패했지만 탐색은 됐습니다 — 경고만 보여 주고 진행할 수 있게 둡니다 */
+              <StatusRow>
+                <Icon name="status-error" className="size-5" />
+                <span className="font-bold text-ink">
+                  {`접근 확인 실패 · ${plan.check?.message ?? "사이트에 접속할 수 없어요"}`}
+                </span>
+              </StatusRow>
+            ) : plan ? (
+              <StatusRow>
+                <Icon name="check" className="size-5" />
+                <span className="font-bold text-ink">{reachable}</span>
+              </StatusRow>
+            ) : (
+              <StatusRow>
+                <Icon name="search" className="size-5" />
+                <span className="text-subtle">URL 형식과 사이트 접근 여부를 먼저 확인해요</span>
+              </StatusRow>
+            )}
+            {unreachable && !isChecking && (
+              <p className="text-caption text-subtle">
+                로그인이 필요하면 아래 ‘로그인 연결’을 써보세요
+              </p>
+            )}
+          </>
         )}
       </StepSection>
 
       {/* 확인이 끝났거나, 사이트가 열리지 않아(E08) 로그인이 필요할 수 있을 때만 */}
-      {(plan || unreachable || accountsRequired) && !isChecking && (
+      {!codeMode && (plan || unreachable || accountsRequired) && !isChecking && (
         <StepSection
           title="로그인 연결"
           description="로그인이 필요해 보여요 · 테스트 계정만 써 주세요"
@@ -323,13 +338,23 @@ export default function SiteStep({
       )}
 
       <StepFooter>
-        {/* 테스트 계정 모드에서 서버 계정을 다시 받는 중이면 기다립니다 (옛 계정 수로 넘어가지 않게) */}
-        <Button
-          disabled={isChecking || (loginMode === "account" && savedAccounts.isFetching)}
-          onClick={() => (plan && !stale ? onNext() : check(true))}
-        >
-          다음: 과업 · 타겟
-        </Button>
+        {codeMode ? (
+          <>
+            {/* 받은 정적 사이트를 띄우는 미리보기(BE)가 생기기 전까지는 코드로 다음 단계에 갈 수 없습니다 */}
+            <span className="text-caption text-subtle">
+              미리보기가 준비되면 코드로도 다음 단계로 갈 수 있어요
+            </span>
+            <Button disabled>다음: 과업 · 타겟</Button>
+          </>
+        ) : (
+          /* 테스트 계정 모드에서 서버 계정을 다시 받는 중이면 기다립니다 (옛 계정 수로 넘어가지 않게) */
+          <Button
+            disabled={isChecking || (loginMode === "account" && savedAccounts.isFetching)}
+            onClick={() => (plan && !stale ? onNext() : check(true))}
+          >
+            다음: 과업 · 타겟
+          </Button>
+        )}
       </StepFooter>
 
       <AccountModal
