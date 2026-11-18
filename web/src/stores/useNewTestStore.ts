@@ -5,6 +5,7 @@ import {
   inRange,
   panelSize,
   SEED_DEFAULT,
+  type StepKey,
   sum,
   type TestAccount,
   type WizardPlan,
@@ -14,6 +15,8 @@ import type { AgeKey, Plan } from "@/types/plan.type";
 
 /*
   새 테스트(P02~P05c) 단계별 입력. 단계를 오가도 값이 남아야 해서 zustand 에 둡니다.
+  - 다른 화면에 갔다가 같은 프로젝트의 새 테스트로 돌아오면 입력·계획·단계를 그대로 이어 갑니다.
+    다른 프로젝트로 들어가거나 실행을 시작하면 처음으로 돌립니다. 떠날 때 비밀번호만 지웁니다.
   - persist 를 쓰지 않습니다: 테스트 계정 비밀번호가 브라우저 저장소에 남지 않게 하려는 것입니다.
     새로고침하면 처음부터 다시 입력합니다 (BE 탐색 계획도 15분이면 만료).
   - plan 은 서버 계획(POST /api/v1/projects/{id}/plans)과 탐색 결과를 합친 값입니다(utils WizardPlan).
@@ -28,6 +31,10 @@ type NewTestState = {
   loginMode: "none" | "account";
   accounts: TestAccount[];
   plan: WizardPlan | null;
+  /* 계획을 받은 시각 (돌아왔을 때 서버 계획 만료 15분이 지났는지 봅니다) */
+  planAt: number | null;
+  /* 마지막으로 보던 단계 (돌아왔을 때 이어서 보여 줍니다) */
+  lastStep: StepKey;
   taskIds: string[];
   /* 탐색 목록 밖에서 직접 적은 과업 — 실행에는 넣지 않고 따로 보관 */
   customTasks: string[];
@@ -46,8 +53,11 @@ type NewTestActions = {
   setVariant: (variant: Variant) => void;
   setLoginMode: (mode: NewTestState["loginMode"]) => void;
   setAccounts: (accounts: TestAccount[]) => void;
-  /* 새로 만든 계획을 받습니다 (탐색·계획 생성 직후) */
-  setPlan: (plan: WizardPlan, server: Plan) => void;
+  /* 화면을 떠날 때 테스트 계정 비밀번호만 지웁니다 (계정 목록은 남김) */
+  clearPasswords: () => void;
+  setLastStep: (step: StepKey) => void;
+  /* 새로 만든 계획을 받습니다 (탐색·계획 생성 직후). at: 계획을 만든 시각 (기본 지금) */
+  setPlan: (plan: WizardPlan, server: Plan, at?: number) => void;
   /* 계획을 고친 뒤(PATCH) revision·review 를 바꿉니다 */
   updatePlan: (update: (plan: WizardPlan) => WizardPlan) => void;
   clearPlan: () => void;
@@ -68,6 +78,8 @@ const initialInput = (projectId: string | null, siteUrl: string): NewTestState =
   loginMode: "none",
   accounts: [],
   plan: null,
+  planAt: null,
+  lastStep: "site",
   taskIds: [],
   customTasks: [],
   memo: "",
@@ -114,6 +126,13 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
     }),
   setAccounts: (accounts) =>
     set((state) => ({ accounts, ...resplit(state, state.loginMode, accounts.length) })),
+  clearPasswords: () =>
+    set((state) =>
+      state.accounts.some((account) => account.password)
+        ? { accounts: state.accounts.map((account) => ({ ...account, password: "" })) }
+        : state,
+    ),
+  setLastStep: (lastStep) => set((state) => (state.lastStep === lastStep ? state : { lastStep })),
   /*
     다시 탐색해도 이전에 고른 과업 중 새 결과에 있는 것은 유지하고, 없으면 서버 계획의 기본 과업(추천)을 고릅니다.
     세그먼트 인원은 지금 값의 합계가 서버 범위(로그인 없이 4~20명, 테스트 계정이면 계정 수) 안이면 유지하고,
@@ -121,12 +140,13 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
     시드는 고른 값을 유지하되 서버 범위(1~3회) 안으로 맞춥니다. 처음 값은 BE 기본값(1회)과 같고,
     만료·주소 변경으로 계획을 다시 만들어도 고른 값이 남습니다 (서버 값과 다르면 "다음"에서 저장).
   */
-  setPlan: (plan, server) =>
+  setPlan: (plan, server, at) =>
     set((state) => {
       const kept = state.taskIds.filter((id) => plan.tasks.some((task) => task.id === id));
       const counts = server.segments.map((segment) => segment.count);
       return {
         plan,
+        planAt: at ?? Date.now(),
         taskIds: kept.length > 0 ? kept : server.task_ids,
         segmentCounts:
           inRange(sum(state.segmentCounts), { min: plan.personaMin, max: plan.personaMax }) &&

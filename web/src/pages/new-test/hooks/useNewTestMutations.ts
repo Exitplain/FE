@@ -184,16 +184,18 @@ export async function runSiteCheck(
   위저드에 들어올 때(초기화 직후) 그 프로젝트의 사이트 확인을 이어 받습니다.
   - 확인 중이면 그때의 사이트 입력을 다시 채웁니다 (끝나면 runSiteCheck 이 결과를 넣음)
   - 끝났으면 입력과 결과(계획)까지 넣습니다. 서버 계획이 만료되는 15분이 지났으면 버립니다.
-    StrictMode 에서 두 번 불려도 같은 결과가 되게 넣은 뒤에도 지우지 않습니다 (다음 확인·주소 입력 때 지워짐)
+    넣은 뒤에도 지우지 않습니다 (다음 확인·주소 입력 때, 또는 다음에 같은 입력으로 돌아왔을 때(kept) 지워짐)
   - 실패했던 확인은 이어 받지 않고 지웁니다 (돌아오면 처음부터)
+  - kept: 위저드 입력이 그대로 남아 있으면(같은 프로젝트로 돌아옴) 진행 중인 확인만 이어 받습니다.
+    끝난 결과는 위저드가 같은 입력이었다면 이미 들어가 있고, 아니면 그 뒤에 바꾼 입력·저장한 계획을 덮어쓰게 되어 버립니다.
 */
-export function restoreSiteCheck(projectKey: string) {
+export function restoreSiteCheck(projectKey: string, kept = false) {
   const store = useSiteCheckStore.getState();
   const job = store.jobs[projectKey];
   if (!job) return;
   const expired =
     job.status === "success" &&
-    (job.finishedAt == null || Date.now() - job.finishedAt > RESULT_TTL_MS);
+    (kept || job.finishedAt == null || Date.now() - job.finishedAt > RESULT_TTL_MS);
   if (job.status === "error" || expired) {
     store.clearJob(projectKey);
     return;
@@ -203,7 +205,10 @@ export function restoreSiteCheck(projectKey: string) {
   wizard.setVariant(job.request.variant);
   wizard.setLoginMode(job.request.loginMode);
   if (job.status === "success" && job.result) {
-    useNewTestStore.getState().setPlan(job.result.plan, job.result.server);
+    /* 만료(15분) 판단은 확인이 끝난 시각부터 셉니다 */
+    useNewTestStore
+      .getState()
+      .setPlan(job.result.plan, job.result.server, job.finishedAt ?? undefined);
   }
 }
 
@@ -346,10 +351,24 @@ export function useConfirmPlan() {
 */
 export function useStartRun() {
   const queryClient = useQueryClient();
-  return useMutation<RunCreated, ApiError, { planRevisionId: string; idempotencyKey: string }>({
+  return useMutation<
+    RunCreated,
+    ApiError,
+    { projectId: string; planRevisionId: string; idempotencyKey: string }
+  >({
     mutationFn: ({ planRevisionId, idempotencyKey }) =>
       createRun({ plan_revision_id: planRevisionId }, idempotencyKey),
-    onSuccess: () => {
+    onSuccess: (_run, { projectId }) => {
+      /*
+        실행을 시작한 프로젝트의 새 테스트를 처음으로 돌립니다 (돌아와도 이미 실행한 계획이 남지 않게).
+        화면을 떠난 뒤 응답이 와도 지우도록 화면 콜백이 아니라 여기서 합니다.
+        그 사이 다른 프로젝트의 새 테스트를 열었으면 그 입력은 건드리지 않습니다.
+        위저드가 열려 있으면 비워진 것을 보고 그 프로젝트의 처음 입력으로 다시 시작합니다.
+      */
+      useSiteCheckStore.getState().clearJob(projectId);
+      if (useNewTestStore.getState().projectId === projectId) {
+        useNewTestStore.getState().reset("", "");
+      }
       void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
       /* 프로젝트의 마지막 사전 테스트(사이드바·개요 단계)도 바뀝니다 */
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectsV1.all });
