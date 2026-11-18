@@ -14,7 +14,9 @@ export default function ThinkAloudFeed({ sessions }: { sessions: PersonaSession[
     .flatMap((session) => {
       const said = lastUtterance(session);
       if (said)
-        return [{ session, step: said.step, stage: said.stage, text: said.text, at: said.at }];
+        return [
+          { session, step: said.step, stage: said.stage, text: said.text, at: said.at, said: true },
+        ];
       const event = session.events.at(-1);
       return event
         ? [
@@ -24,6 +26,7 @@ export default function ThinkAloudFeed({ sessions }: { sessions: PersonaSession[
               stage: session.terminal_stage,
               text: event.description,
               at: "",
+              said: false,
             },
           ]
         : [];
@@ -50,7 +53,7 @@ export default function ThinkAloudFeed({ sessions }: { sessions: PersonaSession[
         </p>
       ) : (
         <ul aria-label="발화" className="flex flex-col">
-          {items.map(({ session, stage, text, at }) => {
+          {items.map(({ session, stage, text, at, said }) => {
             const last = session.trace.at(-1);
             return (
               <li
@@ -64,7 +67,12 @@ export default function ThinkAloudFeed({ sessions }: { sessions: PersonaSession[
                   </span>
                   <span className="text-xs text-muted">{formatClock(at)}</span>
                 </p>
-                <p className="text-sm text-gray-800">“{text}”</p>
+                {said ? (
+                  <p className="text-sm text-gray-800">“{text}”</p>
+                ) : (
+                  /* 발화가 없으면 마지막 행동 설명 (따옴표 없이: 페르소나의 말이 아님) */
+                  <p className="text-sm text-subtle">행동 · {text}</p>
+                )}
                 {session.status === "simulated_dropout" && last && (
                   <p className="text-xs font-bold text-danger">이탈 · 좌절 점수 {last.score}</p>
                 )}
