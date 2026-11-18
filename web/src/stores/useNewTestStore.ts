@@ -112,9 +112,16 @@ function resplit(
 export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => ({
   ...initialInput(null, ""),
   reset: (projectId, siteUrl) => set(initialInput(projectId, siteUrl)),
+  /* 방식을 바꾸면 다른 대상(주소 ↔ 받은 코드)으로 만든 계획이라 버립니다 */
   setInputMode: (inputMode) =>
-    set((state) => (state.inputMode === inputMode ? state : { inputMode })),
-  setSource: (source) => set({ source }),
+    set((state) => (state.inputMode === inputMode ? state : { inputMode, plan: null })),
+  /* 다른 코드를 받으면 이전 코드로 만든 계획을 버립니다 */
+  setSource: (source) =>
+    set((state) =>
+      state.source?.id === source?.id
+        ? { source }
+        : { source, plan: state.inputMode === "code" ? null : state.plan },
+    ),
   setSiteUrl: (siteUrl) =>
     set((state) => (state.siteUrl === siteUrl ? state : { siteUrl, plan: null })),
   setVariant: (variant) =>

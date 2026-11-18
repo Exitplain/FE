@@ -43,6 +43,8 @@ export type SourceSnapshot = {
   progress: DiscoveryProgressEvent[];
   error: { code: string; message: string } | null;
   files_available: boolean;
+  /* URL 없이 미리보기로 사이트 확인·실행할 수 있음 (정적 사이트 + 파일 있음 + 연결 유지). 이전 BE 에는 없음 */
+  previewable?: boolean;
   created_at: string;
   updated_at: string;
 };

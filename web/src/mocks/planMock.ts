@@ -199,7 +199,7 @@ export function getDiscovery(discoveryId: string): Discovery {
 }
 
 export function createDiscovery(projectId: number, body: Record<string, unknown>): Discovery {
-  const allowed = ["entry_url", "login_mode", "variant"];
+  const allowed = ["entry_url", "login_mode", "variant", "source_snapshot_id"];
   if (Object.keys(body).some((key) => !allowed.includes(key))) {
     throw new MockPlanError(422, "VALIDATION_ERROR", "허용하지 않는 필드입니다.");
   }

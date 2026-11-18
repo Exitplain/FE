@@ -138,6 +138,45 @@ export default function SiteStep({
   };
 
   /*
+    코드로 확인: 받은 정적 사이트를 서버가 미리보기로 열어 둘러봅니다 (주소 확인 없이 기능 탐색 → 계획).
+    코드 모드에는 로그인 연결이 없어 로그인 방식은 "로그인 없이"로 맞춥니다.
+  */
+  const checkSource = (thenNext = false) => {
+    const source = useNewTestStore.getState().source;
+    if (isChecking || !source?.previewable) return;
+    if (loginMode !== "none") actions.setLoginMode("none");
+    const sourceId = source.id;
+    const same = (current: ReturnType<typeof useNewTestStore.getState>) =>
+      current.projectId === projectId &&
+      current.inputMode === "code" &&
+      current.source?.id === sourceId;
+    discover.mutate(
+      {
+        projectId: v1ProjectId,
+        entryUrl: "",
+        loginMode: "none",
+        variant,
+        sourceSnapshotId: sourceId,
+        request: { siteUrl, variant, loginMode: "none" },
+      },
+      {
+        onSuccess: () => {
+          if (!same(useNewTestStore.getState())) return;
+          onDiscovered();
+          if (thenNext) onNext();
+        },
+      },
+    );
+  };
+  const source = useNewTestStore((state) => state.source);
+  const sourceReady = source?.state === "ready" && source.previewable === true;
+  const codeNextHint = !source
+    ? "코드를 먼저 받아 주세요"
+    : source.state === "ready" && !sourceReady
+      ? "빌드가 필요한 코드는 아직 테스트할 수 없어요 · 빌드 결과물 zip 이나 배포 URL 을 써 주세요"
+      : null;
+
+  /*
     E08 접근 불가는 서버가 사이트를 열지 못한 5xx(503 SITE_UNREACHABLE) 만.
     401 은 로그인, 403 은 이 프로젝트 권한(샘플 프로젝트 등), 그 밖의 4xx 는 서버 메시지, 0 은 서버 연결 실패
   */
@@ -187,7 +226,35 @@ export default function SiteStep({
           onChange={(mode) => actions.setInputMode(mode)}
         />
         {codeMode ? (
-          <CodeSourcePanel projectId={v1ProjectId} />
+          <>
+            <CodeSourcePanel projectId={v1ProjectId} />
+            {/* 받은 코드로 사이트 확인 중 · 실패 (주소 모드와 같은 상태 띠·안내) */}
+            {isChecking ? (
+              <SiteCheckProgress
+                phase={discover.phase}
+                startedAt={discover.startedAt}
+                events={discover.progress}
+              />
+            ) : discover.isError ? (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption"
+              >
+                <Icon name="status-error" className="size-5 text-danger" />
+                <span className="flex-1 font-bold text-ink">
+                  {errorStatus === 0 ? "서버에 연결할 수 없어요" : discover.error?.message}
+                </span>
+                {errorStatus != null && errorStatus > 0 && (
+                  <span className="text-xs text-muted">오류 코드 {errorStatus}</span>
+                )}
+              </div>
+            ) : plan ? (
+              <StatusRow>
+                <Icon name="check" className="size-5" />
+                <span className="font-bold text-ink">{`받은 코드로 확인했어요 · 기능 ${plan.features.length}개 찾음`}</span>
+              </StatusRow>
+            ) : null}
+          </>
         ) : (
           <>
             <div className="flex items-end gap-3">
@@ -340,11 +407,14 @@ export default function SiteStep({
       <StepFooter>
         {codeMode ? (
           <>
-            {/* 받은 정적 사이트를 띄우는 미리보기(BE)가 생기기 전까지는 코드로 다음 단계에 갈 수 없습니다 */}
-            <span className="text-caption text-subtle">
-              미리보기가 준비되면 코드로도 다음 단계로 갈 수 있어요
-            </span>
-            <Button disabled>다음: 과업 · 타겟</Button>
+            {/* 정적 사이트로 받은 코드만 미리보기로 확인·실행할 수 있습니다 (빌드가 필요한 코드는 아직 안 됨) */}
+            {codeNextHint && <span className="text-caption text-subtle">{codeNextHint}</span>}
+            <Button
+              disabled={isChecking || !sourceReady}
+              onClick={() => (plan ? onNext() : checkSource(true))}
+            >
+              다음: 과업 · 타겟
+            </Button>
           </>
         ) : (
           /* 테스트 계정 모드에서 서버 계정을 다시 받는 중이면 기다립니다 (옛 계정 수로 넘어가지 않게) */

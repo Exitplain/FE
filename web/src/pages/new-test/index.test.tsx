@@ -1225,7 +1225,80 @@ describe("P02 어떻게 테스트할까요? — 코드만 있어요", () => {
     await user.click(screen.getByRole("radio", { name: /코드만 있어요/ }));
   }
 
-  it("기본은 URL 이고, 코드를 고르면 같은 화면에서 저장소 입력이 펼쳐지고 다음은 막힌다", async () => {
+  it("받은 정적 사이트 코드로 확인하면 주소 확인 없이 미리보기로 둘러보고 과업·타겟으로 간다", async () => {
+    const requests: { method: string; path: string; body: string }[] = [];
+    server.events.on("request:start", async ({ request }) => {
+      if (request.method === "POST") {
+        requests.push({
+          method: request.method,
+          path: new URL(request.url).pathname,
+          body: await request.clone().text(),
+        });
+      }
+    });
+    onTestFinished(() => server.events.removeAllListeners());
+    const user = userEvent.setup();
+    await chooseCode(user);
+    await user.type(screen.getByLabelText("저장소 주소"), "https://github.com/acme/banchanroad");
+    await user.click(screen.getByRole("button", { name: "코드 받기" }));
+    await screen.findByText(/코드를 준비했어요/);
+
+    const next = screen.getByRole("button", { name: "다음: 과업 · 타겟" });
+    expect(next).toBeEnabled();
+    await user.click(next);
+    expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
+
+    const paths = requests.map((r) => r.path);
+    expect(paths).not.toContain("/api/v1/projects/1/check");
+    const discovery = requests.find((r) => r.path === "/api/v1/projects/1/discoveries");
+    expect(JSON.parse(discovery!.body)).toEqual({
+      source_snapshot_id: "00000000-0000-4000-8000-000000000001",
+      login_mode: "none",
+      variant: "problem",
+    });
+  });
+
+  it("빌드가 필요한 코드는 다음으로 가지 않고 이유를 알려 준다", async () => {
+    server.use(
+      http.get("*/api/v1/source-snapshots/:id", ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          project_id: 1,
+          connection_id: 1,
+          provider: "git",
+          repository_url: "https://github.com/acme/app",
+          connection_status: "active",
+          ref: "",
+          commit_sha: "b".repeat(40),
+          subdirectory: "",
+          tree_digest: "",
+          state: "ready",
+          runnable: "needs_build",
+          static_root: "",
+          file_count: 40,
+          total_bytes: 1,
+          skipped: {},
+          framework: {},
+          analysis: { counts: { routes: 3, edges: 2, global_edges: 0, unresolved: 0 } },
+          progress: [],
+          error: null,
+          files_available: true,
+          previewable: false,
+          created_at: "",
+          updated_at: "",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await chooseCode(user);
+    await user.type(screen.getByLabelText("저장소 주소"), "https://github.com/acme/app");
+    await user.click(screen.getByRole("button", { name: "코드 받기" }));
+    await screen.findByText(/코드를 준비했어요 · commit bbbbbbb/);
+    expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeDisabled();
+    expect(screen.getByText(/빌드가 필요한 코드는 아직 테스트할 수 없어요/)).toBeInTheDocument();
+  });
+
+  it("기본은 URL 이고, 코드를 고르면 같은 화면에서 저장소 입력이 펼쳐지고 코드를 받기 전에는 다음이 막힌다", async () => {
     const user = userEvent.setup();
     await renderWizard();
     expect(screen.getByRole("radio", { name: /배포된 URL이 있어요/ })).toBeChecked();
@@ -1239,9 +1312,7 @@ describe("P02 어떻게 테스트할까요? — 코드만 있어요", () => {
       "true",
     );
     expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeDisabled();
-    expect(
-      screen.getByText("미리보기가 준비되면 코드로도 다음 단계로 갈 수 있어요"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("코드를 먼저 받아 주세요")).toBeInTheDocument();
 
     /* URL 로 돌아가면 기존 흐름 그대로 */
     await user.click(screen.getByRole("radio", { name: /배포된 URL이 있어요/ }));
