@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import {
   applyCalibration,
+  getCalibrationCompare,
   getCalibrationProposal,
   resetCalibration,
   restoreCalibration,
@@ -25,7 +26,7 @@ import {
   HistoryTable,
   NoProposal,
   ProposalView,
-  WaitingNextRun,
+  CompareSection,
 } from "./components/CalibrationViews";
 import ObservationView from "./components/ObservationView";
 import { formatApplied } from "./utils/format";
@@ -64,6 +65,16 @@ function Calibration({ project }: { project: CurrentProject }) {
   const latest: CalibrationRecord | undefined = records[0];
   const revision = latest?.revision ?? 0;
   const calibrated = Boolean(latest && latest.restored_from !== 0);
+  /* 조정안으로 적용한 보정이면 전·후 비교 (되돌리기 기록은 비교하지 않음) */
+  const comparable = Boolean(latest && latest.restored_from == null);
+  const compare = useQuery({
+    queryKey: [...queryKeys.calibration.all, project.id, "compare", latest?.revision] as const,
+    queryFn: () => getCalibrationCompare(project.id, latest?.revision),
+    enabled: !project.isSample && comparable,
+  });
+  const compareSection = comparable && compare.data && compare.data.status !== "unavailable" && (
+    <CompareSection compare={compare.data} />
+  );
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: [...queryKeys.calibration.all, project.id] });
@@ -201,6 +212,7 @@ function Calibration({ project }: { project: CurrentProject }) {
           </>,
           "예측·실측 차이로 값을 제안해요 · 적용해야 반영돼요",
         )}
+        {compareSection}
         <ProposalView proposal={data} />
         <div className="flex gap-6">
           {observeLink}
@@ -231,7 +243,7 @@ function Calibration({ project }: { project: CurrentProject }) {
             </Link>
           </>,
         )}
-        <WaitingNextRun latest={latest} />
+        {compareSection}
         {historyTable}
         {observeLink}
       </div>
@@ -245,6 +257,7 @@ function Calibration({ project }: { project: CurrentProject }) {
         {header()}
         <NoProposal
           title="지금은 보정할 차이가 없어요"
+          aside={compareSection || undefined}
           message={`모든 단계가 예측 범위 안이에요${mean == null ? "" : ` · 평균 오차 ${mean}%p`}`}
           action={
             <Button variant="secondary" onClick={() => setSearchParams({ view: "history" })}>
