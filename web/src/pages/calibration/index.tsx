@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import {
+  applyCalibration,
+  getCalibrationProposal,
+  resetCalibration,
+  restoreCalibration,
+} from "@/apis/calibration.api";
+import { queryKeys } from "@/apis/queryKeys";
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
@@ -8,42 +16,78 @@ import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader"
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
+import { useCalibrations } from "@/hooks/useCalibrations";
 import { useToastStore } from "@/stores/useToastStore";
+import type { CalibrationRecord } from "@/types/calibration.type";
 
 import {
-  AppliedView,
   ApplyModal,
   HistoryTable,
-  NoDifference,
+  NoProposal,
   ProposalView,
+  WaitingNextRun,
 } from "./components/CalibrationViews";
 import ObservationView from "./components/ObservationView";
-import {
-  formatApplied,
-  historyOf,
-  PROPOSAL_PROJECTS,
-  useCalibrationMockStore,
-} from "./data/calibrationMock";
+import { formatApplied } from "./utils/format";
 
 /*
   K01~K04 보정 (/projects/:projectId/calibration?view=history|observe)
-  임시: 보정 API 명세가 없어 하드코딩 목데이터(data/calibrationMock.ts)로 화면만 보여줍니다.
-  - 조정안이 있으면 K01 → 적용 확인(K02) → 적용됨(K03, 보정 이력 K03b)
-  - 조정안이 없으면 E11, 사람 관측 입력은 ?view=observe (K04)
+  조정안·적용·이력·되돌리기는 실제 API(BE calibrations)를 씁니다. 사람 관측(K04)은 아직 목데이터입니다.
+  - 조정안 있음: K01 → 적용 확인(K02) → 적용됨(K03, 다음 테스트 대기)
+  - 그 밖: 차이 없음(E11) · 실측 미연결/매핑 전/표본 부족/사전 테스트 없음 안내
 */
 export default function CalibrationPage() {
   const project = useCurrentProject();
   return <Calibration key={project.id} project={project} />;
 }
 
+const NOT_READY_TITLE: Record<string, string> = {
+  NOT_CONNECTED: "실측 데이터를 먼저 연결해요",
+  NOT_MAPPED: "단계 매핑을 먼저 저장해요",
+  NO_PREDICTION: "비교할 사전 테스트가 없어요",
+  INSUFFICIENT_SAMPLE: "실측 표본이 아직 모자라요",
+};
+
 function Calibration({ project }: { project: CurrentProject }) {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view");
-  const appliedAt = useCalibrationMockStore((state) => state.appliedAt[project.id]);
-  const history = useCalibrationMockStore((state) => historyOf(state, project.id));
   const [confirming, setConfirming] = useState(false);
-  const hasProposal = PROPOSAL_PROJECTS.includes(project.id);
   const crumb = `${project.name} / 보정 · 테스트`;
+  const history = useCalibrations(project.id);
+  const proposal = useQuery({
+    queryKey: [...queryKeys.calibration.all, project.id, "proposal"] as const,
+    queryFn: () => getCalibrationProposal(project.id),
+    enabled: !project.isSample,
+  });
+  const records = history.data ?? [];
+  const latest: CalibrationRecord | undefined = records[0];
+  const revision = latest?.revision ?? 0;
+  const calibrated = Boolean(latest && latest.restored_from !== 0);
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.calibration.all, project.id] });
+  const apply = useMutation({
+    mutationFn: () =>
+      applyCalibration(project.id, {
+        expected_revision: proposal.data?.base_revision ?? revision,
+        keys: (proposal.data?.items ?? []).map((item) => item.key),
+      }),
+    onSuccess: async () => {
+      setConfirming(false);
+      useToastStore.getState().show("보정을 적용했어요. 다음 사전 테스트부터 반영돼요");
+      await refresh();
+    },
+  });
+  const restore = useMutation({
+    mutationFn: (target: CalibrationRecord | null) =>
+      target ? restoreCalibration(target.id, revision) : resetCalibration(project.id, revision),
+    onSuccess: async () => {
+      useToastStore.getState().show("되돌렸어요. 다음 사전 테스트부터 반영돼요");
+      await refresh();
+    },
+    onError: (error) => useToastStore.getState().show(error.message, "info"),
+  });
 
   const observeLink = (
     <Link
@@ -53,6 +97,26 @@ function Calibration({ project }: { project: CurrentProject }) {
       사람 관측으로 원인까지 비교하기
       <Icon name="chevron-right" className="size-4" />
     </Link>
+  );
+  const badge = calibrated ? (
+    <StatusBadge icon="check" label="보정 적용됨" tone="muted" />
+  ) : (
+    <StatusBadge icon="circle" label="보정 전" tone="muted" />
+  );
+  const header = (actions?: ReactNode, description?: string) => (
+    <ProjectPageHeader
+      projectId={project.id}
+      breadcrumb={crumb}
+      title="보정"
+      description={
+        description ??
+        (calibrated && latest
+          ? `${formatApplied(latest.applied_at)} 적용 · 이후 사전 테스트에 자동 적용돼요`
+          : undefined)
+      }
+      actions={actions ?? badge}
+      activeTab="calibration"
+    />
   );
 
   if (view === "observe") {
@@ -70,91 +134,146 @@ function Calibration({ project }: { project: CurrentProject }) {
     );
   }
 
-  if (appliedAt || view === "history") {
-    const tab = view === "history" ? "history" : "errors";
-    const newTestLink = (
-      <Link to={buildPath("newTest", { projectId: project.id })} className={buttonVariants()}>
-        <Icon name="plus" />새 테스트 시작하기
-      </Link>
-    );
+  if (project.isSample) {
     return (
       <div className="flex flex-col gap-12">
-        <ProjectPageHeader
-          projectId={project.id}
-          breadcrumb={crumb}
-          title="보정"
-          description={
-            appliedAt
-              ? `${formatApplied(appliedAt)} 적용 · 이후 사전 테스트에 자동 적용돼요`
-              : undefined
-          }
-          actions={
-            appliedAt ? (
-              <>
-                <StatusBadge icon="check" label="보정 적용됨" tone="muted" />
-                {newTestLink}
-              </>
-            ) : (
-              <StatusBadge icon="circle" label="보정 전" tone="muted" />
-            )
-          }
-          activeTab="calibration"
+        {header()}
+        <NoProposal
+          title="샘플 프로젝트는 보정할 수 없어요"
+          message="내 프로젝트에서 실측을 연결하면 조정안을 만들어요."
         />
-        {appliedAt ? (
-          <AppliedView
-            tab={tab}
-            onTabChange={(next) => setSearchParams(next === "history" ? { view: "history" } : {})}
-            history={history}
-          />
-        ) : (
-          <HistoryTable history={history} />
-        )}
+      </div>
+    );
+  }
+
+  if (history.isError || proposal.isError) {
+    return (
+      <div className="flex flex-col gap-12">
+        {header()}
+        <div className="flex flex-col items-start gap-4 rounded-xl bg-gray-50 p-6">
+          <p role="alert" className="text-sm text-subtle">
+            {(history.error ?? proposal.error)?.message}
+          </p>
+          <Button variant="secondary" onClick={() => void refresh()}>
+            다시 불러오기
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (!history.data || !proposal.data) {
+    return (
+      <div className="flex flex-col gap-12">
+        {header()}
+        <p className="text-sm text-subtle">불러오는 중이에요…</p>
+      </div>
+    );
+  }
+
+  const historyTable = (
+    <HistoryTable
+      history={records}
+      pending={restore.isPending}
+      onRestore={(target) => restore.mutate(target)}
+      onReset={() => restore.mutate(null)}
+    />
+  );
+
+  if (view === "history") {
+    return (
+      <div className="flex flex-col gap-12">
+        {header()}
+        {historyTable}
         {observeLink}
       </div>
     );
   }
 
-  if (!hasProposal) {
+  const data = proposal.data;
+
+  if (data.available && data.items.length > 0) {
     return (
       <div className="flex flex-col gap-12">
-        <ProjectPageHeader
-          projectId={project.id}
-          breadcrumb={crumb}
-          title="보정"
-          actions={<StatusBadge icon="circle" label="보정 전" tone="muted" />}
-          activeTab="calibration"
+        {header(
+          <>
+            <StatusBadge icon="settings" label="조정안 있음" tone="strong" />
+            <Button onClick={() => setConfirming(true)}>보정 적용</Button>
+          </>,
+          "예측·실측 차이로 값을 제안해요 · 적용해야 반영돼요",
+        )}
+        <ProposalView proposal={data} />
+        <div className="flex gap-6">
+          {observeLink}
+          <Link to={{ search: "?view=history" }} className="text-caption font-bold text-ink">
+            보정 이력 {records.length}
+          </Link>
+        </div>
+        <ApplyModal
+          open={confirming}
+          items={data.items}
+          pending={apply.isPending}
+          error={apply.isError ? apply.error.message : null}
+          onClose={() => setConfirming(false)}
+          onApply={() => apply.mutate()}
         />
-        <NoDifference onHistory={() => setSearchParams({ view: "history" })} />
+      </div>
+    );
+  }
+
+  if (data.reason === "WAITING_NEXT_RUN" && latest) {
+    return (
+      <div className="flex flex-col gap-12">
+        {header(
+          <>
+            {badge}
+            <Link to={buildPath("newTest", { projectId: project.id })} className={buttonVariants()}>
+              <Icon name="plus" />새 테스트 시작하기
+            </Link>
+          </>,
+        )}
+        <WaitingNextRun latest={latest} />
+        {historyTable}
+        {observeLink}
+      </div>
+    );
+  }
+
+  if (data.reason === "NO_GAP") {
+    const mean = data.basis?.mean_error;
+    return (
+      <div className="flex flex-col gap-12">
+        {header()}
+        <NoProposal
+          title="지금은 보정할 차이가 없어요"
+          message={`모든 단계가 예측 범위 안이에요${mean == null ? "" : ` · 평균 오차 ${mean}%p`}`}
+          action={
+            <Button variant="secondary" onClick={() => setSearchParams({ view: "history" })}>
+              보정 이력 보기
+            </Button>
+          }
+        />
+        {observeLink}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-12">
-      <ProjectPageHeader
-        projectId={project.id}
-        breadcrumb={crumb}
-        title="보정"
-        description="예측·실측 차이로 값을 제안해요 · 적용해야 반영돼요"
-        actions={
-          <>
-            <StatusBadge icon="settings" label="조정안 있음" tone="strong" />
-            <Button onClick={() => setConfirming(true)}>보정 적용</Button>
-          </>
+      {header()}
+      <NoProposal
+        title={NOT_READY_TITLE[data.reason ?? ""] ?? "아직 조정안을 만들 수 없어요"}
+        message={data.message ?? ""}
+        action={
+          <Link
+            to={buildPath("analytics", { projectId: project.id })}
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            실측 분석으로 가기
+          </Link>
         }
-        activeTab="calibration"
       />
-      <ProposalView />
+      {records.length > 0 && historyTable}
       {observeLink}
-      <ApplyModal
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        onApply={() => {
-          useCalibrationMockStore.getState().apply(project.id, new Date());
-          setConfirming(false);
-          useToastStore.getState().show("보정을 적용했어요. 다음 사전 테스트부터 반영돼요");
-        }}
-      />
     </div>
   );
 }

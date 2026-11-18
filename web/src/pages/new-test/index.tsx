@@ -218,7 +218,9 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
   const calibratedLabel =
     calibrations.isPending || calibrations.isError
       ? undefined
-      : formatMonthDay(latestCalibration?.applied_at);
+      : formatMonthDay(
+          latestCalibration?.restored_from === 0 ? undefined : latestCalibration?.applied_at,
+        );
 
   const goTo = (next: StepKey | typeof REVIEW_STEP) => {
     setSearchParams(next === "site" ? {} : { step: next });

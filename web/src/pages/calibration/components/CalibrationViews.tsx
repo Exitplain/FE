@@ -4,19 +4,14 @@ import characterDefault from "@/assets/characters/character-default.svg";
 import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import Modal from "@/components/Modal/Modal";
-import SegmentedTabs from "@/components/SegmentedTabs/SegmentedTabs";
+import type {
+  CalibrationProposal,
+  CalibrationRecord,
+  ProposalItem,
+} from "@/types/calibration.type";
 import { cn } from "@/utils/cn";
 
-import {
-  ADJUSTMENTS,
-  ERROR_SUMMARY,
-  type HistoryRow,
-  PROPOSAL_BASIS,
-  STAGE_ERRORS,
-} from "../data/calibrationMock";
-
-const formatPp = (value: number) =>
-  `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(1)}%p`;
+import { formatApplied, formatScale } from "../utils/format";
 
 /* Figma Card/KPI 3칸 — 첫 칸은 큰 숫자, 나머지는 세로 선으로 나눕니다 */
 export function KpiTrio({
@@ -45,31 +40,41 @@ export function KpiTrio({
   );
 }
 
-/* K01 보정 조정안 */
-export function ProposalView() {
-  const changed = ADJUSTMENTS.filter((row) => row.proposed);
+function basisText(proposal: CalibrationProposal) {
+  const basis = proposal.basis;
+  if (!basis) return "";
+  const run = basis.run_sequence ? `${basis.run_sequence}차` : "사전 테스트";
+  const gaps = basis.gaps.map((gap) => gap.stage_name).join(" · ");
+  return `${run} vs 실측 ${basis.days}일 · 오차 ${basis.mean_error ?? "—"}%p${gaps ? ` · 차이 구간 ${gaps}` : ""}`;
+}
+
+/* K01 보정 조정안 — 바뀌는 행과, 바뀌지 않는 세그먼트("변화 없음")를 함께 보여줍니다 */
+export function ProposalView({ proposal }: { proposal: CalibrationProposal }) {
+  const segments = new Set(
+    proposal.items.map((item) => item.segment_id).filter((id) => id !== "*"),
+  );
   return (
     <div className="flex flex-col gap-10">
       <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption font-bold text-ink">
         <Icon name="settings" className="size-5" />
-        {PROPOSAL_BASIS}
+        {basisText(proposal)}
       </p>
       <KpiTrio
         items={[
           {
             label: "지금 예측 오차",
-            value: `${ERROR_SUMMARY.before}%p`,
-            note: `평균 · ${ERROR_SUMMARY.stageCount}개 단계`,
+            value: proposal.basis?.mean_error == null ? "—" : `${proposal.basis.mean_error}%p`,
+            note: "평균 · 비교한 단계",
           },
           {
-            label: "보정 후 예상 오차",
-            value: `${ERROR_SUMMARY.after}%p`,
-            note: "같은 데이터로 다시 계산",
+            label: "보정 후 오차",
+            value: "다음 테스트 후",
+            note: "적용한 뒤 새 사전 테스트 결과로 확인해요",
           },
           {
             label: "차이 구간",
-            value: `${ERROR_SUMMARY.stagesBefore}곳 → ${ERROR_SUMMARY.stagesAfter}곳`,
-            note: "예상",
+            value: `${proposal.basis?.gaps.length ?? 0}곳`,
+            note: "실측이 예측 범위 밖",
           },
         ]}
       />
@@ -79,35 +84,49 @@ export function ProposalView() {
             조정안
           </h2>
           <span className="text-xs font-bold text-ink">
-            세그먼트{" "}
-            {new Set(ADJUSTMENTS.map((row) => row.segment).filter((s) => s !== "전체")).size}개 · 값{" "}
-            {changed.length}개 변경
+            세그먼트 {segments.size}개 · 값 {proposal.items.length}개 변경
           </span>
         </div>
         <table aria-labelledby="adjust-title" className="w-full text-left text-caption">
           <thead>
             <tr className="border-b border-line text-xs text-muted">
               <th className="w-32 py-3 font-medium">세그먼트</th>
-              <th className="w-44 py-3 font-medium">항목</th>
+              <th className="w-48 py-3 font-medium">항목</th>
               <th className="w-20 py-3 font-medium">현재 값</th>
               <th className="w-20 py-3 font-medium">제안 값</th>
               <th className="py-3 font-medium">근거</th>
             </tr>
           </thead>
           <tbody>
-            {ADJUSTMENTS.map((row, index) => (
-              <tr key={index} className="border-b border-line last:border-b-0">
+            {proposal.items.map((item) => (
+              <tr key={item.key} className="border-b border-line last:border-b-0">
                 <th scope="row" className="py-3 font-bold text-ink">
-                  {row.segment}
+                  {item.segment_name}
                 </th>
-                <td className="py-3 text-gray-800">{row.item}</td>
-                <td className="py-3 text-gray-800">{row.current}</td>
-                <td className="py-3 font-bold text-ink">{row.proposed || "변화 없음"}</td>
-                <td className="py-3 text-gray-800">{row.reason}</td>
+                <td className="py-3 text-gray-800">{item.label}</td>
+                <td className="py-3 text-gray-800 tabular-nums">{formatScale(item.current)}</td>
+                <td className="py-3 font-bold text-ink tabular-nums">
+                  {formatScale(item.proposed)}
+                </td>
+                <td className="py-3 text-gray-800">{item.reason}</td>
+              </tr>
+            ))}
+            {(proposal.unchanged_segments ?? []).map((segment) => (
+              <tr key={segment.segment_id} className="border-b border-line last:border-b-0">
+                <th scope="row" className="py-3 font-bold text-ink">
+                  {segment.segment_name}
+                </th>
+                <td className="py-3 text-gray-800">—</td>
+                <td className="py-3 text-gray-800">—</td>
+                <td className="py-3 font-bold text-ink">변화 없음</td>
+                <td className="py-3 text-gray-800">이 세그먼트는 차이 구간의 근거가 아니에요</td>
               </tr>
             ))}
           </tbody>
         </table>
+        <p className="text-xs text-muted">
+          값은 배율이에요 (×1.00 = 기본 모형). 실측 숫자를 넣지 않고 배율만 바꿔요 · 가설값이에요
+        </p>
       </section>
     </div>
   );
@@ -116,15 +135,20 @@ export function ProposalView() {
 /* K02 보정 적용 확인 */
 export function ApplyModal({
   open,
+  items,
+  pending,
+  error,
   onClose,
   onApply,
 }: {
   open: boolean;
+  items: ProposalItem[];
+  pending: boolean;
+  error: string | null;
   onClose: () => void;
   onApply: () => void;
 }) {
-  const changed = ADJUSTMENTS.filter((row) => row.proposed);
-  const segments = new Set(changed.map((row) => row.segment).filter((s) => s !== "전체")).size;
+  const segments = new Set(items.map((item) => item.segment_id).filter((id) => id !== "*")).size;
   return (
     <Modal
       open={open}
@@ -136,32 +160,33 @@ export function ApplyModal({
           <Button variant="secondary" onClick={onClose}>
             취소
           </Button>
-          <Button onClick={onApply}>보정 적용</Button>
+          <Button disabled={pending} onClick={onApply}>
+            {pending ? "적용하는 중…" : "보정 적용"}
+          </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <p className="text-caption font-bold text-ink">바뀌는 값 · 현재 → 제안</p>
         <ul className="flex flex-col text-caption">
-          {changed.map((row, index) => (
+          {items.map((item) => (
             <li
-              key={index}
+              key={item.key}
               className="flex items-center gap-4 border-b border-line py-2.5 last:border-b-0"
             >
-              <span className="w-28 font-bold text-ink">{row.segment}</span>
-              <span className="flex-1 text-gray-800">{row.item}</span>
-              <span className="font-bold text-ink">
-                {row.current} → {row.proposed}
+              <span className="w-28 font-bold text-ink">{item.segment_name}</span>
+              <span className="flex-1 text-gray-800">{item.label}</span>
+              <span className="font-bold text-ink tabular-nums">
+                {formatScale(item.current)} → {formatScale(item.proposed)}
               </span>
             </li>
           ))}
         </ul>
         <ul className="flex flex-col">
           {[
-            [`값 ${changed.length}개가 바뀌어요`, `세그먼트 4개 중 ${segments}개`],
-            /* 임시: 새 테스트 위저드는 보정 이력 API mock 을 읽어, 여기서 적용해도 표시가 바뀌지 않습니다 */
-            ["다음 사전 테스트부터 자동으로 써요", "새 테스트 입력에 ‘보정 적용됨’으로 표시"],
-            ["이미 끝난 테스트 결과는 바뀌지 않아요", "비교하려면 재테스트하세요"],
+            [`값 ${items.length}개가 바뀌어요`, `세그먼트 ${segments}개 + 전체 값`],
+            ["다음 사전 테스트부터 자동으로 써요", "실행 화면·리포트에 보정 번호가 남아요"],
+            ["이미 끝난 테스트 결과는 바뀌지 않아요", "비교하려면 새 사전 테스트를 돌려요"],
           ].map(([title, note]) => (
             <li key={title} className="flex gap-3 border-b border-line py-2.5 last:border-b-0">
               <Icon name="check" className="mt-0.5 size-4" />
@@ -172,142 +197,140 @@ export function ApplyModal({
             </li>
           ))}
         </ul>
+        {error && (
+          <p role="alert" className="text-caption text-danger">
+            {error}
+          </p>
+        )}
       </div>
     </Modal>
   );
 }
 
-/* K03 보정 적용됨 — 오차 비교 · 보정 이력(K03b) 탭 */
-export function AppliedView({
-  tab,
-  onTabChange,
-  history,
-}: {
-  tab: "errors" | "history";
-  onTabChange: (tab: "errors" | "history") => void;
-  history: HistoryRow[];
-}) {
+/* K03 보정 적용됨 — 보정 후 오차는 다음 사전 테스트가 끝나야 실제 결과로 볼 수 있어요 (CAL-10·15) */
+export function WaitingNextRun({ latest }: { latest: CalibrationRecord }) {
   return (
     <div className="flex flex-col gap-10">
-      <SegmentedTabs
-        label="보정 보기"
-        value={tab}
-        onChange={onTabChange}
-        options={[
-          { value: "errors", label: "오차 비교" },
-          { value: "history", label: `보정 이력 ${history.length}` },
+      <KpiTrio
+        items={[
+          {
+            label: "보정 전 오차",
+            value: latest.error_before_pp == null ? "—" : `${latest.error_before_pp}%p`,
+            note: latest.base_comparison ?? "평균",
+          },
+          {
+            label: "보정 후 오차",
+            value: latest.error_after_pp == null ? "다음 테스트 후" : `${latest.error_after_pp}%p`,
+            note: "새 사전 테스트가 끝나면 같은 실측 기간으로 비교해요",
+          },
+          { label: "보정 번호", value: `r${latest.revision}` },
         ]}
       />
-      {tab === "errors" ? (
-        <>
-          <KpiTrio
-            items={[
-              { label: "보정 전 오차", value: `${ERROR_SUMMARY.before}%p`, note: "평균" },
-              {
-                label: "보정 후 오차",
-                value: `${ERROR_SUMMARY.after}%p`,
-                note: "같은 실측 기준 재계산",
-              },
-              {
-                label: "차이 구간",
-                value: `${ERROR_SUMMARY.stagesBefore}곳 → ${ERROR_SUMMARY.stagesAfter}곳`,
-              },
-            ]}
-          />
-          <section aria-labelledby="stage-error-title" className="flex flex-col gap-3">
-            <h2 id="stage-error-title" className="text-lg font-bold text-ink">
-              단계별 오차 · 보정 전 vs 후
-            </h2>
-            <table aria-labelledby="stage-error-title" className="w-full text-left text-caption">
-              <thead>
-                <tr className="border-b border-line text-xs text-muted">
-                  <th className="py-3 font-medium">단계</th>
-                  <th className="w-24 py-3 font-medium">보정 전</th>
-                  <th className="w-24 py-3 font-medium">보정 후</th>
-                  <th className="w-32 py-3 font-medium">변화</th>
-                </tr>
-              </thead>
-              <tbody>
-                {STAGE_ERRORS.map((row) => {
-                  const strong = row.change === "차이 구간 해소";
-                  return (
-                    <tr key={row.stage} className="border-b border-line last:border-b-0">
-                      <th scope="row" className="py-3 font-bold text-ink">
-                        {row.stage}
-                      </th>
-                      <td className={cn("py-3", strong ? "font-bold text-ink" : "text-gray-800")}>
-                        {formatPp(row.before)}
-                      </td>
-                      <td className={cn("py-3", strong ? "font-bold text-ink" : "text-gray-800")}>
-                        {formatPp(row.after)}
-                      </td>
-                      <td className={cn("py-3", strong ? "font-bold text-ink" : "text-gray-800")}>
-                        {row.change}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-        </>
-      ) : (
-        <HistoryTable history={history} />
-      )}
+      <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption text-ink">
+        <Icon name="more" className="size-5" />새 사전 테스트를 돌리면 이 보정이 자동으로 들어가요.
+        끝나면 여기서 보정 전·후 오차를 비교해요.
+      </p>
     </div>
   );
 }
 
-/* K03b 보정 이력 */
-export function HistoryTable({ history }: { history: HistoryRow[] }) {
+/* K03b 보정 이력 — 되돌리기는 그 값을 복사한 새 기록으로 남아요 (지우지 않음) */
+export function HistoryTable({
+  history,
+  pending,
+  onRestore,
+  onReset,
+}: {
+  history: CalibrationRecord[];
+  pending: boolean;
+  onRestore: (record: CalibrationRecord) => void;
+  onReset: () => void;
+}) {
   return (
     <section aria-labelledby="history-title" className="flex flex-col gap-3">
-      <h2 id="history-title" className="text-lg font-bold text-ink">
-        보정 이력
-      </h2>
+      <div className="flex items-baseline justify-between">
+        <h2 id="history-title" className="text-lg font-bold text-ink">
+          보정 이력
+        </h2>
+        {history.length > 0 && history[0].restored_from !== 0 && (
+          <Button variant="secondary" disabled={pending} onClick={onReset}>
+            기본 모형으로 되돌리기
+          </Button>
+        )}
+      </div>
       <table aria-labelledby="history-title" className="w-full text-left text-caption">
         <thead>
           <tr className="border-b border-line text-xs text-muted">
-            <th className="w-24 py-3 font-medium">일시</th>
+            <th className="w-36 py-3 font-medium">일시</th>
             <th className="py-3 font-medium">변경 값</th>
             <th className="w-40 py-3 font-medium">기준 비교</th>
             <th className="w-28 py-3 font-medium">오차 변화</th>
+            <th className="w-28 py-3" aria-label="되돌리기" />
           </tr>
         </thead>
         <tbody>
           {history.map((row, index) => (
-            <tr key={`${row.date}-${index}`} className="border-b border-line last:border-b-0">
+            <tr key={row.id} className="border-b border-line last:border-b-0">
               <th scope="row" className="py-3 font-bold text-ink">
-                {row.date}
+                {formatApplied(row.applied_at)}
+                <span className="block text-xs font-medium text-muted">r{row.revision}</span>
               </th>
-              <td className="py-3 pr-6 text-gray-800">{row.change}</td>
-              <td className="py-3 text-gray-800">{row.basis}</td>
+              <td className="py-3 pr-6 text-gray-800">{row.changes_summary}</td>
+              <td className="py-3 text-gray-800">{row.base_comparison ?? "—"}</td>
               <td className={cn("py-3", index === 0 ? "font-bold text-ink" : "text-gray-800")}>
-                {row.error}
+                {row.error_before_pp == null
+                  ? "—"
+                  : `${row.error_before_pp} → ${row.error_after_pp ?? "다음 테스트 후"}`}
+              </td>
+              <td className="py-3 text-right">
+                {index > 0 && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => onRestore(row)}
+                    className="text-caption font-bold text-ink underline underline-offset-4 disabled:text-muted"
+                  >
+                    이 값으로 되돌리기
+                  </button>
+                )}
               </td>
             </tr>
           ))}
+          <tr>
+            <th scope="row" className="py-3 font-bold text-ink">
+              처음
+            </th>
+            <td className="py-3 text-gray-800" colSpan={4}>
+              첫 보정 전 (기본 모형)
+            </td>
+          </tr>
         </tbody>
       </table>
     </section>
   );
 }
 
-/* E11 보정할 차이 없음 */
-export function NoDifference({ onHistory }: { onHistory: () => void }) {
+/* E11 보정할 차이 없음 · 그 밖의 "아직 조정안을 만들 수 없음" 상태 */
+export function NoProposal({
+  title,
+  message,
+  action,
+}: {
+  title: string;
+  message: string;
+  action?: ReactNode;
+}) {
   return (
     <section
-      aria-labelledby="no-diff-title"
+      aria-labelledby="no-proposal-title"
       className="flex flex-col items-center gap-2 py-16 text-center"
     >
       <img src={characterDefault} alt="" className="mb-10 h-40 w-auto" />
-      <h2 id="no-diff-title" className="text-lg font-bold text-ink">
-        지금은 보정할 차이가 없어요
+      <h2 id="no-proposal-title" className="text-lg font-bold text-ink">
+        {title}
       </h2>
-      <p className="text-sm text-subtle">모든 단계가 예측 범위 안이에요 · 평균 오차 1.2%p</p>
-      <Button variant="secondary" className="mt-4" onClick={onHistory}>
-        보정 이력 보기
-      </Button>
+      <p className="text-sm text-subtle">{message}</p>
+      {action && <div className="mt-4">{action}</div>}
     </section>
   );
 }
