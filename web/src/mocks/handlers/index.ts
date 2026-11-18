@@ -1,5 +1,6 @@
 import { calibrationHandlers } from "./calibration";
 import { measurementHandlers } from "./measurements";
+import { participantHandlers } from "./participant";
 import { personaHandlers } from "./personas";
 import { planHandlers } from "./plans";
 import { projectHandlers } from "./projects";
@@ -17,6 +18,7 @@ import { sourceHandlers } from "./sources";
 export const handlers = [
   ...personaHandlers,
   ...calibrationHandlers,
+  ...participantHandlers,
   ...projectHandlers,
   ...reportHandlers,
   ...planHandlers,

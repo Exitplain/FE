@@ -367,7 +367,7 @@ export function createPlan(projectId: number, body: Record<string, unknown>): Pl
     task_funnels: discovery.tasks.map((task) => ({ task_id: task.id, auto: true, stages: FUNNEL })),
     segments: evenSplit(discovery.personaTotal),
     limits: {
-      viewport_width: 390,
+      viewport_width: 1280,
       concurrency: 5,
       request_interval_seconds: 1,
       seed_count: 1,

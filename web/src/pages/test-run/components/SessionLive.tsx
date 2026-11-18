@@ -5,7 +5,6 @@ import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import type { CurrentProject } from "@/components/Projects/currentProject";
-import { RUN_DEVICE } from "@/pages/new-test/utils/newTest";
 import type { PersonaRun, PersonaSession } from "@/types/persona.type";
 
 import { runTitle } from "../hooks/useRunTitle";
@@ -106,9 +105,7 @@ export default function SessionLive({
             <h2 id="live-screen-title" className="text-base font-bold text-ink">
               라이브 화면
             </h2>
-            <span className="text-xs text-muted">
-              {RUN_DEVICE} · {viewerUrl ? "실시간" : "마지막 화면"}
-            </span>
+            <span className="text-xs text-muted">{viewerUrl ? "실시간" : "마지막 화면"}</span>
           </div>
           <div className="flex aspect-3/4 items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50">
             {viewerUrl ? (

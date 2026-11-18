@@ -29,6 +29,7 @@ import {
   CompareSection,
 } from "./components/CalibrationViews";
 import ObservationView from "./components/ObservationView";
+import ParticipantLinks from "./components/ParticipantLinks";
 import { formatApplied } from "./utils/format";
 
 /*
@@ -140,6 +141,7 @@ function Calibration({ project }: { project: CurrentProject }) {
           description="참여자 관찰 결과를 넣으면 원인까지 비교해요 (선택)"
           activeTab="calibration"
         />
+        <ParticipantLinks projectId={project.id} />
         <ObservationView projectId={project.id} />
       </div>
     );

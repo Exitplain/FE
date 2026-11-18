@@ -12,6 +12,8 @@ import { buildPath } from "@/constants/routes";
 import type { FunnelDays, FunnelDevice, FunnelStageCompare } from "@/types/measurement.type";
 
 import CompareView from "./components/CompareView";
+import ParticipantLinks from "@/pages/calibration/components/ParticipantLinks";
+
 import ConnectView, { NotConnected, NotDeployed } from "./components/ConnectView";
 import FunnelView from "./components/FunnelView";
 import MappingStep from "./components/MappingStep";
@@ -201,6 +203,8 @@ function Analytics({ project }: { project: CurrentProject }) {
         ) : (
           <NotConnected onConnect={() => goTo("connect")} />
         )}
+        {/* 코드를 못 넣는 프로젝트도 참여자 응답으로 사람 관측을 모을 수 있어요 */}
+        <ParticipantLinks projectId={project.id} />
       </div>
     );
   }

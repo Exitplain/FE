@@ -22,6 +22,7 @@ import ReportPage from "@/pages/report";
 import RetestPage from "@/pages/retest";
 import SessionDetailPage from "@/pages/session-detail";
 import SettingsPage from "@/pages/settings";
+import ParticipantPage from "@/pages/participant";
 import SharedReportPage from "@/pages/shared-report";
 import TestListPage from "@/pages/test-list";
 import TestRunPage from "@/pages/test-run";
@@ -37,6 +38,8 @@ export const routes: RouteObject[] = [
   },
   /* P21 공유 리포트는 로그인 없이 보는 화면이라 사이드바·가운데 정렬 레이아웃 없이 자체 상단 바를 씁니다 */
   { path: ROUTES.sharedReport.path, element: <SharedReportPage /> },
+  /* 참여자 응답 링크도 로그인 없이 여는 화면이라 앱 레이아웃 밖에 둡니다 */
+  { path: ROUTES.participant.path, element: <ParticipantPage /> },
   {
     element: <AppLayout />,
     children: [
