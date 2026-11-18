@@ -210,7 +210,12 @@ function Calibration({ project }: { project: CurrentProject }) {
   const data = proposal.data;
 
   if (data.available && data.items.length > 0) {
-    const unit = data.basis?.evidence === "observations" ? "명" : "세션";
+    const unit =
+      data.basis?.evidence === "observations"
+        ? "명"
+        : data.basis?.evidence === "mixed"
+          ? "건 (실측 세션 + 사람 관측)"
+          : "세션";
     return (
       <div className="flex flex-col gap-12">
         {header(

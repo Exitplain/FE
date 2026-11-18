@@ -46,6 +46,9 @@ function basisText(proposal: CalibrationProposal) {
   const basis = proposal.basis;
   if (!basis) return "";
   const run = basis.run_sequence ? `${basis.run_sequence}차` : "사전 테스트";
+  if (basis.evidence === "mixed") {
+    return `${run} vs 실측 ${basis.measurement_count ?? 0}세션 + 사람 관측 ${basis.observation_count ?? 0}명 (합 ${basis.count}건)`;
+  }
   if (basis.evidence === "observations") {
     const picks = (basis.picks ?? []).map((pick) => pick.stage_name).join(" · ");
     return `${run} vs 사람 관측 ${basis.count}명 · 가장 불편했던 화면 기준${picks ? ` · 많이 고른 화면 ${picks}` : ""}`;

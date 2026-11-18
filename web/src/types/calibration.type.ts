@@ -59,9 +59,11 @@ export type CalibrationProposal = {
     days: number;
     device: string;
     /* 근거: 실측 차이 구간 · 사람 관측(가장 불편했던 화면) */
-    evidence: "measurement" | "observations";
-    /* 실측 첫 단계 세션 수 또는 보정용 관측 수 */
+    evidence: "measurement" | "observations" | "mixed";
+    /* 실측 첫 단계 세션 + 보정용 사람 관측 (합쳐서 min_evidence 부터 실제 값) */
     count: number;
+    measurement_count?: number;
+    observation_count?: number;
     mean_error: number | null;
     gaps: ProposalGap[];
     picks?: {
