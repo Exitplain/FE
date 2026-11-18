@@ -12,6 +12,7 @@ import {
 } from "@/pages/new-test/utils/newTest";
 import type { Variant } from "@/types/persona.type";
 import type { AgeKey, Plan } from "@/types/plan.type";
+import type { SourceSnapshot } from "@/types/source.type";
 
 /*
   새 테스트(P02~P05c) 단계별 입력. 단계를 오가도 값이 남아야 해서 zustand 에 둡니다.
@@ -25,6 +26,10 @@ import type { AgeKey, Plan } from "@/types/plan.type";
 */
 type NewTestState = {
   projectId: string | null;
+  /* P02 "어떻게 테스트할까요?" — 배포된 URL / 코드(zip·공개 git) */
+  inputMode: "url" | "code";
+  /* 코드로 받은 마지막 스냅샷 (준비됐거나 실패한 결과). 다른 화면에 갔다 와도 남깁니다 */
+  source: SourceSnapshot | null;
   siteUrl: string;
   /* BE 개발 서버의 반찬 데모 버전 (fixed=개선, problem=문제) */
   variant: Variant;
@@ -49,6 +54,8 @@ type NewTestState = {
 
 type NewTestActions = {
   reset: (projectId: string, siteUrl: string) => void;
+  setInputMode: (mode: NewTestState["inputMode"]) => void;
+  setSource: (source: SourceSnapshot | null) => void;
   setSiteUrl: (siteUrl: string) => void;
   setVariant: (variant: Variant) => void;
   setLoginMode: (mode: NewTestState["loginMode"]) => void;
@@ -73,6 +80,8 @@ type NewTestActions = {
 
 const initialInput = (projectId: string | null, siteUrl: string): NewTestState => ({
   projectId,
+  inputMode: "url",
+  source: null,
   siteUrl,
   variant: "problem",
   loginMode: "none",
@@ -103,6 +112,9 @@ function resplit(
 export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => ({
   ...initialInput(null, ""),
   reset: (projectId, siteUrl) => set(initialInput(projectId, siteUrl)),
+  setInputMode: (inputMode) =>
+    set((state) => (state.inputMode === inputMode ? state : { inputMode })),
+  setSource: (source) => set({ source }),
   setSiteUrl: (siteUrl) =>
     set((state) => (state.siteUrl === siteUrl ? state : { siteUrl, plan: null })),
   setVariant: (variant) =>
