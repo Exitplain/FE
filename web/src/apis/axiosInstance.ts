@@ -1,5 +1,7 @@
 import axios, { isAxiosError, type InternalAxiosRequestConfig } from "axios";
 
+import { notifySessionRequired } from "@/utils/authSessionEvents";
+
 import {
   ApiError,
   CSRF_FAILED,
@@ -168,7 +170,18 @@ axiosInstance.interceptors.response.use(
       return axiosInstance({ ...error.config, csrfRetried: true });
     }
 
-    return Promise.reject(toApiError(error));
+    const apiError = toApiError(error);
+    const path = isAxiosError(error) ? error.config?.url : undefined;
+    // Login attempts and explicit logout have their own error handling.
+    if (
+      apiError.status === 401 &&
+      apiError.code === "AUTH_REQUIRED" &&
+      path?.startsWith("/api/v1/") &&
+      !/^\/api\/v1\/auth\/(?:email\/|google(?:\?|$)|logout(?:\?|$))/.test(path)
+    ) {
+      notifySessionRequired();
+    }
+    return Promise.reject(apiError);
   },
 );
 

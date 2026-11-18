@@ -3,7 +3,8 @@ import { Outlet, useSearchParams } from "react-router-dom";
 
 import MeshBackground from "@/components/MeshBackground/MeshBackground";
 import ProjectCreateDialogHost from "@/components/Projects/ProjectCreateDialogHost";
-import { toAccount, useAuthSession } from "@/hooks/useAuthSession";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { useSessionExpiry } from "@/hooks/useSessionExpiry";
 import AuthDialog from "@/pages/login/components/AuthDialog";
 import { useDemoSessionStore } from "@/stores/useDemoSessionStore";
 
@@ -18,9 +19,7 @@ export default function AppLayout() {
   const [params, setParams] = useSearchParams();
   /* 들어올 때 서버 세션으로 사이드바 계정 표시를 맞춥니다. 조회에 실패하면 지금 표시를 유지합니다 */
   const { data: session } = useAuthSession();
-  useEffect(() => {
-    if (session) useDemoSessionStore.getState().setAccount(toAccount(session));
-  }, [session]);
+  useSessionExpiry(session);
   useEffect(() => {
     if (params.get("auth") !== "expired") return;
     useDemoSessionStore.getState().expire();

@@ -1,10 +1,12 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { useLocation } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/mocks/node";
+import axiosInstance from "@/apis/axiosInstance";
+import { queryKeys } from "@/apis/queryKeys";
 import { useDemoSessionStore } from "@/stores/useDemoSessionStore";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
@@ -182,11 +184,110 @@ describe("사이드바 로그인", () => {
     expect(await screen.findByRole("button", { name: "kim 계정 메뉴" })).toBeInTheDocument();
   });
 
-  it("남아 있던 계정 표시는 서버 세션이 비로그인이면 지운다", async () => {
+  it("남아 있던 계정 표시는 서버 세션이 비로그인이면 만료 안내와 함께 지운다", async () => {
     useDemoSessionStore.getState().setAccount({ name: "메이커", email: "maker@example.com" });
     renderWithProviders(<AppLayout />);
-    expect(await screen.findByRole("button", { name: "로그인" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "세션 만료" })).toBeInTheDocument();
     expect(useDemoSessionStore.getState().account).toBeNull();
+  });
+
+  it("보호 API의 동시 401은 L09 하나를 열고 재로그인 후 주소와 입력을 유지한다", async () => {
+    const signedIn = {
+      authenticated: true,
+      user: { id: 1, email: "maker@example.com", name: "메이커" },
+      workspace: { id: 1, name: "워크스페이스" },
+      session_expires_at: "2099-12-01T00:00:00Z",
+    };
+    server.use(
+      http.get("*/api/v1/auth/session", () => HttpResponse.json(signedIn)),
+      http.get("*/api/v1/expiry-check", () =>
+        HttpResponse.json(
+          { error: { code: "AUTH_REQUIRED", message: "로그인이 필요합니다.", fields: {} } },
+          { status: 401 },
+        ),
+      ),
+      http.post("*/api/v1/auth/email/request", () => new HttpResponse(null, { status: 202 })),
+      http.post("*/api/v1/auth/email/verify", () => HttpResponse.json(signedIn)),
+    );
+    const user = userEvent.setup();
+    const { queryClient } = renderWithProviders(
+      <>
+        <AppLayout />
+        <LocationProbe />
+        <input aria-label="작업 메모" />
+      </>,
+      { route: "/history?status=running" },
+    );
+    await screen.findByRole("button", { name: "메이커 계정 메뉴" });
+    await user.type(screen.getByLabelText("작업 메모"), "작성 중인 내용");
+    await act(async () => {
+      await Promise.allSettled([
+        axiosInstance.get("/api/v1/expiry-check"),
+        axiosInstance.get("/api/v1/expiry-check"),
+      ]);
+    });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "세션 만료" })).toBeInTheDocument();
+    expect(queryClient.getQueryData(queryKeys.auth.session())).toEqual({ authenticated: false });
+    expect(useDemoSessionStore.getState().account).toBeNull();
+    await user.click(screen.getByRole("button", { name: "다시 로그인" }));
+    const dialog = screen.getByRole("dialog", { name: "로그인 또는 회원가입" });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "이메일 주소" }),
+      "maker@example.com",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "계속" }));
+    await user.click(await within(dialog).findByRole("textbox", { name: "인증 코드 1번째 자리" }));
+    await user.paste("123456");
+    await user.click(within(dialog).getByRole("button", { name: "로그인" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/history?status=running");
+    expect(screen.getByLabelText("작업 메모")).toHaveValue("작성 중인 내용");
+  });
+
+  it("처음 방문한 비로그인 사용자의 401은 세션 만료 안내를 열지 않는다", async () => {
+    server.use(
+      http.get("*/api/v1/expiry-check", () =>
+        HttpResponse.json(
+          { error: { code: "AUTH_REQUIRED", message: "로그인이 필요합니다.", fields: {} } },
+          { status: 401 },
+        ),
+      ),
+    );
+    renderWithProviders(<AppLayout />);
+    await screen.findByRole("button", { name: "로그인" });
+    await act(async () => {
+      await axiosInstance.get("/api/v1/expiry-check").catch(() => {});
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("로그인 중 403 권한 오류와 502 연결 오류는 세션 만료로 처리하지 않는다", async () => {
+    server.use(
+      http.get("*/api/v1/auth/session", () =>
+        HttpResponse.json({
+          authenticated: true,
+          user: { email: "maker@example.com", name: "메이커" },
+        }),
+      ),
+      http.get("*/api/v1/forbidden-check", () =>
+        HttpResponse.json(
+          { error: { code: "FORBIDDEN", message: "권한 없음", fields: {} } },
+          { status: 403 },
+        ),
+      ),
+      http.get("*/api/v1/network-check", () => new HttpResponse(null, { status: 502 })),
+    );
+    renderWithProviders(<AppLayout />);
+    await screen.findByRole("button", { name: "메이커 계정 메뉴" });
+    await act(async () => {
+      await Promise.allSettled([
+        axiosInstance.get("/api/v1/forbidden-check"),
+        axiosInstance.get("/api/v1/network-check"),
+      ]);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(useDemoSessionStore.getState().account).not.toBeNull();
   });
 
   it("세션 만료 안내에서 다시 로그인 모달을 열고 Escape로 닫는다", async () => {

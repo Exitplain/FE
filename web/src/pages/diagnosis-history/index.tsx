@@ -97,10 +97,15 @@ export default function DiagnosisHistoryPage({
       {selectedRuns.length > 0 && (
         <section
           aria-label="선택한 실행"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 p-4"
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-gray-50 px-4 py-2"
         >
-          <span className="text-sm">{selectedRuns.length}개 선택됨</span>
-          <div className="flex items-center gap-3">
+          <span className="text-sm font-medium">{selectedRuns.length}개 선택됨</span>
+          {reason && (
+            <p className="min-w-0 flex-1 text-xs text-muted">
+              {selectedRuns.length === 1 ? "비교하려면 1개 더 선택하세요" : reason}
+            </p>
+          )}
+          <div className="ml-auto flex items-center gap-3">
             <Button variant="link" onClick={() => setSelected([])}>
               선택 해제
             </Button>
@@ -111,10 +116,9 @@ export default function DiagnosisHistoryPage({
               title={reason || undefined}
               onClick={() => setCompareOpen(true)}
             >
-              선택한 {selectedRuns.length}개 비교
+              선택한 2개 비교
             </Button>
           </div>
-          {reason && <p className="w-full text-xs text-muted">{reason}</p>}
         </section>
       )}
       {query.isPending ? (
