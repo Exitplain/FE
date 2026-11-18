@@ -1,7 +1,10 @@
 import type {
+  CalibrationCompare,
   CalibrationList,
   CalibrationProposal,
   CalibrationRecord,
+  HumanObservationList,
+  ObservationInput,
 } from "@/types/calibration.type";
 
 import axiosInstance from "./axiosInstance";
@@ -56,4 +59,46 @@ export async function resetCalibration(projectId: string, expectedRevision: numb
     { expected_revision: expectedRevision },
   );
   return data;
+}
+
+/* K03 보정 전·후 단계별 오차. revision 을 빼면 현재 보정 */
+export async function getCalibrationCompare(projectId: string, revision?: number) {
+  const { data } = await axiosInstance.get<CalibrationCompare>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/calibration/compare`,
+    { params: revision == null ? {} : { revision } },
+  );
+  return data;
+}
+
+/* K04 사람 관측 목록·예측과 일치 요약 */
+export async function getObservations(projectId: string) {
+  const { data } = await axiosInstance.get<HumanObservationList>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/human-observations`,
+  );
+  return data;
+}
+
+/* 관측 저장 — 같은 참여자×과업이면 덮어씁니다 (replaced=true) */
+export async function saveObservation(projectId: string, body: ObservationInput) {
+  const { data } = await axiosInstance.post<HumanObservationList>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/human-observations`,
+    body,
+  );
+  return data;
+}
+
+/* recorder.js 결과 파일 가져오기 (원인은 '원인 미상'으로 들어감) */
+export async function importObservation(
+  projectId: string,
+  body: { task_id: string; purpose: ObservationInput["purpose"]; record: unknown },
+) {
+  const { data } = await axiosInstance.post<HumanObservationList>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/human-observations/import`,
+    body,
+  );
+  return data;
+}
+
+export async function deleteObservation(observationId: number) {
+  await axiosInstance.delete(`/api/v1/human-observations/${observationId}`);
 }

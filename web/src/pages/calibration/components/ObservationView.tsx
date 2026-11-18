@@ -1,67 +1,138 @@
-import { type FormEvent, useId, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type ChangeEvent, type FormEvent, useId, useState } from "react";
 
+import {
+  deleteObservation,
+  getObservations,
+  importObservation,
+  saveObservation,
+} from "@/apis/calibration.api";
+import { queryKeys } from "@/apis/queryKeys";
 import Button from "@/components/Button/Button";
 import DropdownMenu from "@/components/DropdownMenu/DropdownMenu";
 import Icon from "@/components/Icon/Icon";
 import { useToastStore } from "@/stores/useToastStore";
+import type {
+  HumanObservation,
+  HumanObservationList,
+  ObservationInput,
+} from "@/types/calibration.type";
 
-import {
-  matchObservation,
-  OBSERVATION_CAUSES,
-  OBSERVATION_STAGES,
-  OBSERVATION_TASKS,
-  type Observation,
-  observationsOf,
-  sameObservation,
-  useCalibrationMockStore,
-} from "../data/calibrationMock";
 import { KpiTrio } from "./CalibrationViews";
 
 const CODE_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
+const PURPOSES = [
+  ["calibration", "보정용"],
+  ["evaluation", "평가용"],
+] as const;
+
+function observationKey(projectId: string) {
+  return [...queryKeys.calibration.all, projectId, "observations"] as const;
+}
+
+/* 한 관측이 예측과 맞는지: 판단할 수 있는 항목이 모두 맞으면 일치 */
+function agrees(row: HumanObservation) {
+  const values = Object.values(row.match).filter((value) => value !== null);
+  return values.length > 0 && values.every(Boolean);
+}
 
 /*
-  K04 사람 관측 입력 · K04b 저장됨(토스트) · K04c 같은 참여자 코드(덮어쓰기 안내).
-  임시: 저장은 화면 상태에만 남고(API 없음), 예측 비교도 고정 예측값으로 계산합니다.
+  K04 사람 관측 입력 · K04b 저장됨(토스트) · K04c 같은 참여자 코드(덮어쓰기 안내). 실제 API(BE calibrations).
+  예측은 가장 최근 사전 테스트의 과업별 다수 결과·가장 많이 이탈한 단계·1위 원인입니다.
+  평가용 관측이 있으면 일치 요약은 평가용만으로 셉니다 (보정용과 섞지 않음).
 */
 export default function ObservationView({ projectId }: { projectId: string }) {
-  const observations = useCalibrationMockStore((state) => observationsOf(state, projectId));
-  /* 방금 저장한 관측 (참여자·과업). 입력을 바꾸기 전에는 덮어쓰기 안내를 띄우지 않습니다 */
+  const query = useQuery({
+    queryKey: observationKey(projectId),
+    queryFn: () => getObservations(projectId),
+  });
+  if (query.isError) {
+    return (
+      <p role="alert" className="rounded-xl bg-gray-50 p-6 text-sm text-subtle">
+        {query.error.message}
+      </p>
+    );
+  }
+  if (!query.data) return <p className="text-sm text-subtle">불러오는 중이에요…</p>;
+  if (!query.data.report_id || query.data.tasks.length === 0) {
+    return (
+      <p className="rounded-xl bg-gray-50 p-6 text-sm text-subtle">
+        먼저 사전 테스트를 한 번 실행해야 사람 관측을 예측과 비교할 수 있어요.
+      </p>
+    );
+  }
+  return <ObservationEditor projectId={projectId} data={query.data} />;
+}
+
+function ObservationEditor({ projectId, data }: { projectId: string; data: HumanObservationList }) {
+  const queryClient = useQueryClient();
   const [savedKey, setSavedKey] = useState<string | null>(null);
-  const [participant, setParticipant] = useState("H-004");
-  const [task, setTask] = useState(OBSERVATION_TASKS[0]);
-  const [outcome, setOutcome] = useState<Observation["outcome"]>("dropout");
-  const [stage, setStage] = useState(3);
-  const [cause, setCause] = useState(1);
+  const [participant, setParticipant] = useState("H-001");
+  const [taskId, setTaskId] = useState(data.tasks[0].task_id);
+  const [outcome, setOutcome] = useState<ObservationInput["outcome"]>("dropout");
+  const [stageId, setStageId] = useState<string | null>(null);
+  const [cause, setCause] = useState(data.causes[0]?.key ?? "unknown");
+  const [purpose, setPurpose] = useState<ObservationInput["purpose"]>("calibration");
   const [touched, setTouched] = useState(false);
   const codeId = useId();
+  const fileId = useId();
 
+  const task = data.tasks.find((item) => item.task_id === taskId) ?? data.tasks[0];
+  const stage = task.stages.find((item) => item.id === stageId) ?? task.stages[0];
   const code = participant.trim();
   const codeError =
     touched && !CODE_PATTERN.test(code) ? "영문·숫자·밑줄·하이픈 1~40자로 입력해주세요" : null;
-  const key = `${code}|${task}`;
-  const exists = observations.some((item) => sameObservation(item, code, task));
+  const key = `${code}|${task.task_id}`;
+  const exists = data.items.some(
+    (item) => item.participant_code === code && item.task_id === task.task_id,
+  );
   const duplicate = exists && savedKey !== key;
-  const count = (key: keyof Observation["matches"]) =>
-    observations.filter((item) => item.matches[key]).length;
+
+  const onSaved = (next: HumanObservationList, message: string) => {
+    queryClient.setQueryData(observationKey(projectId), next);
+    useToastStore.getState().show(next.replaced ? "관측을 고쳤어요" : message);
+  };
+  const save = useMutation({
+    mutationFn: () =>
+      saveObservation(projectId, {
+        participant_code: code,
+        task_id: task.task_id,
+        outcome,
+        purpose,
+        ...(outcome === "dropout" ? { stage_id: stage.id, cause } : {}),
+      }),
+    onSuccess: (next) => {
+      onSaved(next, "관측을 저장했어요");
+      setSavedKey(key);
+    },
+  });
+  const importFile = useMutation({
+    mutationFn: async (file: File) =>
+      importObservation(projectId, {
+        task_id: task.task_id,
+        purpose,
+        record: JSON.parse(await file.text()) as unknown,
+      }),
+    onSuccess: (next) => onSaved(next, "기록 파일을 가져왔어요"),
+  });
+  const remove = useMutation({
+    mutationFn: (id: number) => deleteObservation(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: observationKey(projectId) }),
+  });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setTouched(true);
     if (!CODE_PATTERN.test(code)) return;
-    const dropout = outcome === "dropout";
-    const stageName = dropout ? OBSERVATION_STAGES[stage] : null;
-    const causeName = dropout ? OBSERVATION_CAUSES[cause] : null;
-    useCalibrationMockStore.getState().saveObservation(projectId, {
-      participant: code,
-      task,
-      outcome,
-      stage: stageName,
-      cause: causeName,
-      matches: matchObservation(outcome, stageName, causeName),
-    });
-    useToastStore.getState().show(exists ? "관측을 고쳤어요" : "관측을 저장했어요");
-    setSavedKey(key);
+    save.mutate();
   };
+  const onFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) importFile.mutate(file);
+    event.target.value = "";
+  };
+  const error = save.error ?? importFile.error;
+  const count = (item: { matched: number; total: number }) => `${item.matched} / ${item.total}`;
 
   return (
     <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
@@ -105,58 +176,78 @@ export default function ObservationView({ projectId }: { projectId: string }) {
               {codeError}
             </p>
           )}
+          <p className="text-xs text-subtle">이름·연락처 대신 익명 코드만 써요</p>
         </div>
         <Picker
           label="과업"
-          value={task}
-          options={OBSERVATION_TASKS}
+          value={task.name}
+          options={data.tasks.map((item) => item.name)}
           onSelect={(index) => {
-            setTask(OBSERVATION_TASKS[index]);
+            setTaskId(data.tasks[index].task_id);
+            setStageId(null);
             setSavedKey(null);
           }}
         />
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-xs text-ink">결과</legend>
-          <div className="flex gap-6">
-            {(
-              [
-                ["success", "완료"],
-                ["dropout", "이탈"],
-              ] as const
-            ).map(([value, label]) => (
-              <label key={value} className="flex min-h-8 items-center gap-2 text-caption text-ink">
-                <input
-                  type="radio"
-                  name="outcome"
-                  value={value}
-                  checked={outcome === value}
-                  onChange={() => setOutcome(value)}
-                  className="size-4 accent-ink"
-                />
-                <span className={outcome === value ? "font-bold" : undefined}>{label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <RadioRow
+          legend="결과"
+          name="outcome"
+          value={outcome}
+          options={[
+            ["success", "완료"],
+            ["dropout", "이탈"],
+          ]}
+          onChange={(value) => setOutcome(value as ObservationInput["outcome"])}
+        />
         {outcome === "dropout" && (
           <>
             <Picker
               label="멈춘 단계"
-              value={`${stage + 1}. ${OBSERVATION_STAGES[stage]}`}
-              options={OBSERVATION_STAGES.map((name, index) => `${index + 1}. ${name}`)}
-              onSelect={setStage}
+              value={stage.name}
+              options={task.stages.map((item, index) => `${index + 1}. ${item.name}`)}
+              onSelect={(index) => setStageId(task.stages[index].id)}
             />
             <Picker
-              label={`원인 (${OBSERVATION_CAUSES.length}종)`}
-              value={OBSERVATION_CAUSES[cause]}
-              options={OBSERVATION_CAUSES}
-              onSelect={setCause}
+              label={`원인 (${data.causes.length - 1}종 + 미상)`}
+              value={data.causes.find((item) => item.key === cause)?.name ?? cause}
+              options={data.causes.map((item) => item.name)}
+              onSelect={(index) => setCause(data.causes[index].key)}
             />
           </>
         )}
-        <div className="flex justify-end">
-          <Button type="submit">{duplicate ? "기존 관측 고치기" : "관측 저장"}</Button>
+        <RadioRow
+          legend="용도"
+          name="purpose"
+          value={purpose}
+          options={PURPOSES}
+          onChange={(value) => setPurpose(value as ObservationInput["purpose"])}
+        />
+        {error && (
+          <p role="alert" className="text-xs text-danger">
+            {error.message}
+          </p>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={fileId}
+            className="cursor-pointer text-caption font-bold text-ink underline underline-offset-4"
+          >
+            기록 파일 가져오기
+          </label>
+          <input
+            id={fileId}
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            onChange={onFile}
+          />
+          <Button type="submit" disabled={save.isPending}>
+            {duplicate ? "기존 관측 고치기" : "관측 저장"}
+          </Button>
         </div>
+        <p className="text-xs text-subtle">
+          기록 파일은 데모 사이트 recorder.js 가 내려받게 한 JSON 이에요 · 고른 과업·용도로 들어가고
+          원인은 '원인 미상'이에요
+        </p>
       </form>
 
       <div className="flex flex-col gap-8 lg:col-span-2">
@@ -164,63 +255,107 @@ export default function ObservationView({ projectId }: { projectId: string }) {
           items={[
             {
               label: "결과 일치",
-              value: `${count("outcome")} / ${observations.length}`,
-              note: "완료·이탈",
+              value: count(data.summary.outcome),
+              note: data.summary_basis === "evaluation" ? "평가용 관측 기준" : "완료·이탈",
             },
-            {
-              label: "단계 일치",
-              value: `${count("stage")} / ${observations.length}`,
-              note: "멈춘 단계",
-            },
+            { label: "단계 일치", value: count(data.summary.stage), note: "사람 이탈 기준" },
             {
               label: "원인 일치",
-              value: `${count("cause")} / ${observations.length}`,
-              note: `${OBSERVATION_CAUSES.length}종 기준`,
+              value: count(data.summary.cause),
+              note: "원인을 아는 이탈 기준",
             },
           ]}
         />
         <section aria-labelledby="observations-title" className="flex flex-col gap-3">
           <h2 id="observations-title" className="text-lg font-bold text-ink">
-            입력한 관측 {observations.length}건
+            입력한 관측 {data.items.length}건
           </h2>
           <table aria-labelledby="observations-title" className="w-full text-left text-caption">
             <thead>
               <tr className="border-b border-line text-xs text-muted">
                 <th className="w-20 py-3 font-medium">참여자</th>
-                <th className="w-16 py-3 font-medium">결과</th>
-                <th className="w-20 py-3 font-medium">멈춘 단계</th>
+                <th className="w-28 py-3 font-medium">과업</th>
+                <th className="w-14 py-3 font-medium">결과</th>
+                <th className="w-24 py-3 font-medium">멈춘 단계</th>
                 <th className="py-3 font-medium">원인</th>
+                <th className="w-16 py-3 font-medium">용도</th>
                 <th className="w-16 py-3 font-medium">예측과</th>
+                <th className="w-10 py-3" aria-label="삭제" />
               </tr>
             </thead>
             <tbody>
-              {observations.map((item) => (
-                <tr
-                  key={`${item.participant}|${item.task}`}
-                  className="border-b border-line last:border-b-0"
-                >
+              {data.items.map((item) => (
+                <tr key={item.id} className="border-b border-line last:border-b-0">
                   <th scope="row" className="py-3 font-bold text-ink">
-                    {item.participant}
+                    {item.participant_code}
                   </th>
+                  <td className="py-3 text-gray-800">{item.task_name}</td>
                   <td className="py-3 text-gray-800">
                     {item.outcome === "success" ? "완료" : "이탈"}
                   </td>
-                  <td className="py-3 text-gray-800">{item.stage ?? "—"}</td>
-                  <td className="py-3 text-gray-800">{item.cause ?? "—"}</td>
-                  <td
-                    className={
-                      item.matches.outcome ? "py-3 font-bold text-ink" : "py-3 text-gray-800"
-                    }
-                  >
-                    {item.matches.outcome ? "일치" : "다름"}
+                  <td className="py-3 text-gray-800">{item.stage_name ?? "—"}</td>
+                  <td className="py-3 text-gray-800">{item.cause_name ?? "—"}</td>
+                  <td className="py-3 text-gray-800">
+                    {item.purpose === "evaluation" ? "평가용" : "보정용"}
+                  </td>
+                  <td className={agrees(item) ? "py-3 font-bold text-ink" : "py-3 text-gray-800"}>
+                    {agrees(item) ? "일치" : "다름"}
+                  </td>
+                  <td className="py-3 text-right">
+                    <button
+                      type="button"
+                      aria-label={`${item.participant_code} 관측 삭제`}
+                      onClick={() => remove.mutate(item.id)}
+                      className="text-muted hover:text-ink"
+                    >
+                      <Icon name="close" className="size-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <p className="text-xs text-muted">
+            예측: 과업별 다수 결과 · 가장 많이 이탈한 단계 · 1위 원인 (가장 최근 사전 테스트)
+          </p>
         </section>
       </div>
     </div>
+  );
+}
+
+function RadioRow({
+  legend,
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  legend: string;
+  name: string;
+  value: string;
+  options: readonly (readonly [string, string])[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-xs text-ink">{legend}</legend>
+      <div className="flex gap-6">
+        {options.map(([option, label]) => (
+          <label key={option} className="flex min-h-8 items-center gap-2 text-caption text-ink">
+            <input
+              type="radio"
+              name={name}
+              value={option}
+              checked={value === option}
+              onChange={() => onChange(option)}
+              className="size-4 accent-ink"
+            />
+            <span className={value === option ? "font-bold" : undefined}>{label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -245,7 +380,7 @@ function Picker({
         items={options.map((option, index) => ({
           key: option,
           label: option,
-          selected: option === value,
+          selected: option === value || option.endsWith(`. ${value}`),
           onSelect: () => onSelect(index),
         }))}
         renderTrigger={(props) => (

@@ -5,6 +5,7 @@ import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import Modal from "@/components/Modal/Modal";
 import type {
+  CalibrationCompare,
   CalibrationProposal,
   CalibrationRecord,
   ProposalItem,
@@ -207,30 +208,88 @@ export function ApplyModal({
   );
 }
 
-/* K03 보정 적용됨 — 보정 후 오차는 다음 사전 테스트가 끝나야 실제 결과로 볼 수 있어요 (CAL-10·15) */
-export function WaitingNextRun({ latest }: { latest: CalibrationRecord }) {
+/* K03 보정 적용됨 — 보정 전·후 단계별 오차 (CAL-15). 추정하지 않고, 이 보정으로 돈 사전 테스트가 끝나야 숫자가 나와요 */
+export function CompareSection({ compare }: { compare: CalibrationCompare }) {
+  const ready = compare.status === "ready";
+  const pp = (value: number | null | undefined) =>
+    value == null
+      ? "—"
+      : `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(1)}%p`;
   return (
-    <div className="flex flex-col gap-10">
+    <section aria-labelledby="compare-title" className="flex flex-col gap-6">
+      <h2 id="compare-title" className="sr-only">
+        보정 전·후 오차
+      </h2>
       <KpiTrio
         items={[
           {
             label: "보정 전 오차",
-            value: latest.error_before_pp == null ? "—" : `${latest.error_before_pp}%p`,
-            note: latest.base_comparison ?? "평균",
+            value: compare.before?.mean_error == null ? "—" : `${compare.before.mean_error}%p`,
+            note: "평균 · 같은 실측 기간",
           },
           {
             label: "보정 후 오차",
-            value: latest.error_after_pp == null ? "다음 테스트 후" : `${latest.error_after_pp}%p`,
-            note: "새 사전 테스트가 끝나면 같은 실측 기간으로 비교해요",
+            value: ready
+              ? compare.after?.mean_error == null
+                ? "—"
+                : `${compare.after.mean_error}%p`
+              : "다음 테스트 후",
+            note: ready
+              ? `${compare.after?.run_sequence}차 결과로 다시 계산`
+              : "새 사전 테스트가 끝나면 같은 실측 기간으로 비교해요",
           },
-          { label: "보정 번호", value: `r${latest.revision}` },
+          {
+            label: "차이 구간",
+            value: ready
+              ? `${compare.before?.gaps ?? 0}곳 → ${compare.after?.gaps ?? 0}곳`
+              : `${compare.before?.gaps ?? 0}곳`,
+          },
         ]}
       />
-      <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption text-ink">
-        <Icon name="more" className="size-5" />새 사전 테스트를 돌리면 이 보정이 자동으로 들어가요.
-        끝나면 여기서 보정 전·후 오차를 비교해요.
-      </p>
-    </div>
+      {compare.status === "waiting" && (
+        <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption text-ink">
+          <Icon name="more" className="size-5" />
+          {compare.message}
+        </p>
+      )}
+      {compare.stages.length > 0 && (
+        <table aria-label="단계별 오차 · 보정 전 vs 후" className="w-full text-left text-caption">
+          <thead>
+            <tr className="border-b border-line text-xs text-muted">
+              <th className="py-3 font-medium">단계</th>
+              <th className="w-24 py-3 font-medium">보정 전</th>
+              <th className="w-24 py-3 font-medium">보정 후</th>
+              <th className="w-32 py-3 font-medium">변화</th>
+            </tr>
+          </thead>
+          <tbody>
+            {compare.stages.map((row) => {
+              const strong = row.change === "차이 구간 해소";
+              return (
+                <tr
+                  key={`${row.task_id}${row.stage_id}`}
+                  className="border-b border-line last:border-b-0"
+                >
+                  <th scope="row" className="py-3 font-bold text-ink">
+                    {row.stage_name}
+                    <span className="block text-xs font-medium text-muted">{row.task_name}</span>
+                  </th>
+                  <td className={cn("py-3", row.gap ? "font-bold text-ink" : "text-gray-800")}>
+                    {pp(row.before ?? row.error)}
+                  </td>
+                  <td className={cn("py-3", strong ? "font-bold text-ink" : "text-gray-800")}>
+                    {ready ? pp(row.after) : "—"}
+                  </td>
+                  <td className={cn("py-3", strong ? "font-bold text-ink" : "text-gray-800")}>
+                    {row.change ?? "대기"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 
@@ -315,22 +374,28 @@ export function NoProposal({
   title,
   message,
   action,
+  aside,
 }: {
   title: string;
   message: string;
   action?: ReactNode;
+  /* 위에 함께 보여 줄 것 (직전 보정의 전·후 비교 등) */
+  aside?: ReactNode;
 }) {
   return (
-    <section
-      aria-labelledby="no-proposal-title"
-      className="flex flex-col items-center gap-2 py-16 text-center"
-    >
-      <img src={characterDefault} alt="" className="mb-10 h-40 w-auto" />
-      <h2 id="no-proposal-title" className="text-lg font-bold text-ink">
-        {title}
-      </h2>
-      <p className="text-sm text-subtle">{message}</p>
-      {action && <div className="mt-4">{action}</div>}
-    </section>
+    <>
+      {aside}
+      <section
+        aria-labelledby="no-proposal-title"
+        className="flex flex-col items-center gap-2 py-16 text-center"
+      >
+        <img src={characterDefault} alt="" className="mb-10 h-40 w-auto" />
+        <h2 id="no-proposal-title" className="text-lg font-bold text-ink">
+          {title}
+        </h2>
+        <p className="text-sm text-subtle">{message}</p>
+        {action && <div className="mt-4">{action}</div>}
+      </section>
+    </>
   );
 }

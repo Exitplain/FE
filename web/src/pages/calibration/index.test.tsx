@@ -1,6 +1,6 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ROUTES } from "@/constants/routes";
 import { useToastStore } from "@/stores/useToastStore";
@@ -9,7 +9,6 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 
 import { setCalibrationMock } from "@/mocks/handlers/calibration";
 
-import { useCalibrationMockStore } from "./data/calibrationMock";
 import CalibrationPage from "./index";
 
 async function renderCalibration(projectId: string, search = "") {
@@ -20,10 +19,6 @@ async function renderCalibration(projectId: string, search = "") {
   await waitForProject();
   return result;
 }
-
-beforeEach(() => {
-  useCalibrationMockStore.setState(useCalibrationMockStore.getInitialState(), true);
-});
 
 describe("K01~K04 보정", () => {
   it("K01 → K02 → K03 — 조정안을 적용하면 다음 테스트를 기다리고, 이력에서 되돌릴 수 있다", async () => {
@@ -107,56 +102,113 @@ describe("K01~K04 보정", () => {
     ).toBeInTheDocument();
   });
 
-  it("K04 — 관측을 저장하면 표와 일치 요약에 반영하고, 같은 참여자는 덮어쓴다고 알린다(K04c)", async () => {
+  it("K03 — 이 보정으로 돈 사전 테스트가 끝나면 같은 실측 기간으로 보정 전·후 오차를 비교한다", async () => {
+    const projectId = await createTestProject();
+    setCalibrationMock(projectId, {
+      reason: "WAITING_NEXT_RUN",
+      afterRun: true,
+      history: [
+        {
+          id: 7,
+          revision: 1,
+          applied_at: "2026-11-18T09:00:00+09:00",
+          applied_by: "maker",
+          params: {},
+          changes: [],
+          changes_summary: "빠른 구매형 인내심 임계치 1.00→0.85",
+          base_comparison: "3차 vs 실측 최근 7일",
+          error_before_pp: 4.5,
+          error_after_pp: 2.1,
+          restored_from: null,
+        },
+      ],
+    });
+    await renderCalibration(projectId);
+
+    const table = await screen.findByRole("table", { name: "단계별 오차 · 보정 전 vs 후" });
+    expect(within(table).getByRole("row", { name: /장바구니/ })).toHaveTextContent(
+      "−16.0%p−4.2%p차이 구간 해소",
+    );
+    expect(screen.getByText("1곳 → 0곳")).toBeInTheDocument();
+    expect(screen.getByText("4차 결과로 다시 계산")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table", { name: "보정 이력" })).getByText("4.5 → 2.1"),
+    ).toBeInTheDocument();
+  });
+
+  it("K04 — 관측을 저장하면 예측과 비교해 요약하고, 같은 참여자×과업은 덮어쓴다(K04c)", async () => {
     const user = userEvent.setup();
-    await renderCalibration("1", "?view=observe");
+    await renderCalibration(await createTestProject(), "?view=observe");
 
     expect(screen.getByRole("heading", { level: 1, name: "사람 관측" })).toBeInTheDocument();
-    expect(screen.getByText("입력한 관측 3건")).toBeInTheDocument();
-    expect(screen.getByText("결과 일치").nextElementSibling).toHaveTextContent("2 / 3");
+    expect(await screen.findByText("입력한 관측 0건")).toBeInTheDocument();
 
+    /* 이탈 · 회원가입 · 입력 부담 → 예측(이탈·회원가입·입력 부담)과 모두 같음 */
+    await user.click(screen.getByRole("button", { name: "멈춘 단계: 첫 화면" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "4. 회원가입" }));
     await user.click(screen.getByRole("button", { name: "관측 저장" }));
-    expect(screen.getByText("입력한 관측 4건")).toBeInTheDocument();
-    /* 새 관측 H-004 는 이탈 · 장바구니 · 탐색 실패 → 결과만 예측과 같음 */
-    expect(screen.getByRole("row", { name: /H-004/ })).toHaveTextContent(
-      "H-004이탈장바구니탐색 실패일치",
+    expect(await screen.findByText("입력한 관측 1건")).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /H-001/ })).toHaveTextContent(
+      "H-001첫 주문 완료이탈회원가입입력 부담보정용일치",
     );
-    /* 방금 저장한 관측은 안내 없이 두고, 입력을 바꿨다 되돌리면 덮어쓰기를 알립니다(K04c) */
-    expect(screen.queryByText(/관측이 이미 있어요/)).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("참여자 코드"), "{Backspace}4");
-    expect(screen.getByText("H-004 관측이 이미 있어요 · 저장하면 덮어써요")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "기존 관측 고치기" })).toBeInTheDocument();
+    expect(screen.getByText("결과 일치").nextElementSibling).toHaveTextContent("1 / 1");
+    expect(useToastStore.getState().toasts.at(-1)?.message).toBe("관측을 저장했어요");
+
+    /* 같은 코드를 다시 쓰면 덮어쓰기를 알리고, 저장하면 1건 그대로 */
+    await user.type(screen.getByLabelText("참여자 코드"), "{Backspace}1");
+    expect(screen.getByText("H-001 관측이 이미 있어요 · 저장하면 덮어써요")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "완료" }));
+    await user.click(screen.getByRole("button", { name: "기존 관측 고치기" }));
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.at(-1)?.message).toBe("관측을 고쳤어요"),
+    );
+    expect(screen.getByText("입력한 관측 1건")).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /H-001/ })).toHaveTextContent("완료");
   });
 
   it("참여자 코드 형식이 틀리면 저장하지 않고 안내한다", async () => {
     const user = userEvent.setup();
-    await renderCalibration("1", "?view=observe");
+    await renderCalibration(await createTestProject(), "?view=observe");
 
-    const input = screen.getByLabelText("참여자 코드");
+    const input = await screen.findByLabelText("참여자 코드");
     await user.clear(input);
     await user.type(input, "참여자 1");
     await user.click(screen.getByRole("button", { name: "관측 저장" }));
 
     expect(screen.getByText("영문·숫자·밑줄·하이픈 1~40자로 입력해주세요")).toBeInTheDocument();
-    expect(screen.getByText("입력한 관측 3건")).toBeInTheDocument();
+    expect(screen.getByText("입력한 관측 0건")).toBeInTheDocument();
   });
 
-  it("같은 참여자라도 과업이 다르면 다른 관측으로 저장한다", async () => {
+  it("recorder.js 기록 파일을 가져오면 관측으로 들어간다", async () => {
     const user = userEvent.setup();
-    await renderCalibration("1", "?view=observe");
+    await renderCalibration(await createTestProject(), "?view=observe");
+    await screen.findByText("입력한 관측 0건");
 
-    const input = screen.getByLabelText("참여자 코드");
-    await user.clear(input);
-    await user.type(input, "H-001");
-    expect(screen.getByText("H-001 관측이 이미 있어요 · 저장하면 덮어써요")).toBeInTheDocument();
+    const record = {
+      schema: "human-record-1",
+      participant_id: "P07",
+      outcome: "give_up",
+      events: [],
+    };
+    const file = new File([JSON.stringify(record)], "human_P07_problem.json", {
+      type: "application/json",
+    });
+    await user.upload(screen.getByLabelText("기록 파일 가져오기"), file);
 
-    await user.click(screen.getByRole("button", { name: "과업: 첫 주문 완료" }));
-    await user.click(screen.getByRole("menuitemradio", { name: "쿠폰으로 주문" }));
-    expect(screen.queryByText(/관측이 이미 있어요/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "관측 저장" }));
+    expect(await screen.findByText("입력한 관측 1건")).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /P07/ })).toHaveTextContent(
+      "P07첫 주문 완료이탈장바구니원인 미상",
+    );
+  });
 
-    expect(screen.getByText("입력한 관측 4건")).toBeInTheDocument();
-    /* 방금 저장한 관측에는 덮어쓰기 안내를 바로 띄우지 않습니다 */
-    expect(screen.queryByText(/관측이 이미 있어요/)).not.toBeInTheDocument();
+  it("사전 테스트가 없으면 관측을 비교할 수 없다고 알린다", async () => {
+    const projectId = await createTestProject();
+    setCalibrationMock(projectId, { predicted: false });
+    await renderCalibration(projectId, "?view=observe");
+    expect(
+      await screen.findByText(
+        "먼저 사전 테스트를 한 번 실행해야 사람 관측을 예측과 비교할 수 있어요.",
+      ),
+    ).toBeInTheDocument();
   });
 });

@@ -80,3 +80,93 @@ export type CalibrationRecord = {
 
 /* 목록 응답 공통 형태 */
 export type CalibrationList = { items: CalibrationRecord[]; next_cursor: string | null };
+
+/* K03 보정 전·후 단계별 오차 — GET /api/v1/projects/{id}/calibration/compare?revision=n (CAL-15) */
+export type CompareStage = {
+  task_id: string;
+  task_name: string;
+  stage_id: string;
+  stage_name: string;
+  error: number | null;
+  gap: boolean;
+  before?: number | null;
+  after: number | null;
+  /* 차이 구간 해소 · 차이 구간 생김 · 개선 · 나빠짐 · 비슷 */
+  change: string | null;
+};
+
+export type CalibrationCompare = {
+  revision: number;
+  /* waiting: 이 보정으로 돈 사전 테스트가 아직 없음 */
+  status: "waiting" | "ready" | "unavailable";
+  message?: string;
+  before: { report_id: string; mean_error: number | null; gaps: number } | null;
+  after: {
+    report_id: string;
+    run_sequence: number;
+    mean_error: number | null;
+    gaps: number;
+  } | null;
+  stages: CompareStage[];
+};
+
+/* K04 사람 관측 — GET·POST /api/v1/projects/{id}/human-observations (CAL-16~18) */
+export type ObservationMatch = {
+  outcome: boolean | null;
+  stage: boolean | null;
+  cause: boolean | null;
+};
+
+export type HumanObservation = {
+  id: number;
+  participant_code: string;
+  task_id: string;
+  task_name: string;
+  outcome: "success" | "dropout";
+  stage_id: string | null;
+  stage_name: string | null;
+  cause: string | null;
+  cause_name: string | null;
+  /* calibration: 보정용 · evaluation: 평가용 (조정안 계산에 쓰지 않음) */
+  purpose: "calibration" | "evaluation";
+  source: "manual" | "recorder";
+  updated_at: string;
+  match: ObservationMatch;
+};
+
+export type ObservationTask = {
+  task_id: string;
+  name: string;
+  stages: { id: string; name: string }[];
+  predicted: {
+    outcome: "success" | "dropout";
+    stage_id: string | null;
+    stage_name: string | null;
+    cause: string | null;
+    cause_name: string | null;
+  };
+};
+
+export type MatchCount = { matched: number; total: number };
+
+export type HumanObservationList = {
+  project_id: number;
+  /* 비교 기준 리포트. 없으면 사전 테스트를 먼저 돌려야 함 */
+  report_id: string | null;
+  tasks: ObservationTask[];
+  causes: { key: string; name: string }[];
+  items: HumanObservation[];
+  summary: { outcome: MatchCount; stage: MatchCount; cause: MatchCount };
+  /* evaluation: 평가용 관측만으로 셈 · all: 평가용이 없어 전체로 셈 */
+  summary_basis: "evaluation" | "all";
+  replaced?: boolean;
+};
+
+export type ObservationInput = {
+  participant_code: string;
+  task_id: string;
+  outcome: "success" | "dropout";
+  stage_id?: string;
+  cause?: string;
+  purpose: "calibration" | "evaluation";
+};

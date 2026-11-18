@@ -1,6 +1,13 @@
 import { http, HttpResponse } from "msw";
 
-import type { CalibrationProposal, CalibrationRecord } from "@/types/calibration.type";
+import type {
+  CalibrationCompare,
+  CalibrationProposal,
+  CalibrationRecord,
+  HumanObservation,
+  HumanObservationList,
+  ObservationInput,
+} from "@/types/calibration.type";
 
 import { CALIBRATIONS, sampleProposal } from "../fixtures/calibration";
 
@@ -10,7 +17,15 @@ import { CALIBRATIONS, sampleProposal } from "../fixtures/calibration";
   - 테스트는 setCalibrationMock 으로 조정안 상태(reason)를 정합니다
   - 적용하면 새 기록이 생기고, 다음 사전 테스트 전까지 조정안은 WAITING_NEXT_RUN (BE 와 같음)
 */
-type State = { history: CalibrationRecord[]; reason: CalibrationProposal["reason"] | null };
+type State = {
+  history: CalibrationRecord[];
+  reason: CalibrationProposal["reason"] | null;
+  /* 이 보정으로 돈 사전 테스트가 끝났는지 (K03 전·후 비교) */
+  afterRun: boolean;
+  observations: HumanObservation[];
+  /* 비교 기준 리포트가 있는지 (없으면 관측 저장 409) */
+  predicted: boolean;
+};
 const store = new Map<string, State>();
 let nextId = 100;
 
@@ -29,6 +44,9 @@ function stateOf(projectId: string): State {
   const fresh: State = {
     history: structuredClone(CALIBRATIONS[projectId] ?? []),
     reason: projectId === "1" ? null : "NOT_CONNECTED",
+    afterRun: false,
+    observations: [],
+    predicted: true,
   };
   store.set(projectId, fresh);
   return fresh;
@@ -151,3 +169,219 @@ export const calibrationHandlers = [
     return HttpResponse.json(created, { status: 201 });
   }),
 ];
+
+/* ---------- K03 보정 전·후 비교 ---------- */
+
+const COMPARE_STAGES = [
+  ["/products/:id", "상품 상세", 0, false, -0.4, false],
+  ["/cart", "장바구니", -16, true, -4.2, false],
+  ["/signup", "회원가입", -5, false, -2.1, false],
+] as const;
+
+function compareOf(state: State): CalibrationCompare {
+  const latest = state.history[0];
+  const waiting = !state.afterRun;
+  return {
+    revision: latest?.revision ?? 0,
+    status: waiting ? "waiting" : "ready",
+    ...(waiting
+      ? { message: "이 보정으로 돈 사전 테스트가 아직 없어요. 끝나면 같은 실측 기간으로 비교해요." }
+      : {}),
+    before: { report_id: "report-mock-1", mean_error: 4.5, gaps: 1 },
+    after: waiting
+      ? null
+      : { report_id: "report-mock-2", run_sequence: 4, mean_error: 2.1, gaps: 0 },
+    stages: COMPARE_STAGES.map(([stageId, name, before, gap, after, gapAfter]) => ({
+      task_id: "order",
+      task_name: "첫 주문 완료",
+      stage_id: stageId,
+      stage_name: name,
+      error: before,
+      gap,
+      before,
+      after: waiting ? null : after,
+      change: waiting ? null : gap && !gapAfter ? "차이 구간 해소" : "개선",
+    })),
+  };
+}
+
+/* ---------- K04 사람 관측 ---------- */
+
+const OBS_TASKS: HumanObservationList["tasks"] = [
+  {
+    task_id: "order",
+    name: "첫 주문 완료",
+    stages: [
+      { id: "/", name: "첫 화면" },
+      { id: "/products/:id", name: "상품 상세" },
+      { id: "/cart", name: "장바구니" },
+      { id: "/signup", name: "회원가입" },
+      { id: "/order/success", name: "주문 완료" },
+    ],
+    predicted: {
+      outcome: "dropout",
+      stage_id: "/signup",
+      stage_name: "회원가입",
+      cause: "input_burden",
+      cause_name: "입력 부담",
+    },
+  },
+  {
+    task_id: "coupon",
+    name: "쿠폰으로 주문",
+    stages: [
+      { id: "/", name: "첫 화면" },
+      { id: "/cart", name: "장바구니" },
+      { id: "/order/success", name: "주문 완료" },
+    ],
+    predicted: {
+      outcome: "success",
+      stage_id: null,
+      stage_name: null,
+      cause: null,
+      cause_name: null,
+    },
+  },
+];
+const OBS_CAUSES = [
+  ["input_burden", "입력 부담"],
+  ["navigation", "탐색 실패"],
+  ["cost", "비용 충격"],
+  ["value", "가치 불명확"],
+  ["trust", "신뢰 부족"],
+  ["technical", "기술 오류·지연"],
+  ["accessibility", "접근성 장벽"],
+  ["unknown", "원인 미상"],
+].map(([key, name]) => ({ key, name }));
+
+function matchOf(row: Pick<HumanObservation, "task_id" | "outcome" | "stage_id" | "cause">) {
+  const predicted = OBS_TASKS.find((t) => t.task_id === row.task_id)!.predicted;
+  const dropout = row.outcome === "dropout";
+  return {
+    outcome: row.outcome === predicted.outcome,
+    stage: dropout ? row.stage_id === predicted.stage_id : null,
+    cause: dropout && row.cause !== "unknown" ? row.cause === predicted.cause : null,
+  };
+}
+
+function observationList(projectId: string, state: State): HumanObservationList {
+  const evaluation = state.observations.filter((o) => o.purpose === "evaluation");
+  const basis = evaluation.length ? evaluation : state.observations;
+  const count = (key: "outcome" | "stage" | "cause") => {
+    const values = basis.map((o) => o.match[key]).filter((v) => v !== null);
+    return { matched: values.filter(Boolean).length, total: values.length };
+  };
+  return {
+    project_id: Number(projectId),
+    report_id: state.predicted ? "report-mock-1" : null,
+    tasks: state.predicted ? OBS_TASKS : [],
+    causes: OBS_CAUSES,
+    items: [...state.observations].sort((a, b) =>
+      (a.participant_code + a.task_id).localeCompare(b.participant_code + b.task_id),
+    ),
+    summary: { outcome: count("outcome"), stage: count("stage"), cause: count("cause") },
+    summary_basis: evaluation.length ? "evaluation" : "all",
+  };
+}
+
+function upsert(
+  projectId: string,
+  state: State,
+  input: ObservationInput,
+  source: HumanObservation["source"],
+) {
+  const task = OBS_TASKS.find((t) => t.task_id === input.task_id)!;
+  const stageName = task.stages.find((st) => st.id === input.stage_id)?.name ?? null;
+  const causeName = OBS_CAUSES.find((c) => c.key === input.cause)?.name ?? null;
+  const index = state.observations.findIndex(
+    (o) => o.participant_code === input.participant_code && o.task_id === input.task_id,
+  );
+  const row: HumanObservation = {
+    id: index >= 0 ? state.observations[index].id : (nextId += 1),
+    participant_code: input.participant_code,
+    task_id: input.task_id,
+    task_name: task.name,
+    outcome: input.outcome,
+    stage_id: input.stage_id || null,
+    stage_name: input.outcome === "dropout" ? stageName : null,
+    cause: input.cause || null,
+    cause_name: input.outcome === "dropout" ? causeName : null,
+    purpose: input.purpose,
+    source,
+    updated_at: new Date().toISOString(),
+    match: matchOf({
+      task_id: input.task_id,
+      outcome: input.outcome,
+      stage_id: input.stage_id || null,
+      cause: input.cause || null,
+    }),
+  };
+  if (index >= 0) state.observations[index] = row;
+  else state.observations.push(row);
+  return HttpResponse.json(
+    { replaced: index >= 0, ...observationList(projectId, state) },
+    { status: index >= 0 ? 200 : 201 },
+  );
+}
+
+const fieldError = (field: string, message: string) =>
+  HttpResponse.json(
+    {
+      error: { code: "VALIDATION_ERROR", message, fields: { [field]: [message] } },
+      request_id: "req_mock",
+    },
+    { status: 422 },
+  );
+
+calibrationHandlers.push(
+  http.get("*/api/v1/projects/:projectId/calibration/compare", ({ params }) =>
+    HttpResponse.json(compareOf(stateOf(String(params.projectId)))),
+  ),
+  http.get("*/api/v1/projects/:projectId/human-observations", ({ params }) => {
+    const projectId = String(params.projectId);
+    return HttpResponse.json(observationList(projectId, stateOf(projectId)));
+  }),
+  http.post("*/api/v1/projects/:projectId/human-observations", async ({ params, request }) => {
+    const projectId = String(params.projectId);
+    const input = (await request.json()) as ObservationInput;
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(input.participant_code)) {
+      return fieldError("participant_code", "영문·숫자·밑줄·하이픈 1~40자로 입력해주세요");
+    }
+    return upsert(projectId, stateOf(projectId), input, "manual");
+  }),
+  http.post(
+    "*/api/v1/projects/:projectId/human-observations/import",
+    async ({ params, request }) => {
+      const projectId = String(params.projectId);
+      const body = (await request.json()) as {
+        task_id: string;
+        purpose: ObservationInput["purpose"];
+        record: { schema?: string; participant_id?: string; outcome?: string };
+      };
+      if (body.record?.schema !== "human-record-1") {
+        return fieldError("record", "recorder.js 로 저장한 결과 파일(human-record-1)이 아니에요.");
+      }
+      const dropout = body.record.outcome === "give_up";
+      return upsert(
+        projectId,
+        stateOf(projectId),
+        {
+          participant_code: body.record.participant_id ?? "",
+          task_id: body.task_id,
+          outcome: dropout ? "dropout" : "success",
+          stage_id: dropout ? "/cart" : undefined,
+          cause: dropout ? "unknown" : undefined,
+          purpose: body.purpose,
+        },
+        "recorder",
+      );
+    },
+  ),
+  http.delete("*/api/v1/human-observations/:id", ({ params }) => {
+    const id = Number(params.id);
+    for (const state of store.values()) {
+      state.observations = state.observations.filter((o) => o.id !== id);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+);
