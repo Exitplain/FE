@@ -1,8 +1,11 @@
 import { http, HttpResponse } from "msw";
 
 import type {
+  FunnelStageCompare,
+  FunnelTaskCompare,
   MappingRowData,
   MappingStage,
+  MeasurementFunnel,
   MeasurementMapping,
   MeasurementStatus,
 } from "@/types/measurement.type";
@@ -21,6 +24,8 @@ type Stored = {
   predicted: boolean;
   mapping: Record<string, string | null>;
   savedAt: string | null;
+  /* 실측 퍼널 세션 수 배율 (테스트에서 표본 부족을 흉내 낼 때 줄입니다) */
+  scale: number;
 };
 const store = new Map<number, Stored>();
 const AUTO_RECEIVE = import.meta.env.MODE !== "test";
@@ -44,6 +49,7 @@ function stateOf(projectId: number): Stored {
       predicted: true,
       mapping: {},
       savedAt: null,
+      scale: 1,
     }
   );
 }
@@ -68,6 +74,7 @@ function statusOf(projectId: number, s: Stored): MeasurementStatus {
     last_origin: s.key && s.received ? ORIGIN : null,
     sessions_24h: s.received ? 3 : 0,
     events_24h: s.received ? 7 : 0,
+    mapping_saved_at: s.key ? s.savedAt : null,
   };
 }
 
@@ -196,5 +203,140 @@ measurementHandlers.push(
     s.savedAt = new Date().toISOString();
     store.set(projectId, s);
     return HttpResponse.json(mappingOf(projectId, s));
+  }),
+);
+
+/* R06·R08 — 과업별 [단계 ID, 예측 범위(%), 최근 7일 전체 세션] (반찬로드 예시) */
+const FUNNEL_TASKS: { id: string; name: string; stages: [string, [number, number], number][] }[] = [
+  {
+    id: "order",
+    name: "첫 주문 완료",
+    stages: [
+      ["/", [92, 100], 1240],
+      ["/products/:id", [70, 80], 930],
+      ["/cart", [55, 65], 546],
+      ["/signup", [30, 40], 372],
+      ["/checkout", [25, 35], 322],
+      ["/order/success", [20, 30], 298],
+    ],
+  },
+  {
+    id: "coupon",
+    name: "쿠폰으로 주문",
+    stages: [
+      ["/", [92, 100], 1240],
+      ["/cart", [38, 52], 546],
+      ["/order/success", [20, 32], 298],
+    ],
+  },
+];
+const DAY_SCALE: Record<string, number> = { "7": 1, "14": 2.1, "30": 4.4 };
+const DEVICE_SHARE: Record<string, number> = { all: 1, mobile: 0.69, desktop: 0.31 };
+const MIN_SAMPLE = 100;
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+function dropOf(stages: FunnelStageCompare[], value: (s: FunnelStageCompare) => number | null) {
+  let best: { size: number; from: FunnelStageCompare; to: FunnelStageCompare } | null = null;
+  const points = stages.filter((s) => value(s) != null);
+  points.slice(1).forEach((to, i) => {
+    const from = points[i];
+    const size = (value(from) ?? 0) - (value(to) ?? 0);
+    if (!best || size > best.size) best = { size, from, to };
+  });
+  const found = best as { from: FunnelStageCompare; to: FunnelStageCompare } | null;
+  return found
+    ? { from: found.from.id, to: found.to.id, label: `${found.from.name}→${found.to.name}` }
+    : null;
+}
+
+function funnelOf(projectId: number, s: Stored, days: string, device: string): MeasurementFunnel {
+  const names = new Map(STAGES.map((stage) => [stage.id, stage.name]));
+  const mapped = new Set(
+    mappingOf(projectId, s)
+      .rows.map((row) => row.stage_id)
+      .filter(Boolean),
+  );
+  const factor = (DAY_SCALE[days] ?? 1) * (DEVICE_SHARE[device] ?? 1) * s.scale;
+  const tasks = FUNNEL_TASKS.map((task): FunnelTaskCompare => {
+    const base = Math.round(task.stages[0][2] * factor);
+    const stages = task.stages.map(([id, [low, high], count], index): FunnelStageCompare => {
+      const sessions = Math.round(count * factor);
+      const rate = mapped.has(id) && base ? round1((sessions / base) * 100) : null;
+      const mid = (low + high) / 2;
+      /* 첫 단계는 기준(100%)이라 비교하지 않습니다 (BE 와 같음) */
+      const compared = index > 0 && rate != null;
+      return {
+        id,
+        name: names.get(id) ?? id,
+        is_goal: id === "/order/success",
+        predicted: { low, high, mid, reached: 0, valid: 20 },
+        actual: mapped.has(id) ? { sessions, rate } : null,
+        error: compared && rate != null ? round1(rate - mid) : null,
+        gap: compared && rate != null && (rate < low || rate > high),
+        compared,
+        short_sample: mapped.has(id) && sessions < MIN_SAMPLE,
+      };
+    });
+    const errors = stages.filter((st) => st.error != null).map((st) => Math.abs(st.error ?? 0));
+    const predicted = dropOf(stages, (st) => st.predicted.mid);
+    const actual = dropOf(stages, (st) => st.actual?.rate ?? null);
+    return {
+      task_id: task.id,
+      name: task.name,
+      base_sessions: base,
+      collecting: base < MIN_SAMPLE,
+      stages,
+      mapped_stages: stages.filter((st) => st.actual).length,
+      compared_stages: stages.filter((st) => st.compared).length,
+      mean_error: errors.length
+        ? round1(errors.reduce((sum, e) => sum + e, 0) / errors.length)
+        : null,
+      gaps: stages.filter((st) => st.gap).map((st) => st.id),
+      max_drop: {
+        predicted,
+        actual,
+        matched: Boolean(
+          predicted && actual && predicted.from === actual.from && predicted.to === actual.to,
+        ),
+      },
+    };
+  });
+  const until = new Date();
+  return {
+    project_id: projectId,
+    days: Number(days),
+    device: device as MeasurementFunnel["device"],
+    since: new Date(until.getTime() - Number(days) * 86400000).toISOString(),
+    until: until.toISOString(),
+    min_sample: MIN_SAMPLE,
+    report: s.predicted
+      ? { report_id: "report-mock-1", created_at: "2026-11-07T09:00:00+09:00", run_sequence: 3 }
+      : null,
+    mapping_saved: Boolean(s.savedAt),
+    ...(s.predicted
+      ? {}
+      : {
+          reason: "NO_PREDICTION" as const,
+          message: "먼저 사전 테스트를 한 번 실행해야 비교할 단계가 생겨요.",
+        }),
+    tasks: s.predicted ? tasks : [],
+  };
+}
+
+measurementHandlers.push(
+  http.get("*/api/v1/projects/:projectId/measurement/funnel", ({ params, request }) => {
+    const projectId = Number(params.projectId);
+    const s = stateOf(projectId);
+    if (!s.key) return noKey();
+    const url = new URL(request.url);
+    return HttpResponse.json(
+      funnelOf(
+        projectId,
+        s,
+        url.searchParams.get("days") ?? "7",
+        url.searchParams.get("device") ?? "all",
+      ),
+    );
   }),
 );
