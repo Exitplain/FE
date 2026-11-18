@@ -188,3 +188,17 @@ export function describeReport(createdAt: string, data: ReportData): string {
   if (data.status === "partial") parts.push("부분 결과");
   return parts.join(" · ");
 }
+
+/* 과업 칩 "전체" 값 (주소 ?task=all) */
+export const ALL_TASKS = "all";
+
+/*
+  과업 카드 순서: 이탈이 많은 과업 먼저 (같으면 리포트 순서 그대로).
+  이탈은 모든 시드 합(dropout)입니다.
+*/
+export function sortTasksByDropout(tasks: ReportTaskV1[]): ReportTaskV1[] {
+  return tasks
+    .map((task, index) => ({ task, index }))
+    .sort((a, b) => b.task.dropout - a.task.dropout || a.index - b.index)
+    .map(({ task }) => task);
+}

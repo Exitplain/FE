@@ -30,10 +30,12 @@ import ReportToolbar from "./components/ReportToolbar";
 import RetestModal from "./components/RetestModal";
 import SegmentHeatmap from "./components/SegmentHeatmap";
 import ShareModal from "./components/ShareModal";
+import TaskOverview from "./components/TaskOverview";
 import TechnicalFailures from "./components/TechnicalFailures";
 import { FrictionCauses, ProblemScreens, ScreenWalkthrough } from "./components/ScreenSections";
 import { useReportScreens, useRunDetail, useRunReport } from "./hooks/useRunReport";
 import {
+  ALL_TASKS,
   causeRowsV1,
   describeReport,
   funnelMax,
@@ -101,13 +103,19 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
 
   const data = report.data?.data;
   const tasks = data?.tasks ?? [];
-  const task = tasks.find((item) => item.task_id === params.get("task")) ?? tasks[0];
+  /* ?task=all 이면 과업 "전체" (과업이 둘 이상일 때만) */
+  const showAll = params.get("task") === ALL_TASKS && tasks.length > 1;
+  const task = showAll
+    ? undefined
+    : (tasks.find((item) => item.task_id === params.get("task")) ?? tasks[0]);
   const order = run.data?.sequence_no;
-  const title = task
-    ? `${task.name}${order ? ` · ${order}차` : ""}`
-    : order
-      ? `${order}차 사전 테스트`
-      : "사전 테스트 리포트";
+  const title = showAll
+    ? `전체 과업${order ? ` · ${order}차` : ""}`
+    : task
+      ? `${task.name}${order ? ` · ${order}차` : ""}`
+      : order
+        ? `${order}차 사전 테스트`
+        : "사전 테스트 리포트";
 
   const status = report.error instanceof ApiError ? report.error.status : null;
   /* 받아 둔 리포트가 있으면 다시 받기에 실패해도 본문을 그대로 둡니다 (오류 화면과 겹치지 않게) */
@@ -129,6 +137,16 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
     previousRunStatus.current = runStatus;
     if (wasActive && runStatus && !ACTIVE_RUN_STATUSES.includes(runStatus)) void refetch();
   }, [runStatus, refetch]);
+
+  const selectTask = (taskId: string) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.set("task", taskId);
+        return next;
+      },
+      { replace: true },
+    );
 
   const notFoundState = () => {
     if (run.isPending) return <ReportLoading />;
@@ -157,17 +175,8 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
               createdAt={report.data.created_at}
               runs={runs.data?.pages.flatMap((page) => page.items) ?? []}
               tasks={tasks}
-              taskId={task?.task_id}
-              onTaskChange={(taskId) =>
-                setParams(
-                  (previous) => {
-                    const next = new URLSearchParams(previous);
-                    next.set("task", taskId);
-                    return next;
-                  },
-                  { replace: true },
-                )
-              }
+              taskId={showAll ? ALL_TASKS : task?.task_id}
+              onTaskChange={selectTask}
             />
           )
         }
@@ -195,7 +204,19 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
       {failed && (status === null || ![401, 403, 404].includes(status)) && (
         <ReportError projectId={project.id} onRetry={() => void report.refetch()} />
       )}
+      {report.data && showAll && (
+        <TaskOverviewSection
+          reportId={report.data.report_id}
+          tasks={tasks}
+          summary={report.data.data.summary}
+          onOpen={(taskId) => {
+            selectTask(taskId);
+            window.scrollTo?.({ top: 0 });
+          }}
+        />
+      )}
       {report.data &&
+        !showAll &&
         (task ? (
           /* 과업을 바꾸면 원인 펼침을 그 과업 기준으로 처음부터 */
           <ReportBody key={task.task_id} task={task} reportId={report.data.report_id} />
@@ -265,6 +286,34 @@ function SectionNav({ hidden }: { hidden: SectionId[] }) {
         ))}
       </ul>
     </nav>
+  );
+}
+
+/* 과업 "전체": 화면 둘러보기 응답에서 과업별 가장 큰 문제 화면을 함께 보여 줍니다 */
+function TaskOverviewSection({
+  reportId,
+  tasks,
+  summary,
+  onOpen,
+}: {
+  reportId: string;
+  tasks: ReportTaskV1[];
+  summary: RunReport["data"]["summary"];
+  onOpen: (taskId: string) => void;
+}) {
+  const screens = useReportScreens(reportId);
+  return (
+    <section aria-labelledby="report-overview" className="flex flex-col gap-4">
+      <h2 id="report-overview" className="sr-only">
+        과업 전체 비교
+      </h2>
+      <TaskOverview
+        tasks={tasks}
+        summary={summary}
+        screenTasks={screens.data?.available ? screens.data.tasks : undefined}
+        onOpen={onOpen}
+      />
+    </section>
   );
 }
 

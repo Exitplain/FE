@@ -250,6 +250,48 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "첫 주문 · 1차" })).toBeInTheDocument();
   });
 
+  it("과업 칩 전체를 고르면 과업을 이탈 많은 순 카드로 비교하고, 카드를 누르면 그 과업으로 간다", async () => {
+    serveReport();
+    const user = userEvent.setup();
+    renderReport(await completeRun());
+
+    await user.click(await screen.findByRole("radio", { name: "전체" }));
+    expect(screen.getByRole("heading", { level: 1, name: "전체 과업 · 1차" })).toBeInTheDocument();
+    /* 실행 전체 기준 요약: 이탈이 있었던 과업 수 · 전체 달성률(summary) · 기록 세션 */
+    expect(screen.getByText(/에서 이탈이 있었어요/)).toHaveTextContent("2개 과업 중 2개에서");
+    expect(screen.getByText("59%")).toBeInTheDocument();
+    expect(screen.getByText("120/120")).toBeInTheDocument();
+    /* 이탈 많은 순: 첫 주문(28) → 쿠폰으로 주문(20) */
+    const cards = within(screen.getByRole("list", { name: "과업별 결과" })).getAllByRole("button");
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
+      "첫 주문 리포트 보기",
+      "쿠폰으로 주문 리포트 보기",
+    ]);
+    expect(within(cards[1]).getByText("65~70%")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("이탈 20")).toBeInTheDocument();
+    /* 퍼널·히트맵은 과업마다 단계가 달라 전체에서는 보이지 않습니다 */
+    expect(screen.queryByRole("navigation", { name: "리포트 영역" })).not.toBeInTheDocument();
+
+    await user.click(cards[1]);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "쿠폰으로 주문 · 1차" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "쿠폰으로 주문" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("과업이 하나뿐이면 전체 칩을 보여 주지 않는다", async () => {
+    serveReport(cannedReport([orderTask()]));
+    renderReport(await completeRun(), "?task=all");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "전체" })).not.toBeInTheDocument();
+  });
+
   it("실행 선택(P12c)에서 다른 완료 실행으로 이동하고, 진행 중 실행은 고를 수 없다", async () => {
     const first = await completeRun();
     await completeRun();
