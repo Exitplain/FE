@@ -672,7 +672,7 @@ describe("P02~P07 새 테스트", () => {
 
     expect(useNewTestStore.getState().accounts).toEqual([]);
   });
-  it("화면을 떠나면 입력한 테스트 계정(비밀번호)을 지운다", async () => {
+  it("화면을 떠나면 입력한 테스트 계정의 비밀번호를 지운다", async () => {
     const { unmount } = await renderWizard();
     act(() => {
       useNewTestStore.getState().setLoginMode("account");
@@ -681,7 +681,9 @@ describe("P02~P07 새 테스트", () => {
 
     unmount();
 
-    expect(useNewTestStore.getState().accounts).toEqual([]);
+    expect(useNewTestStore.getState().accounts).toEqual([
+      { username: "a@x.example", password: "" },
+    ]);
   });
 
   it("다시 확인이 실패하면 이전 결과로 다음 단계에 가지 않는다", async () => {
@@ -1206,8 +1208,9 @@ describe("P02b 사이트 확인 — 다른 화면에 갔다 와도 이어진다"
     await user.click(screen.getByRole("link", { name: "다른 화면으로" }));
 
     await release();
-    /* 위저드가 없는 사이 계획까지 만들어져 결과가 남아 있습니다 */
-    await waitFor(() => expect(useSiteCheckStore.getState().jobs["1"]?.status).toBe("success"));
+    /* 위저드가 없는 사이 계획까지 만들어져 위저드 입력에 들어가 있습니다 */
+    await waitFor(() => expect(useNewTestStore.getState().plan).not.toBeNull());
+    expect(useSiteCheckStore.getState().jobs["1"]).toBeUndefined();
 
     await user.click(screen.getByRole("link", { name: "새 테스트로" }));
     expect(await screen.findByText("접근 가능 · 응답 0.8초 · 기능 4개 찾음")).toBeInTheDocument();

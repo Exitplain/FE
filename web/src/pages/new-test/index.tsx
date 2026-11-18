@@ -11,6 +11,7 @@ import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
 import { useRunList } from "@/hooks/useRunList";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import { RESULT_TTL_MS } from "@/stores/useSiteCheckStore";
 import type { ApiError } from "@/types/api.type";
 import type { PlanPatch } from "@/types/plan.type";
 import { ACTIVE_RUN_STATUSES } from "@/types/run.type";
@@ -53,8 +54,31 @@ export default function NewTestPage() {
   return <NewTestWizard key={project.id} project={project} />;
 }
 
+type Entry =
+  { kind: "resume"; step: StepKey } | { kind: "site"; expired: boolean; notice: string | null };
+
 /*
-  - 입력은 useNewTestStore 에 두어 단계를 오가도 남습니다. 화면을 떠나면 비밀번호가 남지 않게 지웁니다.
+  같은 프로젝트의 입력이 남아 있을 때(다른 화면에 갔다 옴) 어느 단계로 보낼지 정합니다. 처음 들어오면 null.
+  - 서버 계획이 만료(15분)됐으면 만료 안내와 함께 사이트 확인 단계로
+  - 서버에 저장하지 않은 계정은 떠날 때 비밀번호를 지웠으므로, 다시 입력하도록 사이트 확인 단계로
+  - 그 밖에는 마지막으로 보던 단계로
+*/
+function decideEntry(projectId: string): Entry | null {
+  const state = useNewTestStore.getState();
+  if (state.projectId !== projectId) return null;
+  if (state.plan && (state.planAt == null || Date.now() - state.planAt > RESULT_TTL_MS)) {
+    return { kind: "site", expired: true, notice: EXPIRED_NOTICE };
+  }
+  const needsPassword =
+    state.loginMode === "account" &&
+    state.accounts.some((account) => !account.id && !account.password);
+  if (needsPassword) return { kind: "site", expired: false, notice: null };
+  return { kind: "resume", step: state.lastStep };
+}
+
+/*
+  - 입력은 useNewTestStore 에 두어 단계를 오가도, 다른 화면에 갔다 와도 남습니다.
+    화면을 떠나면 비밀번호만 지우고, 실행을 시작하면 처음으로 돌립니다.
   - 주소로 들어오거나 뒤로가기로 앞 단계 검증을 건너뛰지 못하게, 갈 수 있는 단계까지만 보여주고 주소도 맞춥니다.
 */
 function NewTestWizard({ project }: { project: CurrentProject }) {
@@ -64,7 +88,9 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
   const save = useSavePlan();
   const startRun = useStartRun();
   const runs = useRunList(project.v1Id);
-  const [notice, setNotice] = useState<string | null>(null);
+  /* 다른 화면에 갔다 돌아왔으면 어느 단계로 보낼지 (들어올 때 한 번 정합니다) */
+  const [entry] = useState(() => decideEntry(project.id));
+  const [notice, setNotice] = useState<string | null>(entry?.kind === "site" ? entry.notice : null);
   /* 같은 확정본으로 다시 누르면 같은 Idempotency-Key 를 보내 실행이 두 번 생기지 않게 합니다 */
   const runKeys = useRef(new Map<string, string>());
   /* 마지막으로 서버 계획에 저장한 값 (계획마다). 바뀐 입력만 다시 저장하는 데 씁니다 */
@@ -96,13 +122,45 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     })),
   );
 
-  /* 화면에 그리기 전에 이 프로젝트의 입력으로 시작하고, 떠날 때 지웁니다 */
+  /*
+    화면에 그리기 전에 이 프로젝트의 입력으로 시작합니다.
+    같은 프로젝트의 입력이 남아 있으면(다른 화면에 갔다 옴) 그대로 이어 가고, 떠날 때는 비밀번호만 지웁니다.
+  */
+  const expiredCleared = useRef(false);
   useLayoutEffect(() => {
-    useNewTestStore.getState().reset(project.id, project.url);
+    const kept = useNewTestStore.getState().projectId === project.id;
+    if (!kept) useNewTestStore.getState().reset(project.id, project.url);
     /* 확인 중에 다른 화면에 갔다 왔으면 그 사이트 확인을 이어 받습니다 (끝났으면 결과까지) */
-    restoreSiteCheck(project.id);
-    return () => useNewTestStore.getState().reset("", "");
-  }, [project.id, project.url]);
+    restoreSiteCheck(project.id, kept);
+    /*
+      서버 계획이 만료됐으면 계획만 버립니다 (과업·타겟 입력은 남아 다시 확인하면 이어 받음).
+      들어올 때 한 번만: 이번에 다시 확인해 받은 계획은 지우지 않습니다.
+    */
+    if (entry?.kind === "site" && entry.expired && !expiredCleared.current) {
+      expiredCleared.current = true;
+      useNewTestStore.getState().clearPlan();
+    }
+    return () => useNewTestStore.getState().clearPasswords();
+  }, [project.id, project.url, entry]);
+
+  /* 실행을 시작해 입력이 비워졌으면(화면이 열린 채) 이 프로젝트의 처음 입력으로 다시 시작합니다 */
+  useLayoutEffect(() => {
+    if (useNewTestStore.getState().projectId !== project.id) {
+      useNewTestStore.getState().reset(project.id, project.url);
+    }
+  }, [storeProjectId, project.id, project.url]);
+
+  /* 돌아왔을 때 정한 단계로 주소를 한 번 맞춥니다 (주소에 단계가 있으면 그 단계를 따름) */
+  const entryApplied = useRef(false);
+  useEffect(() => {
+    if (!entry || entryApplied.current) return;
+    entryApplied.current = true;
+    if (entry.kind === "site") {
+      if (searchParams.has("step")) setSearchParams({}, { replace: true });
+    } else if (!searchParams.has("step") && entry.step !== "site") {
+      setSearchParams({ step: entry.step }, { replace: true });
+    }
+  }, [entry, searchParams, setSearchParams]);
 
   /*
     P06·P07 은 Stepper 밖의 화면이라 단계 목록에 넣지 않고, 시작 전 확인까지 갈 수 있을 때만 보여줍니다.
@@ -141,6 +199,12 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     if (!startPending.current) resetStart();
     resetSave();
   }, [step, reviewing, resetStart, resetSave]);
+
+  /* 보던 단계를 남겨 다른 화면에 갔다 와도 이어서 보여 줍니다 (P06·P07 은 시작 전 확인으로) */
+  useEffect(() => {
+    if (storeProjectId !== project.id) return;
+    useNewTestStore.getState().setLastStep(step);
+  }, [storeProjectId, project.id, step]);
 
   if (storeProjectId !== project.id) return null;
 
@@ -217,7 +281,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
       runKeys.current.set(planRevisionId, idempotencyKey);
     }
     startRun.mutate(
-      { planRevisionId, idempotencyKey },
+      { projectId: project.id, planRevisionId, idempotencyKey },
       {
         onSuccess: (run) => {
           navigate(buildPath("testRun", { projectId: project.id, runId: run.run_id }));
