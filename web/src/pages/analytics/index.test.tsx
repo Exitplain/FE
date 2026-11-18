@@ -170,6 +170,7 @@ describe("R01~R11 실측 분석", () => {
   it("R08 → R09~R11 — 차이 구간에서 고른 세그먼트로 실제 재현을 돌리고, 재현 리포트의 마찰을 원인 가설로 본다", async () => {
     let created: Record<string, unknown> | null = null;
     let polls = 0;
+    let sessionsServed = false;
     const runBase = {
       id: "repro-1",
       sequence_no: 4,
@@ -220,7 +221,8 @@ describe("R01~R11 실측 분석", () => {
       }),
       http.get("*/api/v1/runs/repro-1", () => {
         polls += 1;
-        return polls < 2
+        /* 세션 목록을 한 번 내려 준 뒤에야 끝난 것으로 바꿔, 느린 환경에서도 R10 을 거쳐 가게 합니다 */
+        return polls < 2 || !sessionsServed
           ? HttpResponse.json({
               ...runBase,
               status: "running",
@@ -234,13 +236,14 @@ describe("R01~R11 실측 분석", () => {
               progress: progress(10),
             });
       }),
-      http.get("*/api/v1/runs/repro-1/sessions", () =>
-        HttpResponse.json({
+      http.get("*/api/v1/runs/repro-1/sessions", () => {
+        sessionsServed = true;
+        return HttpResponse.json({
           items: [session("P-001", "simulated_dropout"), session("P-002", "running")],
           next_cursor: null,
           total: 2,
-        }),
-      ),
+        });
+      }),
       http.get("*/api/v1/runs/repro-1/reports", () =>
         HttpResponse.json({ report_id: "repro-report", run_ref: "repro-1", data: { tasks: [] } }),
       ),
@@ -337,8 +340,9 @@ describe("R01~R11 실측 분석", () => {
         stage_name: "장바구니",
       },
     });
+    /* 세션 목록은 실행 상태보다 늦게 올 수 있어 기다려서 찾습니다 */
     expect(
-      screen.getByRole("listitem", { name: "P-001 · 빠른 구매형 · 이탈" }),
+      await screen.findByRole("listitem", { name: "P-001 · 빠른 구매형 · 이탈" }),
     ).toBeInTheDocument();
 
     /* 실행이 끝나면 결과로 넘어가 장바구니 화면 마찰을 많은 순서로 보여줍니다 */
