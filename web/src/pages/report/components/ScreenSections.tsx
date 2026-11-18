@@ -17,7 +17,7 @@ function Shot({ url, alt, className }: { url: string | null; alt: string; classN
       alt={alt}
       loading="lazy"
       className={cn(
-        "w-full rounded-lg border border-gray-200 bg-gray-50 object-cover object-top",
+        "w-full rounded-lg border border-gray-200 bg-gray-50 object-contain",
         className,
       )}
     />
@@ -89,7 +89,7 @@ export function ScreenWalkthrough({
             <Shot
               url={screen.screenshot_url}
               alt={`${screen.name} 화면 캡처`}
-              className="aspect-[16/10]"
+              className="h-[560px]"
             />
             <button
               type="button"
@@ -155,7 +155,7 @@ export function ScreenWalkthrough({
               <Shot
                 url={item.screenshot_url}
                 alt={`${item.name} 썸네일`}
-                className={cn("aspect-[16/10]", i === index && "outline-3 outline-ink")}
+                className={cn("h-40", i === index && "outline-3 outline-ink")}
               />
               <span className="flex items-center gap-1.5">
                 <span
@@ -208,7 +208,7 @@ export function ProblemScreens({
             <Shot
               url={problem.screenshot_url}
               alt={`${problem.name} 화면 캡처`}
-              className="aspect-[16/10]"
+              className="h-40"
             />
             <span className="flex items-baseline gap-1.5">
               <span className="text-sm font-bold text-ink">{problem.name}</span>
