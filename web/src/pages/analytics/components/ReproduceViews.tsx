@@ -1,21 +1,43 @@
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { Link } from "react-router-dom";
+
+import { queryKeys } from "@/apis/queryKeys";
+import { apiAssetUrl, getRunSessions } from "@/apis/run.api";
 import Icon from "@/components/Icon/Icon";
 import type { IconName } from "@/components/Icon/iconNames";
+import { POLLING_INTERVAL_MS } from "@/constants/polling";
+import { buildPath } from "@/constants/routes";
+import { useReportScreens, useRunDetail, useRunReport } from "@/pages/report/hooks/useRunReport";
+import type { MeasurementFunnel } from "@/types/measurement.type";
+import type { ScreenFriction } from "@/types/report.type";
+import { ACTIVE_RUN_STATUSES, type RunSessionStatus } from "@/types/run.type";
 import { cn } from "@/utils/cn";
 
-import { HYPOTHESES, REPRODUCE_SEGMENTS, type ReproduceStatus } from "../data/analyticsMock";
+type Segment = NonNullable<MeasurementFunnel["report"]>["segments"][number];
 
-/* R09 원인 재현 설정 — 차이 구간, 시작 지점, 재현할 세그먼트 */
+/* R09 원인 재현 설정 — 차이 구간과 재현할 세그먼트. 그 과업만, 고른 세그먼트만 시드 1회 실제로 돌립니다 */
 export function ReproduceSetup({
-  stage,
   gapText,
+  taskName,
+  baseLabel,
+  segments,
   selected,
   onToggle,
+  blocked,
 }: {
-  stage: string;
   gapText: string;
+  taskName: string;
+  baseLabel: string;
+  segments: Segment[];
   selected: string[];
   onToggle: (segmentId: string) => void;
+  /* 재현할 수 없는 이유 (비교한 리포트에 실행이 없는 경우 등) */
+  blocked: string | null;
 }) {
+  const people = segments
+    .filter((segment) => selected.includes(segment.id))
+    .reduce((sum, segment) => sum + segment.count, 0);
   return (
     <div className="flex flex-col gap-10">
       <section aria-labelledby="gap-title" className="flex flex-col gap-3">
@@ -27,18 +49,24 @@ export function ReproduceSetup({
           {gapText}
         </p>
         <p className="text-caption text-subtle">실측은 위치를, 재현은 원인 가설을 보여줘요</p>
+        {blocked && (
+          <p role="alert" className="text-caption font-bold text-danger">
+            {blocked}
+          </p>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-12 md:grid-cols-2">
         <section aria-labelledby="start-title" className="flex flex-col gap-3 p-4">
           <h2 id="start-title" className="font-bold text-ink">
-            시작 지점
+            재현 범위
           </h2>
           <dl className="flex flex-col text-caption">
             {[
-              ["시작 단계", `3. 상세 (${stage} 직전)`],
-              ["패널", "3차와 동일 · 20명"],
-              ["반복", "시드 3회"],
+              ["과업", `${taskName} (처음부터)`],
+              ["기준 사전 테스트", baseLabel],
+              ["패널", `고른 세그먼트 · ${people}명`],
+              ["반복", "시드 1회"],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -54,7 +82,7 @@ export function ReproduceSetup({
         <fieldset className="flex flex-col gap-3 p-4">
           <legend className="font-bold text-ink">세그먼트</legend>
           <p className="text-xs text-subtle">실측에서 이탈이 많았던 세그먼트만 골라도 돼요</p>
-          {REPRODUCE_SEGMENTS.map((segment) => (
+          {segments.map((segment) => (
             <label
               key={segment.id}
               className="flex min-h-10 items-center gap-3 text-caption text-ink"
@@ -74,20 +102,53 @@ export function ReproduceSetup({
   );
 }
 
-const TILE_STATUS: Record<ReproduceStatus, { icon: IconName; label: string }> = {
+type TileStatus = "queued" | "running" | "success" | "dropout" | "failed";
+
+const TILE_STATUS: Record<TileStatus, { icon: IconName; label: string }> = {
   queued: { icon: "circle", label: "대기" },
   running: { icon: "play", label: "진행 중" },
   success: { icon: "check", label: "완료" },
   dropout: { icon: "status-exit", label: "이탈" },
+  failed: { icon: "status-error", label: "실패" },
 };
 
-/* R10 원인 재현 중 — 진행 막대와 세션 타일 20개 */
-export type ReproduceSession = { code: string; segment: string; status: ReproduceStatus };
+function tileOf(status: RunSessionStatus): TileStatus {
+  if (status === "running") return "running";
+  if (status === "success") return "success";
+  if (status === "simulated_dropout") return "dropout";
+  return "failed";
+}
 
-export function ReproduceRunning({ sessions }: { sessions: ReproduceSession[] }) {
-  const statuses = sessions.map((session) => session.status);
-  const count = (status: ReproduceStatus) => statuses.filter((item) => item === status).length;
-  const finished = count("success") + count("dropout");
+/* R10 원인 재현 중 — 실제 실행 진행과 세션 타일. 실행이 끝나면 onDone 으로 결과(R11)로 넘어갑니다 */
+export function ReproduceRunning({ runId, onDone }: { runId: string; onDone: () => void }) {
+  const run = useRunDetail(runId);
+  const active = !run.data || ACTIVE_RUN_STATUSES.includes(run.data.status);
+  const sessions = useQuery({
+    queryKey: queryKeys.runs.sessions(runId),
+    queryFn: () => getRunSessions(runId, { limit: 200 }),
+    refetchInterval: active ? POLLING_INTERVAL_MS : false,
+  });
+  const finishedRun = run.data && !active;
+  useEffect(() => {
+    if (finishedRun) onDone();
+  }, [finishedRun, onDone]);
+
+  if (run.isError) {
+    return (
+      <p role="alert" className="rounded-xl bg-gray-50 p-6 text-sm text-subtle">
+        {run.error.message}
+      </p>
+    );
+  }
+  const expected = run.data?.progress.expected_sessions ?? 0;
+  const tiles = (sessions.data?.items ?? []).map((session) => ({
+    code: session.persona.code,
+    segment: session.persona.segment_name,
+    status: tileOf(session.status),
+  }));
+  const count = (status: TileStatus) => tiles.filter((tile) => tile.status === status).length;
+  const finished = count("success") + count("dropout") + count("failed");
+  const waiting = Math.max(0, expected - tiles.length);
 
   return (
     <div className="flex flex-col gap-10">
@@ -95,34 +156,34 @@ export function ReproduceRunning({ sessions }: { sessions: ReproduceSession[] })
         <p className="flex items-baseline gap-3">
           <span className="text-caption text-subtle">진행</span>
           <span className="text-base font-bold text-ink">
-            {finished} / {statuses.length}
+            {finished} / {expected || "…"}
           </span>
           <span className="text-caption text-subtle">
             완료 {count("success")} + 이탈 {count("dropout")} · 진행 중 {count("running")} · 대기{" "}
-            {count("queued")}
+            {waiting}
           </span>
         </p>
         <div
           role="progressbar"
           aria-label="재현 진행률"
           aria-valuemin={0}
-          aria-valuemax={statuses.length}
+          aria-valuemax={expected}
           aria-valuenow={finished}
           className="h-2 overflow-hidden rounded-full bg-line"
         >
           <div
             className="h-full bg-ink"
-            style={{ width: `${(finished / statuses.length) * 100}%` }}
+            style={{ width: `${expected ? (finished / expected) * 100 : 0}%` }}
           />
         </div>
       </div>
 
       <section aria-labelledby="reproduce-sessions-title" className="flex flex-col gap-4">
         <h2 id="reproduce-sessions-title" className="text-lg font-bold text-ink">
-          세션 {statuses.length}
+          세션 {expected || tiles.length}
         </h2>
         <ul aria-label="재현 세션" className="grid grid-cols-3 gap-2 md:grid-cols-5">
-          {sessions.map(({ code, segment, status }) => {
+          {tiles.map(({ code, segment, status }) => {
             const tile = TILE_STATUS[status];
             return (
               <li
@@ -130,23 +191,12 @@ export function ReproduceRunning({ sessions }: { sessions: ReproduceSession[] })
                 aria-label={`${code} · ${segment} · ${tile.label}`}
                 className="flex flex-col gap-1 rounded-lg bg-gray-50 p-3"
               >
-                <span
-                  className={cn(
-                    "text-caption font-bold",
-                    status === "queued" ? "text-muted" : "text-ink",
-                  )}
-                >
-                  {code}
-                </span>
+                <span className="text-caption font-bold text-ink">{code}</span>
                 <span className="text-xs text-subtle">{segment}</span>
                 <span
                   className={cn(
-                    "mt-2 flex items-center gap-1 text-xs",
-                    status === "dropout"
-                      ? "font-bold text-danger"
-                      : status === "queued"
-                        ? "text-subtle"
-                        : "font-bold text-ink",
+                    "mt-2 flex items-center gap-1 text-xs font-bold",
+                    status === "dropout" || status === "failed" ? "text-danger" : "text-ink",
                   )}
                 >
                   <Icon name={tile.icon} className="size-4" />
@@ -161,57 +211,128 @@ export function ReproduceRunning({ sessions }: { sessions: ReproduceSession[] })
   );
 }
 
-/* R11 원인 재현 결과 — 원인 가설과 근거 발화 (가설이라 재테스트로 확인해야 합니다) */
-export function ReproduceResult() {
+/*
+  R11 원인 재현 결과 — 재현 실행 리포트에서 차이 구간 화면에 감지된 마찰을 원인 가설로 보여줍니다.
+  모두 가상 페르소나의 모의 결과라 가설이고, 재테스트·실측으로 확인해야 합니다.
+*/
+export function ReproduceResult({
+  projectId,
+  runId,
+  taskId,
+  stageId,
+  stageName,
+}: {
+  projectId: string;
+  runId: string;
+  taskId: string;
+  stageId: string;
+  stageName: string;
+}) {
+  const report = useRunReport(runId);
+  const screens = useReportScreens(report.data?.report_id);
+  const task = screens.data?.tasks.find((item) => item.task_id === taskId);
+  const screen = task?.screens.find((item) => item.screen_id === stageId);
+  /* 차이 구간 화면에서 감지된 마찰. 그 화면에 아무도 닿지 않았거나 마찰이 없으면 과업 전체 원인을 씁니다 */
+  const hypotheses: (ScreenFriction & { where?: string })[] =
+    screen && screen.frictions.length > 0
+      ? [...screen.frictions].sort((a, b) => b.sessions - a.sessions)
+      : (task?.causes ?? []).map((cause) => ({
+          category: cause.category,
+          name: cause.name,
+          sessions: cause.sessions,
+          dropouts: cause.dropouts,
+          detail: "",
+          screenshot_url: cause.screens[0]?.screenshot_url ?? null,
+          where: cause.screens[0]?.name,
+        }));
+  const reportLink = buildPath("report", { projectId, runId });
+
+  if (report.isError || screens.isError) {
+    return (
+      <p role="alert" className="rounded-xl bg-gray-50 p-6 text-sm text-subtle">
+        {(report.error ?? screens.error)?.message}
+      </p>
+    );
+  }
+  if (!task) {
+    return <p className="text-sm text-subtle">재현 결과를 불러오는 중이에요…</p>;
+  }
+
   return (
     <div className="flex flex-col gap-10">
       <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption font-bold text-ink">
         <Icon name="search" className="size-5" />
-        실측은 위치를, 재현은 원인 가설을 보여줘요. 아래는 가설이에요
+        실측은 위치를, 재현은 원인 가설을 보여줘요. 아래는 가상 페르소나로 다시 돌려 본 가설이에요
       </p>
+      <dl className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        {[
+          ["재현 세션", `${task.valid_sessions}명`],
+          [`${stageName} 도달`, screen ? `${screen.reached}명` : "도달 없음"],
+          [`${stageName}에서 이탈`, screen ? `${screen.dropouts_here}명` : "—"],
+        ].map(([label, value]) => (
+          <div key={label} className="flex flex-col gap-1 p-4">
+            <dt className="text-xs text-subtle">{label}</dt>
+            <dd className="text-lg font-bold text-ink">{value}</dd>
+          </div>
+        ))}
+      </dl>
       <section aria-labelledby="hypothesis-title" className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
           <h2 id="hypothesis-title" className="text-lg font-bold text-ink">
             원인 가설
           </h2>
-          <span className="text-xs text-muted">재현 세션 기준 · 범위</span>
+          <span className="text-xs text-muted">
+            {screen && screen.frictions.length > 0
+              ? `${stageName} 화면에서 감지된 마찰`
+              : `${stageName} 화면 마찰이 없어 과업 전체 마찰로 보여줘요`}
+          </span>
         </div>
-        <ol className="flex flex-col">
-          {HYPOTHESES.map((item) => (
-            <li key={item.rank} className="flex gap-4 border-b border-line py-4 last:border-b-0">
-              <span className="w-4 font-bold text-ink">{item.rank}</span>
-              <div className="flex flex-1 flex-col gap-3">
-                <p className="flex items-baseline gap-3">
-                  <span className="font-bold text-ink">{item.title}</span>
-                  <span className="text-xs text-subtle">{item.range}</span>
-                </p>
-                <p className="-mt-2 text-caption text-gray-800">{item.summary}</p>
-                <ul className="flex flex-col gap-1 rounded-lg bg-gray-50 p-3 text-caption text-gray-800">
-                  {item.quotes.map((quote) => (
-                    <li key={quote.code}>
-                      “{quote.text}” · {quote.code}
-                    </li>
-                  ))}
-                </ul>
-                {/* 임시: 재현 세션 상세는 API 연동 후 열립니다 */}
-                <p className="flex gap-6">
-                  {item.quotes.map((quote) => (
-                    <button
-                      key={quote.code}
-                      type="button"
-                      disabled
-                      title="재현 세션 상세는 API 연동 후 열려요"
-                      className="flex items-center gap-1 text-caption font-bold text-ink disabled:cursor-not-allowed"
-                    >
-                      세션 {quote.code} 보기
-                      <Icon name="chevron-right" className="size-4" />
-                    </button>
-                  ))}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        {hypotheses.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-subtle">
+            <Icon name="check" className="size-4" />
+            재현에서 감지된 마찰이 없어요 · 좌절 모델 보정이 필요할 수 있어요
+          </p>
+        ) : (
+          <ol aria-label="원인 가설 목록" className="flex flex-col">
+            {hypotheses.map((item, index) => {
+              const shot = apiAssetUrl(item.screenshot_url);
+              return (
+                <li
+                  key={item.category}
+                  className="flex gap-4 border-b border-line py-4 last:border-b-0"
+                >
+                  <span className="w-4 font-bold text-ink">{index + 1}</span>
+                  <div className="flex flex-1 flex-col gap-2">
+                    <p className="flex items-baseline gap-3">
+                      <span className="font-bold text-ink">{item.name}</span>
+                      <span className="text-xs text-subtle">
+                        {task.valid_sessions}명 중 {item.sessions}명
+                        {item.dropouts > 0 ? ` · 이 원인으로 이탈 ${item.dropouts}명` : ""}
+                        {item.where ? ` · ${item.where}` : ""}
+                      </span>
+                    </p>
+                    {item.detail && <p className="text-caption text-gray-800">{item.detail}</p>}
+                  </div>
+                  {shot && (
+                    <img
+                      src={shot}
+                      alt={`${item.name} 화면 캡처`}
+                      loading="lazy"
+                      className="aspect-[16/10] w-40 rounded-lg border border-gray-200 object-cover object-top"
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+        <Link
+          to={reportLink}
+          className="mt-2 flex items-center gap-1 self-start text-caption font-bold text-ink"
+        >
+          재현 리포트 전체 보기
+          <Icon name="chevron-right" className="size-4" />
+        </Link>
       </section>
     </div>
   );
