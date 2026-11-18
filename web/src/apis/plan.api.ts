@@ -28,7 +28,11 @@ export async function checkSite(projectId: number): Promise<SiteCheckResponse> {
   return data;
 }
 
-/* P03 기능 탐색 — 서버가 브라우저로 시작 화면을 읽어 수 초 걸립니다 */
+/*
+  P03 기능 탐색 — 서버가 브라우저로 사이트를 둘러봐 1~2분 걸립니다.
+  비동기로 시작해(202, status "running") 진행·결과는 getDiscovery 로 읽습니다.
+  이전 BE 는 헤더를 무시하고 끝난 결과(201)를 줍니다.
+*/
 export async function createDiscovery(
   projectId: number,
   body: DiscoveryRequest,
@@ -36,7 +40,14 @@ export async function createDiscovery(
   const { data } = await axiosInstance.post<Discovery>(
     `/api/v1/projects/${projectId}/discoveries`,
     body,
+    { headers: { Prefer: "respond-async" } },
   );
+  return data;
+}
+
+/* P03 기능 탐색 진행·결과 조회 (확인 중이면 progress 만 늘어납니다) */
+export async function getDiscovery(discoveryId: string): Promise<Discovery> {
+  const { data } = await axiosInstance.get<Discovery>(`/api/v1/discoveries/${discoveryId}`);
   return data;
 }
 

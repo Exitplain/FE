@@ -7,6 +7,7 @@ import {
   createDiscovery,
   createPlan,
   createRun,
+  getDiscovery,
   getPlan,
   getRevisionPersonas,
   getTestAccounts,
@@ -22,7 +23,15 @@ import {
   useSiteCheckStore,
 } from "@/stores/useSiteCheckStore";
 import { ApiError } from "@/types/api.type";
-import type { Plan, PlanPatch, RevisionPersonas, RunCreated, SiteCheck } from "@/types/plan.type";
+import type {
+  Discovery,
+  DiscoveryProgressEvent,
+  Plan,
+  PlanPatch,
+  RevisionPersonas,
+  RunCreated,
+  SiteCheck,
+} from "@/types/plan.type";
 
 import { toWizardPlan, withServerPlan, type TestAccount, type WizardPlan } from "../utils/newTest";
 
@@ -46,11 +55,66 @@ function wizardMatches(projectKey: string, request: SiteCheckRequest) {
   );
 }
 
+/* 기능 탐색 진행을 다시 묻는 간격 (테스트는 바로) */
+export const DISCOVERY_POLL_MS = import.meta.env.MODE === "test" ? 0 : 1000;
+/* 조회가 연달아 이만큼 실패하면 멈춥니다 (잠깐 끊긴 연결은 넘깁니다) */
+const POLL_RETRIES = 3;
+/* 서버가 멈춘 확인을 2분 안에 실패로 바꾸지만, 그래도 끝나지 않으면 이 시간 뒤 그만 묻습니다 */
+const POLL_LIMIT_MS = 15 * 60 * 1000;
+/* 서버가 실패로 끝낸 확인의 오류 코드 → 동기 응답이었다면 받았을 HTTP 상태 (나머지는 503) */
+const FAILURE_STATUS: Record<string, number> = {
+  TEST_ACCOUNT_LOGIN_FAILED: 409,
+  NO_FEATURES_FOUND: 422,
+};
+const UNREACHABLE_MESSAGE = "사이트를 살펴보지 못했습니다. 잠시 뒤 다시 확인해주세요.";
+
+/*
+  비동기로 시작한 기능 탐색(status "running")이 끝날 때까지 GET 으로 묻고, 진행 사건을 onProgress 로 넘깁니다.
+  - status 가 없으면(이전 BE 의 동기 응답) 바로 끝난 결과로 돌려줍니다.
+  - 실패로 끝나면 동기 응답과 같은 상태·코드의 ApiError 를 던져 기존 오류 안내를 그대로 씁니다.
+*/
+async function waitForDiscovery(
+  first: Discovery,
+  onProgress: (progress: DiscoveryProgressEvent[]) => void,
+): Promise<Discovery> {
+  let discovery = first;
+  let failures = 0;
+  const until = Date.now() + POLL_LIMIT_MS;
+  if (discovery.progress) onProgress(discovery.progress);
+  while (discovery.status === "running") {
+    if (Date.now() > until) {
+      throw new ApiError({ status: 503, code: "DISCOVERY_TIMEOUT", message: UNREACHABLE_MESSAGE });
+    }
+    await new Promise((resolve) => setTimeout(resolve, DISCOVERY_POLL_MS));
+    try {
+      discovery = await getDiscovery(discovery.id);
+      failures = 0;
+    } catch (error) {
+      /* 로그인 만료·권한·없는 탐색은 다시 물어도 같습니다 */
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error;
+      failures += 1;
+      if (failures >= POLL_RETRIES) throw error;
+      continue;
+    }
+    if (discovery.progress) onProgress(discovery.progress);
+  }
+  if (discovery.status === "failed") {
+    const code = discovery.error?.code ?? "SITE_UNREACHABLE";
+    throw new ApiError({
+      status: FAILURE_STATUS[code] ?? 503,
+      code,
+      message: discovery.error?.message || UNREACHABLE_MESSAGE,
+    });
+  }
+  return discovery;
+}
+
 /*
   P02·P03 사이트 확인 → 기능 탐색 → 계획 만들기 (POST check → discoveries → plans).
   - 주소 확인(check)이 실패해도 탐색은 진행합니다. 결과는 plan.check 로 경고만 보여 줍니다.
     로그인 필요(401)·권한 없음(403)은 탐색도 같은 결과라 바로 오류로 돌려줍니다.
-  - 탐색은 서버가 브라우저로 시작 화면을 읽어 1~2분 걸립니다.
+  - 탐색은 서버가 브라우저로 사이트를 둘러봐 1~2분 걸립니다. 비동기로 시작하고 끝날 때까지 진행 사건을 받아
+    작업(progress)에 넣습니다 (P02b 자세히 보기).
   - 화면이 아니라 useSiteCheckStore 에서 돌아, 확인 중에 다른 화면에 갔다 와도 끊기지 않습니다.
     결과는 위저드가 같은 입력을 보고 있으면 바로 넣고, 아니면 남겨 두었다가 돌아왔을 때 넣습니다(restoreSiteCheck).
 */
@@ -79,10 +143,13 @@ export async function runSiteCheck(
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
     }
     if (current()) store.updateJob(projectKey, { phase: "discover" });
-    const discovery = await createDiscovery(input.projectId, {
+    const started = await createDiscovery(input.projectId, {
       entry_url: input.entryUrl,
       login_mode: input.loginMode === "account" ? "test_account" : "none",
       variant: input.variant,
+    });
+    const discovery = await waitForDiscovery(started, (progress) => {
+      if (current()) store.updateJob(projectKey, { progress });
     });
     if (current()) store.updateJob(projectKey, { phase: "plan" });
     const server = await createPlan(input.projectId, discovery.id);
@@ -173,6 +240,8 @@ export function useDiscoverPlan(projectKey: string) {
     error: job?.status === "error" ? job.error : null,
     phase: job?.phase ?? null,
     startedAt: job?.startedAt ?? null,
+    /* 기능 탐색 진행 사건 (확인 중일 때만) */
+    progress: job?.status === "pending" ? (job.progress ?? []) : [],
     /* 실패한 시각 (E08 안내) */
     failedAt: job?.status === "error" && job.finishedAt ? new Date(job.finishedAt) : null,
     mutate,

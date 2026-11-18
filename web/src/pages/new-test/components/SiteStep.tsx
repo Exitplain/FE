@@ -220,7 +220,11 @@ export default function SiteStep({
 
         {/* 상태 띠: 확인 전 안내 → 확인 중 → 접근 가능 / 접근 불가(E08) */}
         {isChecking ? (
-          <SiteCheckProgress phase={discover.phase} startedAt={discover.startedAt} />
+          <SiteCheckProgress
+            phase={discover.phase}
+            startedAt={discover.startedAt}
+            events={discover.progress}
+          />
         ) : discover.isError ? (
           <div
             role="alert"

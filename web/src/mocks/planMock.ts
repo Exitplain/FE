@@ -1,6 +1,7 @@
 import type {
   AgeKey,
   Discovery,
+  DiscoveryProgressEvent,
   Plan,
   PlanBlocking,
   PlanSnapshot,
@@ -74,12 +75,15 @@ const state = {
   snapshots: new Map<string, StoredSnapshot>(),
   accounts: new Map<number, TestAccounts>(),
   runKeys: new Map<string, string>(),
+  /* 비동기 탐색: 탐색 id → 지금까지 보여 준 진행 사건 수 */
+  discoveryPolls: new Map<string, number>(),
 };
 
 export function resetPlanMock() {
   state.sequence = 0;
   state.checks = 0;
   state.discoveries.clear();
+  state.discoveryPolls.clear();
   state.plans.clear();
   state.snapshots.clear();
   state.accounts.clear();
@@ -101,6 +105,97 @@ export function checkSite(projectId: number) {
       message: null,
     },
   };
+}
+
+/* 비동기 탐색 mock 의 진행 사건 (BE agent/explore.py 문구 모양). 브라우저 mock 은 조회마다 한 줄씩 늘립니다 */
+const DISCOVERY_SCRIPT: Omit<DiscoveryProgressEvent, "seq" | "t">[] = [
+  { kind: "browser_started", message: "브라우저를 열었어요" },
+  { kind: "page_opening", message: "/ 화면을 여는 중이에요 (1/10)", path: "/" },
+  {
+    kind: "page_read",
+    message: "'오늘 저녁은, 가볍게' 화면을 읽었어요 · 같은 사이트 링크 6개, 새로 볼 화면 4개",
+    path: "/",
+  },
+  {
+    kind: "button_moved",
+    message: "'이번 주 식탁 만나기' 버튼을 눌러 보니 /product 화면으로 가요",
+    path: "/product",
+  },
+  {
+    kind: "page_read",
+    message: "'이번 주 식탁' 화면을 읽었어요 · 같은 사이트 링크 5개",
+    path: "/product",
+  },
+  {
+    kind: "write_blocked",
+    message: "POST /api/cart 요청은 저장·결제가 일어날 수 있어 막았어요",
+    path: "/api/cart",
+  },
+  {
+    kind: "page_read",
+    message: "'장바구니' 화면을 읽었어요 · 같은 사이트 링크 3개",
+    path: "/cart",
+  },
+  {
+    kind: "crawl_finished",
+    message: "화면 4개를 둘러봤어요 · 쓰기 요청 1건, 다른 사이트 요청 0건을 막았어요",
+  },
+  { kind: "proposing", message: "둘러본 화면으로 기능과 과업 후보를 정리하는 중이에요" },
+];
+/* 테스트는 첫 조회에 끝냅니다 */
+const SCRIPT_STEP = import.meta.env.MODE === "test" ? DISCOVERY_SCRIPT.length : 1;
+
+function publicDiscovery(stored: StoredDiscovery): Discovery {
+  const response: Partial<StoredDiscovery> = structuredClone(stored);
+  delete response.devPlanId;
+  delete response.personaTotal;
+  return response as Discovery;
+}
+
+function progressOf(shown: number, done: boolean): DiscoveryProgressEvent[] {
+  const lines = [
+    { kind: "queued", message: "사이트 확인을 시작했어요" },
+    ...DISCOVERY_SCRIPT.slice(0, shown),
+    ...(done ? [{ kind: "succeeded", message: "사이트 확인을 마쳤어요" }] : []),
+  ];
+  return lines.map((line, index) => ({ ...line, seq: index + 1, t: index }));
+}
+
+/* POST …/discoveries + Prefer: respond-async — 검사는 동기와 같고, 결과 없이 running 으로 202 */
+export function startDiscovery(projectId: number, body: Record<string, unknown>): Discovery {
+  const done = createDiscovery(projectId, body);
+  state.discoveryPolls.set(done.id, 0);
+  return {
+    ...done,
+    status: "running",
+    features: [],
+    tasks: [],
+    note: "",
+    progress: progressOf(0, false),
+  };
+}
+
+/* GET /api/v1/discoveries/{id} — 조회마다 사건이 늘고, 다 보이면 끝난 결과 */
+export function getDiscovery(discoveryId: string): Discovery {
+  const stored = state.discoveries.get(discoveryId);
+  if (!stored) throw new MockPlanError(404, "NOT_FOUND", "탐색 결과를 찾을 수 없습니다.");
+  const shown = Math.min(
+    DISCOVERY_SCRIPT.length,
+    (state.discoveryPolls.get(discoveryId) ?? DISCOVERY_SCRIPT.length) + SCRIPT_STEP,
+  );
+  state.discoveryPolls.set(discoveryId, shown);
+  const done = shown >= DISCOVERY_SCRIPT.length;
+  const discovery = publicDiscovery(stored);
+  return done
+    ? { ...discovery, status: "succeeded", progress: progressOf(shown, true) }
+    : {
+        ...discovery,
+        status: "running",
+        features: [],
+        tasks: [],
+        note: "",
+        progress: progressOf(shown, false),
+      };
 }
 
 export function createDiscovery(projectId: number, body: Record<string, unknown>): Discovery {

@@ -128,6 +128,100 @@ describe("P02~P07 새 테스트", () => {
     expect(screen.getByRole("button", { name: "다시 확인" })).toBeInTheDocument();
   });
 
+  it("P02b — 비동기 탐색 중에는 서버 진행 사건을 자세히 보기로 보여 주고, 실패로 끝나면 E08 로 안내한다", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const running = {
+      id: "discovery-running",
+      status: "running",
+      features: [],
+      tasks: [],
+      progress: [
+        { seq: 1, t: 0, kind: "queued", message: "사이트 확인을 시작했어요" },
+        {
+          seq: 2,
+          t: 3,
+          kind: "page_read",
+          message: "'홈' 화면을 읽었어요 · 같은 사이트 링크 6개",
+          path: "/",
+        },
+      ],
+    };
+    /* 첫 조회는 아직 진행 중, 테스트가 열어 주면 mock 의 정상 조회로 넘깁니다 */
+    server.use(
+      http.get("*/api/v1/discoveries/:discoveryId", async ({ params }) => {
+        if (params.discoveryId !== "discovery-running") return;
+        await gate;
+        return HttpResponse.json({ ...running, status: "failed", error: null });
+      }),
+      http.post("*/api/v1/projects/:projectId/discoveries", () =>
+        HttpResponse.json(running, { status: 202 }),
+      ),
+    );
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(
+      await screen.findByText("'홈' 화면을 읽었어요 · 같은 사이트 링크 6개"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /자세히 보기/ }));
+    expect(screen.getByRole("list", { name: "사이트 확인 기록" })).toHaveTextContent(
+      "사이트 확인을 시작했어요",
+    );
+    act(() => release());
+    /* 실패로 끝난 탐색(오류 코드 없음)은 사이트 응답 없음(503)으로 안내합니다 */
+    expect(await screen.findByText(/사이트 응답 없음 · 점검·방화벽 가능성/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /자세히 보기/ })).not.toBeInTheDocument();
+  });
+
+  it("비동기 탐색이 로그인 실패로 끝나면 동기 응답과 같은 409 안내를 보여 준다", async () => {
+    server.use(
+      http.post("*/api/v1/projects/:projectId/discoveries", () =>
+        HttpResponse.json(
+          { id: "discovery-login", status: "running", progress: [] },
+          { status: 202 },
+        ),
+      ),
+      http.get("*/api/v1/discoveries/:discoveryId", () =>
+        HttpResponse.json({
+          id: "discovery-login",
+          status: "failed",
+          progress: [],
+          error: {
+            code: "TEST_ACCOUNT_LOGIN_FAILED",
+            message: "테스트 계정으로 로그인하지 못했습니다.",
+          },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: "확인" }));
+
+    expect(await screen.findByText("오류 코드 409")).toBeInTheDocument();
+    expect(screen.queryByText(/사이트 응답 없음/)).not.toBeInTheDocument();
+  });
+
+  it("이전 BE 처럼 탐색이 끝난 결과(201, status 없음)를 주면 조회 없이 그대로 쓴다", async () => {
+    const requests: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      requests.push(`${request.method} ${new URL(request.url).pathname}`);
+    });
+    onTestFinished(() => server.events.removeAllListeners());
+    server.use(
+      http.post("*/api/v1/projects/:projectId/discoveries", async ({ request }) => {
+        const { createDiscovery } = await import("@/mocks/planMock");
+        const text = await request.text();
+        return HttpResponse.json(createDiscovery(1, text ? JSON.parse(text) : {}), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    expect(requests.some((line) => line.startsWith("GET /api/v1/discoveries/"))).toBe(false);
+  });
+
   it("사이트 확인 → 과업·타겟 → 페르소나 → 시작 전 확인 → 페르소나 확인 → 실행 화면으로 이동한다", async () => {
     const user = userEvent.setup();
     await renderWizard();
