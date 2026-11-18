@@ -128,7 +128,7 @@ describe("P08~P11 실행 화면", () => {
     /* 준비 중에는 상태 필터가 없습니다 */
     expect(screen.queryByRole("radiogroup", { name: "세션 상태" })).not.toBeInTheDocument();
   });
-  it("P09 — 과업별 진행·필터·타일과 Think-aloud 발화를 보여준다", async () => {
+  it("P09 — 과업별 진행·필터·타일과 Think-aloud 를 보여준다", async () => {
     const user = userEvent.setup();
     const run = await startRun();
     await advance(4);
@@ -142,9 +142,9 @@ describe("P08~P11 실행 화면", () => {
     /* 에이전트 20명이 과업마다 한 세션씩 */
     expect(within(tiles).getAllByRole("listitem")).toHaveLength(20);
     expect(screen.getByRole("progressbar", { name: "진행률" })).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("list", { name: "발화" })).getAllByRole("listitem").length,
-    ).toBeGreaterThan(0);
+    /* 제품 API 는 발화를 주지 않아, 화면 글자를 발화처럼 보여주지 않고 행동 설명만 보여줍니다 */
+    const feed = screen.getByRole("region", { name: "Think-aloud" });
+    expect(within(feed).queryByText(/^“/)).not.toBeInTheDocument();
 
     await user.click(within(tabs).getByRole("radio", { name: "쿠폰으로 주문" }));
     // 과업을 바꾸면 타일이 모두 그 과업 세션으로 바뀝니다

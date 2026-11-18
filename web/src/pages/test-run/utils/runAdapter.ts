@@ -150,14 +150,12 @@ function toSession(
       url: item.url,
       artifact_id: null,
     }));
-  const utterances: ThinkAloud[] = observations
-    .filter((item) => item.text.trim())
-    .map((item) => ({
-      step: item.step,
-      stage: item.stage ?? "other",
-      text: item.text,
-      at: item.at,
-    }));
+  /*
+    관찰 기록의 text 는 그 화면에 보인 글자(판정·분석용)이지 페르소나의 말이 아닙니다.
+    같은 화면을 본 세션은 모두 같은 글자라 발화로 보여주면 전부 같은 말을 한 것처럼 보입니다.
+    제품 API 는 아직 발화를 주지 않으므로 비워 두고, 화면은 행동 설명을 대신 보여줍니다.
+  */
+  const utterances: ThinkAloud[] = [];
   const events: SessionEvent[] = (trail?.actions ?? []).map((action) => ({
     step: action.step,
     action: action.kind,
