@@ -321,7 +321,11 @@ function ReportBody({ task, reportId }: { task: ReportTaskV1; reportId: string }
     const index = screenTask?.screens.findIndex((s) => s.screen_id === screenId) ?? -1;
     if (index < 0) return;
     setScreenIndex(index);
-    document.getElementById("screens")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    /* 섹션 이동과 같게: 동작 줄이기 설정이면 바로 이동, scrollIntoView 가 없는 환경(jsdom)에서는 건너뜀 */
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    document
+      .getElementById("screens")
+      ?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "start" });
   };
   const hidden: SectionId[] = [
     ...(hasHeatmap ? [] : (["heatmap"] as const)),
