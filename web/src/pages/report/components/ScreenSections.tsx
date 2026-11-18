@@ -89,7 +89,7 @@ export function ScreenWalkthrough({
             <Shot
               url={screen.screenshot_url}
               alt={`${screen.name} 화면 캡처`}
-              className="h-[560px]"
+              className="max-h-[480px]"
             />
             <button
               type="button"
