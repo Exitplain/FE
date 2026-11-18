@@ -6,6 +6,8 @@ import { buildPath } from "@/constants/routes";
 import type { WorkspaceRun } from "@/types/workspace.type";
 import { formatRate } from "@/utils/workspaceRuns";
 
+import "../history.css";
+
 export default function HistoryTable({
   runs,
   selected,
@@ -31,7 +33,7 @@ export default function HistoryTable({
   }, [some, all]);
   return (
     <div className="overflow-x-auto">
-      <table className="workspace-table">
+      <table className="workspace-table history-table">
         <thead>
           <tr>
             <th>
@@ -40,6 +42,7 @@ export default function HistoryTable({
                 type="checkbox"
                 aria-label="표시된 실행 모두 선택"
                 checked={all}
+                aria-checked={some && !all ? "mixed" : all}
                 disabled={runs.length === 0}
                 onChange={onToggleAll}
                 className="size-4 accent-ink"
@@ -49,7 +52,7 @@ export default function HistoryTable({
             {!hideProject && <th>프로젝트</th>}
             <th>유형</th>
             <th>상태</th>
-            <th>목표 달성률 (과업별)</th>
+            <th>목표 달성률 (예측 · 과업별)</th>
             <th aria-sort={ascending ? "ascending" : "descending"}>
               <button type="button" onClick={onSort} className="whitespace-nowrap text-ink">
                 실행일 {ascending ? "↑" : "↓"}

@@ -55,16 +55,6 @@ export default function IssuesPage({
           onChange={(value) => update("cause", value === "all" ? null : value)}
         />
       )}
-      {cause !== "all" && (
-        <div className="flex items-center gap-4 text-caption">
-          <span>
-            {cause} · {issues.length}개 묶음
-          </span>
-          <Button variant="link" onClick={() => update("cause", null)}>
-            필터 초기화
-          </Button>
-        </div>
-      )}
       {sample ? (
         <WorkspaceState
           kind="empty"

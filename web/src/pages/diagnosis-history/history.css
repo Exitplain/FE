@@ -1,0 +1,4 @@
+/* W02/C08 selected rows remain visible during hover and keyboard focus. */
+.workspace-table.history-table tr[data-selected="true"] {
+  background: var(--color-surface-pressed);
+}

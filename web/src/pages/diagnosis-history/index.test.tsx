@@ -54,12 +54,11 @@ describe("진단 기록 (제품 API 실행 목록)", () => {
     expect(screen.getByRole("link", { name: "반찬 1차" })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /반찬 1차/ })).toHaveTextContent("25%");
 
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "프로젝트 필터" }),
-      screen.getByRole("option", { name: "프로젝트 · 스튜디오 예약" }),
-    );
+    await user.click(screen.getByRole("button", { name: "프로젝트 필터" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "스튜디오 예약" }));
     expect(screen.queryByRole("link", { name: "반찬 1차" })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "상태 필터" }), "completed");
+    await user.click(screen.getByRole("button", { name: "상태 필터" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "완료" }));
     expect(screen.getByText("조건에 맞는 실행이 없어요")).toBeInTheDocument();
   });
 
@@ -69,10 +68,39 @@ describe("진단 기록 (제품 API 실행 목록)", () => {
     renderWithProviders(<DiagnosisHistoryPage />, { route: "/history" });
 
     await user.click(await screen.findByRole("checkbox", { name: "1차 선택" }));
-    expect(screen.getByRole("button", { name: "선택한 1개 비교" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "선택한 2개 비교" })).toBeDisabled();
+    expect(screen.getByText("비교하려면 1개 더 선택하세요")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "표시된 실행 모두 선택" })).toBePartiallyChecked();
     await user.click(screen.getByRole("checkbox", { name: "2차 선택" }));
+    expect(screen.getByRole("checkbox", { name: "표시된 실행 모두 선택" })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "선택한 2개 비교" }));
     expect(within(screen.getByRole("dialog")).getAllByText("과업 1 · 25%")).toHaveLength(2);
+  });
+
+  it("필터 메뉴는 선택 표시·키보드 선택·Escape·바깥 클릭을 지원한다", async () => {
+    const user = userEvent.setup();
+    serveRuns({
+      "1": [run("완료된 실행"), run("실행 중인 기록", { status: "running", report: null })],
+    });
+    renderWithProviders(<DiagnosisHistoryPage />, { route: "/history" });
+    await screen.findByRole("link", { name: "완료된 실행" });
+    const trigger = screen.getByRole("button", { name: "상태 필터" });
+    await user.click(trigger);
+    expect(screen.getByRole("menuitemradio", { name: "전체", checked: true })).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(trigger).toHaveTextContent("상태 · 실행 중");
+    expect(trigger).toHaveFocus();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "완료된 실행" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "실행 중인 기록" })).toBeInTheDocument();
+    await user.click(trigger);
+    expect(screen.getByRole("menuitemradio", { name: "실행 중", checked: true })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    await user.click(screen.getByRole("heading", { name: "진단 기록" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("실행 목록을 받지 못하면 다시 시도할 수 있다", async () => {

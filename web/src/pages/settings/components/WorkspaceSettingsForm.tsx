@@ -14,6 +14,8 @@ import ExecutionDefaults from "./ExecutionDefaults";
 const MAX_NAME = 50;
 /* 저장 완료 알림을 보여 주는 시간 */
 const TOAST_MS = 3000;
+/* W04: white, outlined 40px inputs; other screens keep the shared filled style. */
+const settingsInputClass = "h-10 border border-gray-300 bg-surface py-2";
 
 type Values = { workspaceName: string; myName: string };
 type Errors = Partial<Record<keyof Values, string>>;
@@ -134,10 +136,16 @@ export default function WorkspaceSettingsForm({
       <section className="space-y-4">
         <h2 className="text-lg font-bold">기본 정보</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="워크스페이스 이름" error={errors.workspaceName} help={nameLocked}>
+          <Field
+            className="gap-1"
+            label="워크스페이스 이름"
+            error={errors.workspaceName}
+            help={nameLocked}
+          >
             {(control) => (
               <Input
                 {...control}
+                className={settingsInputClass}
                 maxLength={MAX_NAME}
                 disabled={!owner}
                 value={values.workspaceName}
@@ -145,10 +153,11 @@ export default function WorkspaceSettingsForm({
               />
             )}
           </Field>
-          <Field label="내 이름" error={errors.myName}>
+          <Field className="gap-1" label="내 이름" error={errors.myName}>
             {(control) => (
               <Input
                 {...control}
+                className={settingsInputClass}
                 maxLength={MAX_NAME}
                 value={values.myName}
                 onChange={(e) => change("myName", e.target.value)}
@@ -156,8 +165,16 @@ export default function WorkspaceSettingsForm({
             )}
           </Field>
         </div>
-        <Field label="이메일" help="로그인한 이메일이에요 · 바꿀 수 없어요">
-          {(control) => <Input {...control} type="email" readOnly value={initial.me.email} />}
+        <Field className="gap-1" label="이메일" help="로그인한 이메일이에요 · 바꿀 수 없어요">
+          {(control) => (
+            <Input
+              {...control}
+              className={settingsInputClass}
+              type="email"
+              readOnly
+              value={initial.me.email}
+            />
+          )}
         </Field>
       </section>
       <ExecutionDefaults defaults={initial.run_defaults} />

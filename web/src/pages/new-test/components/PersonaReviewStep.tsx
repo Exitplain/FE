@@ -305,7 +305,7 @@ function SegmentCard({ segment, swatch }: { segment: PanelSegment; swatch: strin
       </div>
       <div className="flex items-center gap-3">
         {/* Figma P07: 대표 칸 왼쪽의 연령대별 픽셀 캐릭터 */}
-        <PersonaAvatar avatar={segment.avatar} className="size-14" />
+        <PersonaAvatar avatar={segment.avatar} className="h-24 w-20 object-contain" />
         <div className="flex flex-1 flex-col gap-1 rounded-lg bg-gray-50 p-3">
           <p className="text-sm font-bold text-ink">대표 {segment.representative}</p>
           {/* Figma "P-001~005" — 끝 코드는 숫자만 */}

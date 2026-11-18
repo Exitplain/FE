@@ -1,6 +1,7 @@
 import Icon from "@/components/Icon/Icon";
 import Input from "@/components/Input/Input";
-import WorkspaceSelect from "@/components/Workspace/WorkspaceSelect";
+
+import HistoryFilterMenu from "./HistoryFilterMenu";
 
 import type { RunFilters } from "../utils/filterRuns";
 
@@ -28,8 +29,7 @@ export default function HistoryFilters({
         />
       </label>
       {!hideProject && (
-        <WorkspaceSelect
-          variant="soft"
+        <HistoryFilterMenu
           label="프로젝트 필터"
           value={filters.project}
           onChange={(v) => onChange("project", v)}
@@ -39,8 +39,7 @@ export default function HistoryFilters({
           ]}
         />
       )}
-      <WorkspaceSelect
-        variant="soft"
+      <HistoryFilterMenu
         label="상태 필터"
         value={filters.status}
         onChange={(v) => onChange("status", v)}
@@ -52,8 +51,7 @@ export default function HistoryFilters({
           { value: "failed", label: "상태 · 실패" },
         ]}
       />
-      <WorkspaceSelect
-        variant="soft"
+      <HistoryFilterMenu
         label="유형 필터"
         value={filters.type}
         onChange={(v) => onChange("type", v)}
@@ -63,8 +61,7 @@ export default function HistoryFilters({
           { value: "원인 재현", label: "유형 · 원인 재현" },
         ]}
       />
-      <WorkspaceSelect
-        variant="soft"
+      <HistoryFilterMenu
         label="기간 필터"
         value={filters.period}
         onChange={(v) => onChange("period", v)}

@@ -167,7 +167,7 @@ describe("프로젝트별 기록·문제 격리", () => {
     expect(await screen.findByRole("link", { name: "4차 · 첫 주문" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "1차 · 예약" })).not.toBeInTheDocument();
     expect(requested).toEqual(["1"]);
-    expect(screen.queryByRole("combobox", { name: "프로젝트 필터" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "프로젝트 필터" })).not.toBeInTheDocument();
     /* 전체 선택 + 실행 1개 */
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
