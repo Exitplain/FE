@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { WizardPlan } from "@/pages/new-test/utils/newTest";
 import type { ApiError } from "@/types/api.type";
 import type { Variant } from "@/types/persona.type";
-import type { Plan } from "@/types/plan.type";
+import type { DiscoveryProgressEvent, Plan } from "@/types/plan.type";
 
 /*
   새 테스트 사이트 확인(P02 → P03) 작업. 주소 확인 → 기능 탐색 → 계획 만들기가 1~2분 걸려,
@@ -39,6 +39,8 @@ export type SiteCheckJob = {
   finishedAt: number | null;
   result: SiteCheckResult | null;
   error: ApiError | null;
+  /* 기능 탐색 중 서버가 알려 준 진행 사건 (P02b 자세히 보기). 이전 BE 면 비어 있습니다 */
+  progress?: DiscoveryProgressEvent[];
 };
 
 type SiteCheckState = {

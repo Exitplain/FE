@@ -7,12 +7,14 @@ import {
   createDiscovery,
   createPlan,
   createRun,
+  getDiscovery,
   getPlan,
   getTestAccounts,
   MockPlanError,
   patchPlan,
   putTestAccounts,
   revisionPersonas,
+  startDiscovery,
 } from "../planMock";
 
 /*
@@ -61,9 +63,16 @@ export const planHandlers = [
     handle(() => checkSite(projectIdOf(params))),
   ),
   http.post("*/api/v1/projects/:projectId/discoveries", async ({ params, request }) => {
+    /* Prefer: respond-async 면 BE 처럼 running 으로 바로 202, 진행은 GET 으로 */
+    if (request.headers.get("Prefer")?.includes("respond-async")) {
+      return handle(async () => startDiscovery(projectIdOf(params), await json(request)), 202);
+    }
     await delay(DISCOVERY_DELAY_MS);
     return handle(async () => createDiscovery(projectIdOf(params), await json(request)), 201);
   }),
+  http.get("*/api/v1/discoveries/:discoveryId", ({ params }) =>
+    handle(() => getDiscovery(String(params.discoveryId))),
+  ),
   http.post("*/api/v1/projects/:projectId/plans", async ({ params, request }) => {
     let revision = 1;
     return handle(

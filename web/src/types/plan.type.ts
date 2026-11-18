@@ -26,13 +26,32 @@ export type DiscoveryRequest = {
   variant?: "fixed" | "problem";
 };
 
-/* POST /api/v1/projects/{id}/discoveries (동기, 수 초) — 15분 뒤 만료 */
+/* 사이트 확인 진행 사건 한 줄 (BE discoveries.services · agent/explore.py). message 는 화면에 그대로 보여 줄 문장 */
+export type DiscoveryProgressEvent = {
+  seq: number;
+  /* 확인을 시작하고 지난 초. 멈춤으로 실패 처리된 줄은 null */
+  t: number | null;
+  kind: string;
+  message: string;
+  path?: string;
+};
+
+export type DiscoveryStatus = "running" | "succeeded" | "failed";
+
+/*
+  POST /api/v1/projects/{id}/discoveries — 15분 뒤 만료
+  - Prefer: respond-async 로 보내면 status "running" 으로 바로 202, GET /discoveries/{id} 로 progress·결과를 읽습니다.
+  - status 가 없는 응답(이전 BE)은 끝난 결과로 봅니다.
+*/
 export type Discovery = {
   id: string;
   project_id: number;
   entry_url: string;
   login_mode: "none" | "test_account";
   variant: "fixed" | "problem";
+  status?: DiscoveryStatus;
+  progress?: DiscoveryProgressEvent[];
+  error?: { code: string; message: string } | null;
   features: DiscoverFeature[];
   tasks: Omit<DiscoverTask, "funnel_stages">[];
   note: string;
