@@ -1,4 +1,8 @@
-import type { MeasurementStatus, MeasurementSteps } from "@/types/measurement.type";
+import type {
+  MeasurementMapping,
+  MeasurementStatus,
+  MeasurementSteps,
+} from "@/types/measurement.type";
 
 import axiosInstance from "./axiosInstance";
 
@@ -27,6 +31,25 @@ export async function getMeasurementSteps(projectId: number, days = 7): Promise<
   const { data } = await axiosInstance.get<MeasurementSteps>(
     `/api/v1/projects/${projectId}/measurement/steps`,
     { params: { days } },
+  );
+  return data;
+}
+
+export async function getMeasurementMapping(projectId: number): Promise<MeasurementMapping> {
+  const { data } = await axiosInstance.get<MeasurementMapping>(
+    `/api/v1/projects/${projectId}/measurement/mapping`,
+  );
+  return data;
+}
+
+/* 매핑을 통째로 바꿉니다. null 은 "매핑 안 함" */
+export async function saveMeasurementMapping(
+  projectId: number,
+  mapping: Record<string, string | null>,
+): Promise<MeasurementMapping> {
+  const { data } = await axiosInstance.put<MeasurementMapping>(
+    `/api/v1/projects/${projectId}/measurement/mapping`,
+    { mapping },
   );
   return data;
 }

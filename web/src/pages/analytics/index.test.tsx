@@ -82,15 +82,55 @@ describe("R01~R11 실측 분석 (임시 하드코딩 목데이터)", () => {
     await user.click(screen.getByRole("button", { name: "단계 매핑하기" }));
 
     expect(screen.getByRole("heading", { level: 1, name: "이벤트 단계 매핑" })).toBeInTheDocument();
-    expect(screen.getByText("7개 중 7개 연결")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "step_coupon 단계: 매핑 안 함" }));
-    await user.click(screen.getByRole("menuitemradio", { name: "2. 탐색" }));
-    expect(screen.getByRole("button", { name: "step_coupon 단계: 탐색" })).toBeInTheDocument();
+    /* 경로가 같으면 일치, 비슷하면 이름 유사로 자동 연결됩니다 */
+    expect(await screen.findByText("6개 중 6개 연결")).toBeInTheDocument();
+    const detail = screen.getByRole("row", { name: /\/product\/:id/ });
+    expect(detail).toHaveTextContent("이름 유사");
+    expect(
+      within(detail).getByRole("button", { name: "/product/:id 단계: 상품 상세" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /coupon_applied/ })).toHaveTextContent("후보 없음");
+
+    await user.click(screen.getByRole("button", { name: "coupon_applied 단계: 매핑 안 함" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "3. 장바구니" }));
+    expect(
+      screen.getByRole("button", { name: "coupon_applied 단계: 장바구니" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "매핑 저장" }));
-    expect(screen.getByRole("heading", { level: 1, name: "실측 퍼널" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "실측 퍼널" })).toBeInTheDocument();
     expect(screen.getByText("수집 중")).toBeInTheDocument();
   }, 15000);
+
+  it("R05 — 저장한 매핑은 다시 열어도 그대로이고, 예측 리포트가 없으면 이유를 알려준다", async () => {
+    const user = userEvent.setup();
+    const projectId = await createTestProject();
+    setMeasurementMock(Number(projectId), { key: "ep_0000000000ab", received: true });
+    const first = await renderAnalytics(projectId, "?view=mapping");
+    await user.click(await screen.findByRole("button", { name: "/faq 단계: 매핑 안 함" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "1. 첫 화면" }));
+    await user.click(screen.getByRole("button", { name: "매핑 저장" }));
+    await screen.findByRole("heading", { level: 1, name: "실측 퍼널" });
+    first.unmount();
+
+    useAnalyticsMockStore.setState(useAnalyticsMockStore.getInitialState(), true);
+    await renderAnalytics(projectId, "?view=mapping");
+    expect(await screen.findByRole("button", { name: "/faq 단계: 첫 화면" })).toBeInTheDocument();
+  });
+
+  it("R05 — 사전 테스트 리포트가 없으면 매핑할 단계가 없다고 알려준다", async () => {
+    const projectId = await createTestProject();
+    setMeasurementMock(Number(projectId), {
+      key: "ep_0000000000ac",
+      received: true,
+      predicted: false,
+    });
+    await renderAnalytics(projectId, "?view=mapping");
+    expect(
+      await screen.findByText("먼저 사전 테스트를 한 번 실행해야 비교할 단계가 생겨요."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "매핑 저장" })).not.toBeInTheDocument();
+  });
 
   it("R04 — 5분 동안 수집이 오지 않으면 확인할 것을 보여준다", async () => {
     const projectId = await createTestProject();
