@@ -1,4 +1,7 @@
 import type {
+  FunnelDays,
+  FunnelDevice,
+  MeasurementFunnel,
   MeasurementMapping,
   MeasurementStatus,
   MeasurementSteps,
@@ -50,6 +53,19 @@ export async function saveMeasurementMapping(
   const { data } = await axiosInstance.put<MeasurementMapping>(
     `/api/v1/projects/${projectId}/measurement/mapping`,
     { mapping },
+  );
+  return data;
+}
+
+/* R06·R08 과업별 실측 퍼널과 예측 범위 비교 */
+export async function getMeasurementFunnel(
+  projectId: number,
+  days: FunnelDays,
+  device: FunnelDevice,
+): Promise<MeasurementFunnel> {
+  const { data } = await axiosInstance.get<MeasurementFunnel>(
+    `/api/v1/projects/${projectId}/measurement/funnel`,
+    { params: { days, device } },
   );
   return data;
 }

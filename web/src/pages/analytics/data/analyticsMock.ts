@@ -1,15 +1,8 @@
 /*
-  ─── 임시: 실측 분석(R01~R11) 하드코딩 목데이터 ───
-  실측 분석 API 명세가 아직 없어 Figma 화면 값을 그대로 옮겼습니다. 실제 수집값이 아닙니다.
-  API 명세가 나오면 이 파일을 지우고 apis/·hooks/ 로 옮깁니다.
+  ─── 실측 분석 화면 문구 · 원인 재현(R09~R11) 임시 목데이터 ───
+  설치·매핑·퍼널·비교는 실제 API(BE measurements)를 씁니다.
+  원인 재현은 API 가 없어 Figma 값을 그대로 둡니다 (실제 재현 결과가 아닙니다).
 */
-
-export type ConnectionStatus = "unconnected" | "collecting" | "comparable";
-
-/* 프로젝트별 연결 상태 (제품 API 프로젝트 id) — 샘플 반찬로드(1): 비교 가능(R06), 그 밖: 미연결(E03). 연결 흐름을 마치면 수집 중(E09) */
-export const PROJECT_CONNECTION: Record<string, ConnectionStatus> = {
-  "1": "comparable",
-};
 
 /* R01 모으는 것 · 모으지 않는 것 — BE measurements/e.js 가 실제로 보내는 값과 맞춥니다 */
 export const COLLECT_ITEMS = [
@@ -29,77 +22,6 @@ export const INSTALL_CHECKS = [
   "배포가 끝났나요? 캐시를 지운 뒤 다시 열어보세요",
   "광고 차단 확장 프로그램이 막고 있지 않나요?",
 ];
-
-export const FUNNEL_STAGES = ["랜딩", "탐색", "상세", "장바구니", "가입", "결제 정보", "완료"];
-
-export type Period = "7" | "14" | "30";
-export type Device = "all" | "mobile" | "desktop";
-
-/* R06·R07 단계별 세션 수 (최근 7일). 14·30일은 같은 비율로 늘린 예시입니다 */
-const FUNNEL_7D: Record<Device, number[]> = {
-  all: [1240, 1104, 930, 546, 372, 322, 298],
-  mobile: [860, 757, 619, 335, 224, 189, 172],
-  desktop: [380, 347, 311, 211, 148, 133, 126],
-};
-const PERIOD_SCALE: Record<Period, number> = { "7": 1, "14": 2.1, "30": 4.4 };
-export const PERIOD_RANGE: Record<Period, string> = {
-  "7": "11월 1일 ~ 11월 7일",
-  "14": "10월 25일 ~ 11월 7일",
-  "30": "10월 9일 ~ 11월 7일",
-};
-
-export function funnelCounts(device: Device, period: Period) {
-  return FUNNEL_7D[device].map((count) => Math.round(count * PERIOD_SCALE[period]));
-}
-
-/* E09 수집 중 (스튜디오 예약) — 단계마다 표본 100 세션이 모여야 비교에 씁니다 */
-export const COLLECTING_COUNTS = [214, 181, 140, 52, 31, 24, 19];
-export const MIN_SAMPLE = 100;
-
-/* R08 예측 vs 실측 — 과업별 단계 비교 (예측 범위 %, 실측 %) */
-export type CompareRow = { stage: string; predicted: [number, number]; actual: number };
-export type CompareTask = {
-  id: string;
-  name: string;
-  rows: CompareRow[];
-  maxDrop: { matched: boolean; predicted: string; actual: string };
-};
-
-export const COMPARE_TASKS: CompareTask[] = [
-  {
-    id: "order",
-    name: "첫 주문 완료",
-    rows: [
-      { stage: "탐색", predicted: [85, 95], actual: 89 },
-      { stage: "상세", predicted: [70, 80], actual: 75 },
-      { stage: "장바구니", predicted: [55, 65], actual: 44 },
-      { stage: "가입", predicted: [30, 40], actual: 30 },
-      { stage: "결제 정보", predicted: [25, 35], actual: 26 },
-      { stage: "완료", predicted: [20, 30], actual: 24 },
-    ],
-    maxDrop: { matched: false, predicted: "장바구니→가입", actual: "상세→장바구니" },
-  },
-  {
-    id: "coupon",
-    name: "쿠폰으로 주문",
-    rows: [
-      { stage: "혜택", predicted: [80, 90], actual: 86 },
-      { stage: "쿠폰", predicted: [60, 72], actual: 66 },
-      { stage: "장바구니", predicted: [45, 55], actual: 49 },
-      { stage: "결제 정보", predicted: [35, 45], actual: 38 },
-      { stage: "완료", predicted: [30, 40], actual: 33 },
-    ],
-    maxDrop: { matched: true, predicted: "쿠폰→장바구니", actual: "쿠폰→장바구니" },
-  },
-];
-
-/* 오차 = 실측 − 예측 범위 중앙값 (%p) */
-export function compareError(row: CompareRow) {
-  return row.actual - (row.predicted[0] + row.predicted[1]) / 2;
-}
-export function isGap(row: CompareRow) {
-  return row.actual < row.predicted[0] || row.actual > row.predicted[1];
-}
 
 /* R09~R11 원인 재현 */
 export const REPRODUCE_SEGMENTS = [
