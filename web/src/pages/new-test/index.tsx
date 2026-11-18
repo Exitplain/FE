@@ -30,7 +30,7 @@ import {
   inRange,
   parseStep,
   REVIEW_STEP,
-  RUN_DEVICE,
+  deviceLabel,
   STEP_LABELS,
   segmentsPatch,
   STEPS,
@@ -254,7 +254,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
     const state = useNewTestStore.getState();
     const current: Record<string, unknown> = {
       ...taskTargetPatch(plan, state),
-      ...segmentsPatch(plan, state.segmentCounts, state.seedCount),
+      ...segmentsPatch(plan, state.segmentCounts, state.seedCount, state.viewportWidth),
     };
     const last = saved.current?.planId === plan.planId ? saved.current.body : {};
     const dirty = Object.fromEntries(
@@ -313,7 +313,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           projectId={project.id}
           breadcrumb={`${project.name} / 사전 테스트 / 새 테스트 · 테스트`}
           title="페르소나 확인"
-          description={`${taskSummary} · ${RUN_DEVICE} · ${panel}명 × 시드 ${seedCount}회 (1/${seedCount})`}
+          description={`${taskSummary} · ${deviceLabel(plan?.viewportWidth ?? 390)} · ${panel}명 × 시드 ${seedCount}회 (1/${seedCount})`}
           activeTab="tests"
         />
         <PersonaReviewStep
@@ -380,7 +380,10 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           onPrev={() => goTo("task")}
           onNext={() => {
             const state = useNewTestStore.getState();
-            saveThen(segmentsPatch(plan, state.segmentCounts, state.seedCount), "confirm");
+            saveThen(
+              segmentsPatch(plan, state.segmentCounts, state.seedCount, state.viewportWidth),
+              "confirm",
+            );
           }}
         />
       )}

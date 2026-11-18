@@ -849,6 +849,26 @@ describe("P02~P07 제품 API 계약", () => {
     });
   });
 
+  it("P05b — 데스크톱을 고르면 같은 저장(PATCH)에 limits.viewport_width 를 싣고 확인 화면에 표시한다", async () => {
+    const requests = recordRequests();
+    const user = userEvent.setup();
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+
+    await user.click(await screen.findByRole("radio", { name: "데스크톱 1280" }));
+    expect(screen.getByText("데스크톱 1280 · 동시 5세션 · 시드 1회 · 스텝 40")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 시작 전 확인" }));
+    await screen.findByRole("list", { name: "입력 요약" });
+
+    const patches = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
+    expect(JSON.parse(patches[1].body)).toMatchObject({ limits: { viewport_width: 1280 } });
+    expect(JSON.parse(patches[1].body).limits).not.toHaveProperty("seed_count");
+    expect(screen.getByText(/데스크톱 1280 · 동시 5세션/)).toBeInTheDocument();
+  });
+
   it("다른 곳에서 계획이 바뀌어 저장이 충돌하면(409) 최신 revision 으로 한 번 더 저장한다", async () => {
     const requests = recordRequests();
     const user = userEvent.setup();

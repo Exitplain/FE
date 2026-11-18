@@ -59,6 +59,7 @@ export default function ConfirmStep({
       /* 세그먼트 인원 합계 = 에이전트 수 (P05b 에서 조절) */
       agents: sum(state.segmentCounts),
       seedCount: state.seedCount,
+      viewportWidth: state.viewportWidth,
     })),
   );
 
@@ -129,7 +130,11 @@ export default function ConfirmStep({
       value: `에이전트 ${panel}명 · 과업 ${tasks.length}개 · ${calibratedLabel ? `보정 ${calibratedLabel}` : calibratedLabel === null ? "보정 전" : "보정 확인 중"}`,
       step: "persona",
     },
-    { label: "실행 조건", value: runConditions(store.seedCount), step: "persona" },
+    {
+      label: "실행 조건",
+      value: runConditions(store.seedCount, store.viewportWidth),
+      step: "persona",
+    },
   ];
 
   return (
