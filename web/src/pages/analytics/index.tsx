@@ -9,7 +9,7 @@ import { buildPath } from "@/constants/routes";
 import { useToastStore } from "@/stores/useToastStore";
 
 import CompareView from "./components/CompareView";
-import ConnectView, { NotConnected } from "./components/ConnectView";
+import ConnectView, { NotConnected, NotDeployed } from "./components/ConnectView";
 import FunnelView from "./components/FunnelView";
 import MappingView from "./components/MappingView";
 import {
@@ -27,6 +27,7 @@ import {
   REPRODUCE_SEGMENTS,
 } from "./data/analyticsMock";
 import { useAnalyticsMockStore, useConnectionStatus } from "./data/useAnalyticsMockStore";
+import { useMeasurement } from "./hooks/useMeasurement";
 
 /* 화면 안 단계 (?view=). 주소에 두어 새로고침·뒤로가기로 돌아올 수 있게 합니다 */
 const VIEWS = [
@@ -52,7 +53,8 @@ const dayFormat = new Intl.DateTimeFormat("ko-KR", {
 
 /*
   R01~R11 실측 분석 (/projects/:projectId/analytics?view=)
-  임시: 실측 분석 API 명세가 없어 하드코딩 목데이터(data/analyticsMock.ts)로 화면만 보여줍니다.
+  설치(R01~R04)는 실제 API(BE measurements)를 씁니다. 매핑 이후는 아직 하드코딩 목데이터(data/analyticsMock.ts)입니다.
+  - 배포 주소 없음: 실측 불가 안내 (코드만 받은 프로젝트 등)
   - 미연결: E03 → 연결(R01~R04) → 단계 매핑(R05) → 수집 중(E09)
   - 연결됨: 실측 퍼널(R06·R07) → 예측 vs 실측(R08) → 원인 재현(R09~R11) → 보정(K01)
 */
@@ -65,6 +67,8 @@ function Analytics({ project }: { project: CurrentProject }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const status = useConnectionStatus(project.id);
+  /* 미연결 프로젝트는 배포 주소가 있는지(실측 가능 여부)를 먼저 봅니다 */
+  const measurement = useMeasurement(project.v1Id, { enabled: status === "unconnected" });
   const requested = searchParams.get("view");
   const parsed = (VIEWS as readonly string[]).includes(requested ?? "")
     ? (requested as View)
@@ -163,7 +167,11 @@ function Analytics({ project }: { project: CurrentProject }) {
           actions={unlinkBadge}
           activeTab="analytics"
         />
-        <NotConnected onConnect={() => goTo("connect")} />
+        {measurement.data && !measurement.data.available ? (
+          <NotDeployed message={measurement.data.message} />
+        ) : (
+          <NotConnected onConnect={() => goTo("connect")} />
+        )}
       </div>
     );
   }
@@ -179,7 +187,7 @@ function Analytics({ project }: { project: CurrentProject }) {
           actions={unlinkBadge}
           activeTab="analytics"
         />
-        <ConnectView projectId={project.id} onMapping={() => goTo("mapping")} />
+        <ConnectView projectId={project.v1Id} onMapping={() => goTo("mapping")} />
       </div>
     );
   }

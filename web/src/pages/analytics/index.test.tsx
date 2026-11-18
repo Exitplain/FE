@@ -1,11 +1,13 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ROUTES } from "@/constants/routes";
+import { setMeasurementMock } from "@/mocks/handlers/measurements";
 import { createTestProject, waitForProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
+import { CHECK_TIMEOUT_MS } from "./hooks/useMeasurement";
 import { useAnalyticsMockStore } from "./data/useAnalyticsMockStore";
 import AnalyticsPage from "./index";
 
@@ -51,27 +53,33 @@ describe("R01~R11 실측 분석 (임시 하드코딩 목데이터)", () => {
     expect(screen.getAllByText("표본 부족")).toHaveLength(4);
   });
 
-  it("E03 → R01~R05 — 미연결이면 연결을 안내하고, 설치 확인(실패 후 재시도)·매핑을 거쳐 수집을 시작한다", async () => {
+  it("E03 → R01~R05 — 미연결이면 연결을 안내하고, 키 발급·설치 확인(첫 수집 대기)·매핑을 거쳐 수집을 시작한다", async () => {
     const user = userEvent.setup();
-    await renderAnalytics(await createTestProject());
+    const projectId = await createTestProject();
+    await renderAnalytics(projectId);
 
-    await user.click(screen.getByRole("button", { name: "실측 데이터 연결하기" }));
+    await user.click(await screen.findByRole("button", { name: "실측 데이터 연결하기" }));
     expect(screen.getByRole("heading", { level: 1, name: "실측 데이터 연결" })).toBeInTheDocument();
+    /* 화면을 열면 키를 발급해 스니펫을 보여줍니다 */
+    const key = `ep_${Number(projectId).toString(16).padStart(12, "0")}`;
+    expect(await screen.findByText(new RegExp(`data-project="${key}"`))).toBeInTheDocument();
+    expect(screen.getByText("https://shop.example.com 에서 온 수집만 받아요")).toBeInTheDocument();
     expect(screen.getByText("설치를 확인하면 열려요")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "설치 확인" }));
     expect(screen.getByRole("button", { name: "확인 중…" })).toBeDisabled();
-    expect(
-      await screen.findByText("5분 동안 이벤트가 오지 않았어요", {}, { timeout: 3000 }),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("list", { name: "확인할 것" })).getAllByRole("listitem"),
-    ).toHaveLength(3);
+    expect(screen.getByText(/첫 수집 대기 중/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "설치 확인" }));
-    await user.click(
-      await screen.findByRole("button", { name: "단계 매핑하기" }, { timeout: 3000 }),
-    );
+    /* 사이트에서 첫 수집이 오면 다음 조회에서 설치됨으로 바뀝니다 */
+    setMeasurementMock(Number(projectId), { received: true });
+    expect(
+      await screen.findByText(
+        /수집을 받고 있어요 · https:\/\/shop.example.com/,
+        {},
+        { timeout: 5000 },
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "단계 매핑하기" }));
 
     expect(screen.getByRole("heading", { level: 1, name: "이벤트 단계 매핑" })).toBeInTheDocument();
     expect(screen.getByText("7개 중 7개 연결")).toBeInTheDocument();
@@ -82,6 +90,35 @@ describe("R01~R11 실측 분석 (임시 하드코딩 목데이터)", () => {
     await user.click(screen.getByRole("button", { name: "매핑 저장" }));
     expect(screen.getByRole("heading", { level: 1, name: "실측 퍼널" })).toBeInTheDocument();
     expect(screen.getByText("수집 중")).toBeInTheDocument();
+  }, 15000);
+
+  it("R04 — 5분 동안 수집이 오지 않으면 확인할 것을 보여준다", async () => {
+    const projectId = await createTestProject();
+    setMeasurementMock(Number(projectId), { key: "ep_0000000000aa" });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await renderAnalytics(projectId, "?view=connect");
+      await user.click(await screen.findByRole("button", { name: "설치 확인" }));
+      await act(() => vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS));
+      expect(screen.getByText("5분 동안 수집이 오지 않았어요")).toBeInTheDocument();
+      expect(
+        within(screen.getByRole("list", { name: "확인할 것" })).getAllByRole("listitem"),
+      ).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("배포 주소가 없는 프로젝트는 실측을 시작하지 않고 이유를 알려준다", async () => {
+    const projectId = await createTestProject();
+    setMeasurementMock(Number(projectId), { deployed: false });
+    await renderAnalytics(projectId);
+
+    expect(
+      await screen.findByRole("heading", { name: "배포된 사이트가 있어야 실측할 수 있어요" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "실측 데이터 연결하기" })).not.toBeInTheDocument();
   });
 
   it("R08 → R09~R11 — 차이 구간에서 원인 재현을 시작하고 결과 가설을 본다", async () => {
