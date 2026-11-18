@@ -87,6 +87,13 @@ export const ROUTES = {
     screens: "P17~P18",
     owner: "팀원",
   },
+  /* 참여자 응답 링크 (로그인 없음, 누르기만) — PART-02 */
+  participant: {
+    path: "/r/:token",
+    title: "참여 응답",
+    screens: "-",
+    owner: "팀원",
+  },
   sharedReport: {
     path: "/share/:shareId",
     title: "공유 리포트",

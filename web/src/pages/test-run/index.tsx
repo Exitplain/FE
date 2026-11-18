@@ -13,7 +13,6 @@ import { useToastStore } from "@/stores/useToastStore";
 import { ApiError } from "@/types/api.type";
 import type { PersonaRun } from "@/types/persona.type";
 import type { RunDetail } from "@/types/run.type";
-import { RUN_DEVICE } from "@/pages/new-test/utils/newTest";
 
 import RunProgress from "./components/RunProgress";
 import {
@@ -42,9 +41,6 @@ const PHASE_BADGE = {
   failed: { icon: "status-error", label: "실패", tone: "alert" },
   cancelled: { icon: "close", label: "중지됨", tone: "muted" },
 } as const satisfies Record<Exclude<RunPhase, "idle" | "stopped">, object>;
-
-/* 실행 조건 첫 항목 ("모바일 390") */
-const DEVICE = RUN_DEVICE;
 
 /*
   P08~P11 실행 화면 (/projects/:projectId/runs/:runId, 세션 라이브는 ?session=)
@@ -264,7 +260,6 @@ function RunDashboard({
     /* 세션이 시작돼야 과업을 알 수 있어 준비 중에는 뺍니다 */
     ...(tasks.length > 0 ? [`과업 ${tasks.length}개`] : []),
     /* Figma P10 은 기기 조건을 빼고 보여줍니다 */
-    ...(phase === "analyzing" ? [] : [DEVICE]),
     `세션 ${detail.progress.started_sessions} / ${detail.progress.expected_sessions}`,
   ].join(" · ");
   const ended = phase === "failed" || phase === "cancelled";

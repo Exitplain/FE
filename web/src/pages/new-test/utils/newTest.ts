@@ -182,19 +182,18 @@ export const SEGMENT_COUNT = 4;
 export const SEED_DEFAULT = 1;
 export const SEED_MAX = 3;
 /* 실행 기기 — 실행 조건의 맨 앞 항목 (실행 화면도 씁니다) */
-export const RUN_DEVICE = "모바일 390";
 /*
-  화면 너비 (P05b 기기). 기본은 모바일 390 (Figma P05b). 데스크톱용 사이트는 390 에서 레이아웃이 깨지므로 데스크톱을 고릅니다.
+  화면 너비 (P05b 기기). 기본은 데스크톱 1280 (팀 결정: 대부분 웹 사이트를 테스트). 모바일 사이트면 모바일 390 을 고릅니다.
   767 이하는 모바일로 봅니다 (BE plans·실측 기기 구분과 같은 기준)
 */
 export const VIEWPORTS = [
-  { value: "390", label: "모바일 390" },
   { value: "1280", label: "데스크톱 1280" },
+  { value: "390", label: "모바일 390" },
 ] as const;
 export function deviceLabel(width: number) {
   return width <= 767 ? `모바일 ${width}` : `데스크톱 ${width}`;
 }
-export function runConditions(seedCount: number, viewportWidth = 390) {
+export function runConditions(seedCount: number, viewportWidth = 1280) {
   return `${deviceLabel(viewportWidth)} · 동시 5세션 · 시드 ${seedCount}회 · 스텝 40`;
 }
 /* "항목 6개 더 보기"로 펼치는 실행 조건 */

@@ -99,7 +99,7 @@ const initialInput = (projectId: string | null, siteUrl: string): NewTestState =
   ages: ["any"],
   segmentCounts: evenSplit(panelSize("none", 0)),
   seedCount: SEED_DEFAULT,
-  viewportWidth: 390,
+  viewportWidth: 1280,
 });
 
 /* 패널 인원이 바뀌었을 때만 세그먼트 인원을 새로 나눈 값을 돌려줍니다 */

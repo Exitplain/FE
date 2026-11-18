@@ -200,7 +200,7 @@ export default function PersonaStep({
             />
           </div>
           <p className="pl-2 text-xs text-subtle">
-            모바일에 맞게 만든 사이트가 아니면 데스크톱을 골라요 (390 에서 화면이 깨질 수 있어요)
+            모바일 전용 사이트면 모바일 390 을 골라요 (데스크톱용 화면은 390 에서 깨질 수 있어요)
           </p>
           {/* 임시 라벨: Figma 에 시드 선택이 없어 BE 범위(1~3회)만 고르게 둡니다 */}
           <div className="flex items-center justify-between border-b border-line pb-1 pl-2">

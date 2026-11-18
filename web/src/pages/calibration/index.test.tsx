@@ -166,6 +166,18 @@ describe("K01~K04 보정", () => {
     expect(screen.getByRole("row", { name: /H-001/ })).toHaveTextContent("완료");
   });
 
+  it("PART-01 — 응답 링크를 만들면 목록에 나타나고 복사·닫기를 할 수 있다", async () => {
+    const user = userEvent.setup();
+    await renderCalibration(await createTestProject(), "?view=observe");
+
+    await user.click(await screen.findByRole("button", { name: "응답 링크 만들기" }));
+    const list = await screen.findByRole("list", { name: "응답 링크" });
+    expect(list).toHaveTextContent("첫 주문 완료보정용 · 받는 중 · 응답 0/50");
+    await user.click(within(list).getByRole("button", { name: "닫기" }));
+    expect(await within(list).findByText(/닫힘/)).toBeInTheDocument();
+    expect(within(list).queryByRole("button", { name: "링크 복사" })).not.toBeInTheDocument();
+  });
+
   it("참여자 코드 형식이 틀리면 저장하지 않고 안내한다", async () => {
     const user = userEvent.setup();
     await renderCalibration(await createTestProject(), "?view=observe");

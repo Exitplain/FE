@@ -170,3 +170,37 @@ export type ObservationInput = {
   cause?: string;
   purpose: "calibration" | "evaluation";
 };
+
+/* 참여자 응답 링크 (PART-01~05). 담당자가 만들고, 참여자는 로그인 없이 /r/{token} 에서 누르기만 해서 답합니다 */
+export type ParticipantLink = {
+  id: number;
+  token: string;
+  /* "/r/{token}" — 앱 주소 앞에 붙여 공유합니다 */
+  path: string;
+  task_id: string;
+  task_name: string;
+  purpose: "calibration" | "evaluation";
+  state: "open" | "disabled" | "expired" | "full";
+  responses: number;
+  max_responses: number;
+  expires_at: string;
+  created_at: string;
+};
+
+/* GET /api/v1/participant-links/{token} — 공개. 예측 수치는 담지 않습니다 */
+export type PublicParticipantPage = {
+  project_name: string;
+  site_url: string;
+  task_name: string;
+  screens: { id: string; name: string; screenshot_url: string | null }[];
+  reasons: { key: string; label: string }[];
+  expires_at: string;
+};
+
+export type ParticipantAnswer = {
+  client_id: string;
+  outcome: "success" | "dropout";
+  pain_stage_id?: string;
+  pain_cause?: string;
+  discomfort?: number;
+};
