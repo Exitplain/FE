@@ -1,4 +1,5 @@
 import type {
+  ReportScreens,
   ReportSessionDetail,
   ReportSessionKey,
   RunReport,
@@ -17,6 +18,14 @@ import axiosInstance from "./axiosInstance";
 export async function getRunReport(runId: string): Promise<RunReport> {
   const { data } = await axiosInstance.get<RunReport>(
     `/api/v1/runs/${encodeURIComponent(runId)}/reports`,
+  );
+  return data;
+}
+
+/* 화면 둘러보기 · 문제가 있었던 화면 · 감지된 마찰 (리포트 revision 마다 정해져 있음) */
+export async function getReportScreens(reportId: string): Promise<ReportScreens> {
+  const { data } = await axiosInstance.get<ReportScreens>(
+    `/api/v1/reports/${encodeURIComponent(reportId)}/screens`,
   );
   return data;
 }

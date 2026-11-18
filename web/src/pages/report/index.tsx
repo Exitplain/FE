@@ -31,7 +31,8 @@ import RetestModal from "./components/RetestModal";
 import SegmentHeatmap from "./components/SegmentHeatmap";
 import ShareModal from "./components/ShareModal";
 import TechnicalFailures from "./components/TechnicalFailures";
-import { useRunDetail, useRunReport } from "./hooks/useRunReport";
+import { FrictionCauses, ProblemScreens, ScreenWalkthrough } from "./components/ScreenSections";
+import { useReportScreens, useRunDetail, useRunReport } from "./hooks/useRunReport";
 import {
   causeRowsV1,
   describeReport,
@@ -46,6 +47,8 @@ import {
 */
 const SECTIONS = [
   { id: "summary", label: "요약" },
+  { id: "screens", label: "화면 둘러보기" },
+  { id: "problems", label: "문제 화면" },
   { id: "funnel", label: "예측 퍼널" },
   { id: "heatmap", label: "히트맵" },
   { id: "causes", label: "원인 분포" },
@@ -195,7 +198,7 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
       {report.data &&
         (task ? (
           /* 과업을 바꾸면 원인 펼침을 그 과업 기준으로 처음부터 */
-          <ReportBody key={task.task_id} task={task} />
+          <ReportBody key={task.task_id} task={task} reportId={report.data.report_id} />
         ) : (
           <ReportNoTasks />
         ))}
@@ -300,16 +303,38 @@ function ReportFooter({
   );
 }
 
-function ReportBody({ task }: { task: ReportTaskV1 }) {
+function ReportBody({ task, reportId }: { task: ReportTaskV1; reportId: string }) {
   const [allCauses, setAllCauses] = useState(false);
   const causes = causeRowsV1(task);
   const shownCauses = allCauses ? causes : causes.slice(0, CAUSE_PREVIEW);
   const funnel = funnelRowsV1(task);
   const hasHeatmap = heatmapV1(task).rows.length > 0;
+  /* 화면 둘러보기 (캡처가 있는 실행 리포트만). 마찰은 이탈하지 않은 세션까지 셉니다 */
+  const screens = useReportScreens(reportId);
+  const screenTask = screens.data?.available
+    ? screens.data.tasks.find((item) => item.task_id === task.task_id)
+    : undefined;
+  const [screenIndex, setScreenIndex] = useState(0);
+  const [causeView, setCauseView] = useState<"friction" | "dropout">("friction");
+  const showFriction = Boolean(screenTask) && causeView === "friction";
+  const openScreen = (screenId: string) => {
+    const index = screenTask?.screens.findIndex((s) => s.screen_id === screenId) ?? -1;
+    if (index < 0) return;
+    setScreenIndex(index);
+    /* 섹션 이동과 같게: 동작 줄이기 설정이면 바로 이동, scrollIntoView 가 없는 환경(jsdom)에서는 건너뜀 */
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    document
+      .getElementById("screens")
+      ?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  };
+  const hidden: SectionId[] = [
+    ...(hasHeatmap ? [] : (["heatmap"] as const)),
+    ...(screenTask ? [] : (["screens", "problems"] as const)),
+  ];
 
   return (
     <div className="flex flex-col gap-8">
-      <SectionNav hidden={hasHeatmap ? [] : ["heatmap"]} />
+      <SectionNav hidden={hidden} />
 
       <section id="summary" aria-labelledby="report-summary" className="scroll-mt-8">
         <h2 id="report-summary" className="sr-only">
@@ -317,6 +342,26 @@ function ReportBody({ task }: { task: ReportTaskV1 }) {
         </h2>
         <KpiRow task={task} />
       </section>
+
+      {screenTask && (
+        <>
+          <ReportSection
+            id="screens"
+            title="화면 둘러보기"
+            info="에이전트가 실제로 거쳐 간 화면이에요. 화면마다 도달·이탈 세션과 감지된 마찰을 같이 보여 줘요."
+            aside="← → 키로도 넘길 수 있어요"
+          >
+            <ScreenWalkthrough task={screenTask} selected={screenIndex} onSelect={setScreenIndex} />
+          </ReportSection>
+          <ReportSection
+            id="problems"
+            title="문제가 있었던 화면"
+            info="마찰이 감지된 세션이 많은 화면 순서예요. 목표에 도달한 세션이 겪은 마찰도 같이 세요."
+          >
+            <ProblemScreens task={screenTask} onOpen={openScreen} />
+          </ReportSection>
+        </>
+      )}
 
       <div className="mt-2 flex max-w-3xl flex-col gap-12">
         <ReportSection
@@ -334,10 +379,37 @@ function ReportBody({ task }: { task: ReportTaskV1 }) {
 
         <ReportSection
           id="causes"
-          title="이탈 원인 분포"
-          info="가상 이탈 세션의 주 원인 비율이에요. 기술 실패는 넣지 않아요."
+          title="원인 분포"
+          info="감지된 마찰은 모든 세션이 겪은 마찰, 이탈 원인은 가상 이탈 세션의 주 원인이에요. 기술 실패는 넣지 않아요."
         >
-          {causes.length > 0 ? (
+          {screenTask && (
+            <div role="group" aria-label="원인 보기" className="flex gap-1.5">
+              {(
+                [
+                  ["friction", "감지된 마찰 (모든 세션)"],
+                  ["dropout", "이탈 원인 (이탈 세션만)"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={causeView === value}
+                  onClick={() => setCauseView(value)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium",
+                    causeView === value
+                      ? "bg-ink text-white"
+                      : "bg-gray-100 text-subtle hover:text-ink",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {showFriction && screenTask ? (
+            <FrictionCauses task={screenTask} onOpen={openScreen} />
+          ) : causes.length > 0 ? (
             <>
               <RangeBarChart
                 title="이탈 원인 분포"

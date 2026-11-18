@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { queryKeys } from "@/apis/queryKeys";
-import { getRunReport } from "@/apis/report.api";
+import { getReportScreens, getRunReport } from "@/apis/report.api";
 import { getRunDetail } from "@/apis/run.api";
 import { POLLING_INTERVAL_MS } from "@/constants/polling";
 import { ApiError } from "@/types/api.type";
@@ -17,6 +17,17 @@ export function useRunReport(runId: string) {
   return useQuery({
     queryKey: queryKeys.reports.byRun(runId),
     queryFn: () => getRunReport(runId),
+    retry: retryUnlessFinal,
+  });
+}
+
+/* 화면 둘러보기 — GET /api/v1/reports/{id}/screens (revision 마다 내용이 정해져 있어 다시 받지 않습니다) */
+export function useReportScreens(reportId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.reports.screens(reportId ?? ""),
+    queryFn: () => getReportScreens(reportId ?? ""),
+    enabled: Boolean(reportId),
+    staleTime: Infinity,
     retry: retryUnlessFinal,
   });
 }

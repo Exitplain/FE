@@ -236,3 +236,65 @@ export type ReportSessionDetail = {
 
 /* 세션 상세 주소의 세 값 (리포트 세션 목록 한 줄의 task_id · seed · persona_id) */
 export type ReportSessionKey = { taskId: string; seed: number; personaId: string };
+
+/*
+  GET /api/v1/reports/{id}/screens — 화면 둘러보기 · 문제가 있었던 화면 · 감지된 마찰 (BE reports/screens.py)
+  마찰은 목표에 도달한 세션이 겪은 것도 셉니다. screenshot_url 은 /api/v1/observations/{id}/screenshot.
+*/
+export type ScreenFriction = {
+  category: string;
+  name: string;
+  sessions: number;
+  /* 이 원인이 주 원인으로 이탈한 세션 */
+  dropouts: number;
+  detail: string;
+  screenshot_url: string | null;
+};
+
+export type ReportScreen = {
+  screen_id: string;
+  name: string;
+  order: number;
+  reached: number;
+  dropouts_here: number;
+  is_goal: boolean;
+  screenshot_url: string | null;
+  frictions: ScreenFriction[];
+  /* 이 화면에서 마찰을 하나라도 겪은 세션 수 */
+  friction_sessions: number;
+};
+
+export type ReportScreenCause = {
+  category: string;
+  name: string;
+  sessions: number;
+  dropouts: number;
+  screens: { screen_id: string; name: string; sessions: number; screenshot_url: string | null }[];
+};
+
+export type ReportScreensTask = {
+  task_id: string;
+  name: string;
+  valid_sessions: number;
+  screens: ReportScreen[];
+  problems: {
+    screen_id: string;
+    name: string;
+    screenshot_url: string | null;
+    reached: number;
+    dropouts_here: number;
+    friction_sessions: number;
+    top: ScreenFriction[];
+  }[];
+  causes: ReportScreenCause[];
+};
+
+export type ReportScreens = {
+  report_id: string;
+  /* 화면 캡처가 없는 예전·샘플 리포트면 false */
+  available: boolean;
+  reason: string | null;
+  message: string | null;
+  tasks: ReportScreensTask[];
+  note: string;
+};

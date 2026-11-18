@@ -5,7 +5,7 @@ import type { RunDetail, RunItem } from "@/types/run.type";
 
 import { MockApiError, runList, snapshot } from "../personaMock";
 import { runEventsV1, runProgressV1, runSessionsV1 } from "../runV1Mock";
-import { reportMarkdownV1, runIdOfReport, runReportV1 } from "../reportV1Mock";
+import { reportMarkdownV1, reportScreensV1, runIdOfReport, runReportV1 } from "../reportV1Mock";
 
 /*
   제품 API 실행 상태·리포트·내보내기·공유 mock (P12·P13·P20·P21).
@@ -110,6 +110,13 @@ export const reportHandlers = [
   http.get("*/api/v1/runs/:runId/reports", ({ params }) => {
     const report = reportOf(String(params.runId));
     return report ? HttpResponse.json(report) : notFound("이 실행의 리포트가 아직 없습니다.");
+  }),
+  http.get("*/api/v1/reports/:reportId/screens", ({ params }) => {
+    try {
+      return HttpResponse.json(reportScreensV1(String(params.reportId)));
+    } catch {
+      return notFound("리포트를 찾을 수 없습니다.");
+    }
   }),
   http.get("*/api/v1/reports/:reportId/export.md", ({ params }) => {
     const report = exportedReport(String(params.reportId));
