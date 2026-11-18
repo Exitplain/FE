@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import Button from "@/components/Button/Button";
+import SegmentedTabs from "@/components/SegmentedTabs/SegmentedTabs";
 import Icon from "@/components/Icon/Icon";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 import { cn } from "@/utils/cn";
@@ -16,6 +17,7 @@ import {
   SEED_MAX,
   segmentTotalMessage,
   sum,
+  VIEWPORTS,
 } from "../utils/newTest";
 import { StepFooter } from "./StepSection";
 
@@ -88,18 +90,29 @@ export default function PersonaStep({
   onNext,
   saving = false,
 }: PersonaStepProps) {
-  const { plan, segmentCounts, seedCount, loginMode, accountCount, setSegmentCount, setSeedCount } =
-    useNewTestStore(
-      useShallow((state) => ({
-        plan: state.plan,
-        segmentCounts: state.segmentCounts,
-        seedCount: state.seedCount,
-        loginMode: state.loginMode,
-        accountCount: state.accounts.length,
-        setSegmentCount: state.setSegmentCount,
-        setSeedCount: state.setSeedCount,
-      })),
-    );
+  const {
+    plan,
+    segmentCounts,
+    seedCount,
+    viewportWidth,
+    loginMode,
+    accountCount,
+    setSegmentCount,
+    setSeedCount,
+    setViewportWidth,
+  } = useNewTestStore(
+    useShallow((state) => ({
+      plan: state.plan,
+      segmentCounts: state.segmentCounts,
+      seedCount: state.seedCount,
+      viewportWidth: state.viewportWidth,
+      setViewportWidth: state.setViewportWidth,
+      loginMode: state.loginMode,
+      accountCount: state.accounts.length,
+      setSegmentCount: state.setSegmentCount,
+      setSeedCount: state.setSeedCount,
+    })),
+  );
   const [showDetails, setShowDetails] = useState(false);
   const range = agentRange(plan, loginMode, accountCount);
   const seedRange = plan?.seedRange ?? { min: SEED_DEFAULT, max: SEED_MAX };
@@ -176,7 +189,19 @@ export default function PersonaStep({
           실행 조건
         </h2>
         <div className="flex flex-col gap-3">
-          <p className="pl-2 text-xs text-subtle">{runConditions(seedCount)}</p>
+          <p className="pl-2 text-xs text-subtle">{runConditions(seedCount, viewportWidth)}</p>
+          <div className="flex items-center justify-between border-b border-line pb-1 pl-2">
+            <span className="text-sm text-gray-800">기기</span>
+            <SegmentedTabs
+              label="기기"
+              options={VIEWPORTS}
+              value={String(viewportWidth)}
+              onChange={(value) => setViewportWidth(Number(value))}
+            />
+          </div>
+          <p className="pl-2 text-xs text-subtle">
+            모바일에 맞게 만든 사이트가 아니면 데스크톱을 골라요 (390 에서 화면이 깨질 수 있어요)
+          </p>
           {/* 임시 라벨: Figma 에 시드 선택이 없어 BE 범위(1~3회)만 고르게 둡니다 */}
           <div className="flex items-center justify-between border-b border-line pb-1 pl-2">
             <span className="text-sm text-gray-800">시드</span>

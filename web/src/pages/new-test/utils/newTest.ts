@@ -109,6 +109,8 @@ export type WizardPlan = {
   segmentIds: string[];
   /* 서버 계획에 저장된 시드 횟수와 고를 수 있는 범위 */
   seedCount: number;
+  /* 서버 계획에 저장된 화면 너비 (px) */
+  viewportWidth: number;
   seedRange: { min: number; max: number };
   review: PlanReview;
   check: SiteCheck | null;
@@ -132,6 +134,7 @@ export function toWizardPlan(
     ...personaRange(plan),
     segmentIds: plan.options.capabilities.segment_ids,
     seedCount: plan.limits.seed_count,
+    viewportWidth: plan.limits.viewport_width,
     seedRange: plan.options.capabilities.limits.seed_count ?? { min: SEED_DEFAULT, max: SEED_MAX },
     review: plan.review,
     check,
@@ -156,6 +159,7 @@ export function withServerPlan(current: WizardPlan, plan: Plan): WizardPlan {
     review: plan.review,
     ...personaRange(plan),
     seedCount: plan.limits.seed_count,
+    viewportWidth: plan.limits.viewport_width,
   };
 }
 
@@ -179,8 +183,19 @@ export const SEED_DEFAULT = 1;
 export const SEED_MAX = 3;
 /* 실행 기기 — 실행 조건의 맨 앞 항목 (실행 화면도 씁니다) */
 export const RUN_DEVICE = "모바일 390";
-export function runConditions(seedCount: number) {
-  return `${RUN_DEVICE} · 동시 5세션 · 시드 ${seedCount}회 · 스텝 40`;
+/*
+  화면 너비 (P05b 기기). 기본은 모바일 390 (Figma P05b). 데스크톱용 사이트는 390 에서 레이아웃이 깨지므로 데스크톱을 고릅니다.
+  767 이하는 모바일로 봅니다 (BE plans·실측 기기 구분과 같은 기준)
+*/
+export const VIEWPORTS = [
+  { value: "390", label: "모바일 390" },
+  { value: "1280", label: "데스크톱 1280" },
+] as const;
+export function deviceLabel(width: number) {
+  return width <= 767 ? `모바일 ${width}` : `데스크톱 ${width}`;
+}
+export function runConditions(seedCount: number, viewportWidth = 390) {
+  return `${deviceLabel(viewportWidth)} · 동시 5세션 · 시드 ${seedCount}회 · 스텝 40`;
 }
 /* "항목 6개 더 보기"로 펼치는 실행 조건 */
 export const RUN_CONDITION_DETAILS = [
@@ -346,10 +361,19 @@ export function taskTargetPatch(
   P05b 세그먼트 인원·시드를 계획에 저장하는 본문 (서버 segment_ids 순서, 4개).
   시드는 서버 계획 값과 다를 때만 싣습니다 (limits 는 보낸 키만 바뀝니다).
 */
-export function segmentsPatch(plan: WizardPlan, counts: number[], seedCount = plan.seedCount) {
+export function segmentsPatch(
+  plan: WizardPlan,
+  counts: number[],
+  seedCount = plan.seedCount,
+  viewportWidth = plan.viewportWidth,
+) {
+  const limits = {
+    ...(seedCount !== plan.seedCount && { seed_count: seedCount }),
+    ...(viewportWidth !== plan.viewportWidth && { viewport_width: viewportWidth }),
+  };
   return {
     segments: plan.segmentIds.map((id, index) => ({ id, count: counts[index] ?? 0 })),
-    ...(seedCount !== plan.seedCount && { limits: { seed_count: seedCount } }),
+    ...(Object.keys(limits).length > 0 && { limits }),
   };
 }
 

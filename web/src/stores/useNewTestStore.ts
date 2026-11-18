@@ -50,6 +50,8 @@ type NewTestState = {
   segmentCounts: number[];
   /* P05b 시드 횟수 (서버 계획 limits.seed_count 와 다르면 "다음"에서 저장) */
   seedCount: number;
+  /* P05b 화면 너비 (서버 계획 limits.viewport_width 와 다르면 "다음"에서 저장) */
+  viewportWidth: number;
 };
 
 type NewTestActions = {
@@ -76,6 +78,7 @@ type NewTestActions = {
   setAges: (ages: AgeKey[]) => void;
   setSegmentCount: (index: number, count: number) => void;
   setSeedCount: (count: number) => void;
+  setViewportWidth: (width: number) => void;
 };
 
 const initialInput = (projectId: string | null, siteUrl: string): NewTestState => ({
@@ -96,6 +99,7 @@ const initialInput = (projectId: string | null, siteUrl: string): NewTestState =
   ages: ["any"],
   segmentCounts: evenSplit(panelSize("none", 0)),
   seedCount: SEED_DEFAULT,
+  viewportWidth: 390,
 });
 
 /* 패널 인원이 바뀌었을 때만 세그먼트 인원을 새로 나눈 값을 돌려줍니다 */
@@ -173,6 +177,7 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
             ? state.segmentCounts
             : counts,
         seedCount: Math.min(Math.max(state.seedCount, plan.seedRange.min), plan.seedRange.max),
+        viewportWidth: plan.viewportWidth,
       };
     }),
   updatePlan: (update) => set((state) => (state.plan ? { plan: update(state.plan) } : state)),
@@ -201,4 +206,5 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
       ),
     })),
   setSeedCount: (seedCount) => set({ seedCount }),
+  setViewportWidth: (viewportWidth) => set({ viewportWidth }),
 }));
