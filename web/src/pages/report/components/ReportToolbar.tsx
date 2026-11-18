@@ -7,6 +7,7 @@ import { buildPath } from "@/constants/routes";
 import type { ReportTaskV1 } from "@/types/report.type";
 import { ACTIVE_RUN_STATUSES, type RunItem, type RunStatus } from "@/types/run.type";
 
+import { ALL_TASKS } from "../utils/reportData";
 import { formatDay } from "../utils/reportView";
 
 type ReportToolbarProps = {
@@ -75,7 +76,8 @@ export default function ReportToolbar({
   });
 
   /* Figma: "첫 주문 완료 · 3차 · 11월 7일 · 완료" */
-  const taskName = tasks.find((task) => task.task_id === taskId)?.name;
+  const taskName =
+    taskId === ALL_TASKS ? "전체 과업" : tasks.find((task) => task.task_id === taskId)?.name;
   const runLabel = [
     taskName,
     run ? `${run.sequence_no}차` : null,
@@ -115,6 +117,16 @@ export default function ReportToolbar({
         <div className="flex items-center gap-3">
           <span className="text-caption font-medium text-gray-800">과업</span>
           <div role="radiogroup" aria-label="과업" className="flex flex-wrap gap-2">
+            {/* 과업이 둘 이상이면 맨 앞에 "전체" (과업 카드로 비교) */}
+            {tasks.length > 1 && (
+              <ChoiceChip
+                kind="radio"
+                selected={taskId === ALL_TASKS}
+                onClick={() => onTaskChange(ALL_TASKS)}
+              >
+                전체
+              </ChoiceChip>
+            )}
             {tasks.map((task) => (
               <ChoiceChip
                 key={task.task_id}
