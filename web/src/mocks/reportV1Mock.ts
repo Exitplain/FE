@@ -3,6 +3,8 @@ import type {
   FunnelKey,
   ReportCauseV1,
   ReportData,
+  ReportScreens,
+  ReportScreensTask,
   ReportSessionRow,
   ReportTaskV1,
   ReportTechnicalFailure,
@@ -371,4 +373,90 @@ export function reportMarkdownV1(runId: string): string {
     ...data.notes.map((note) => `> ${note}`),
     "",
   ].join("\n");
+}
+
+/*
+  GET /api/v1/reports/{id}/screens mock (BE reports/screens.py 모양). 개발 mock 에는 화면 캡처가 없어
+  screenshot_url 은 비우고("캡처 없음"), 7단계 퍼널의 도달 단계를 화면으로, 원인을 이탈이 많은 화면의 마찰로 씁니다.
+*/
+export function reportScreensV1(reportId: string): ReportScreens {
+  const runId = runIdOfReport(reportId);
+  if (!runId) throw new Error("unknown report");
+  const report = runReportV1(runId);
+  const tasks = report.data.tasks.map((task): ReportScreensTask => {
+    const stages = task.funnel.filter((stage) => stage.reached > 0);
+    const causes = task.causes.filter((cause) => cause.sessions_with_cause > 0);
+    const worst = stages.length > 1 ? stages[stages.length - 2] : stages[0];
+    const screens = stages.map((stage, order) => {
+      const next = stages[order + 1];
+      const frictions =
+        stage === worst
+          ? causes.map((cause) => ({
+              category: cause.key,
+              name: cause.name,
+              sessions: cause.sessions_with_cause,
+              dropouts: cause.dropouts,
+              detail: "",
+              screenshot_url: null,
+            }))
+          : [];
+      return {
+        screen_id: `/${stage.key}`,
+        name: stage.name,
+        order,
+        reached: stage.reached,
+        dropouts_here: next ? Math.max(0, stage.reached - next.reached) : 0,
+        is_goal: stage.key === "complete",
+        screenshot_url: null,
+        frictions,
+        friction_sessions: Math.max(0, ...frictions.map((f) => f.sessions)),
+      };
+    });
+    const problems = screens
+      .filter((s) => s.frictions.length > 0 || s.dropouts_here > 0)
+      .sort(
+        (a, b) => b.friction_sessions - a.friction_sessions || b.dropouts_here - a.dropouts_here,
+      )
+      .slice(0, 5)
+      .map((s) => ({
+        screen_id: s.screen_id,
+        name: s.name,
+        screenshot_url: null,
+        reached: s.reached,
+        dropouts_here: s.dropouts_here,
+        friction_sessions: s.friction_sessions,
+        top: s.frictions.slice(0, 1),
+      }));
+    return {
+      task_id: task.task_id,
+      name: task.name,
+      valid_sessions: task.valid_sessions,
+      screens,
+      problems,
+      causes: worst
+        ? causes.map((cause) => ({
+            category: cause.key,
+            name: cause.name,
+            sessions: cause.sessions_with_cause,
+            dropouts: cause.dropouts,
+            screens: [
+              {
+                screen_id: `/${worst.key}`,
+                name: worst.name,
+                sessions: cause.sessions_with_cause,
+                screenshot_url: null,
+              },
+            ],
+          }))
+        : [],
+    };
+  });
+  return {
+    report_id: reportId,
+    available: true,
+    reason: null,
+    message: null,
+    tasks,
+    note: "가상 페르소나의 모의 결과입니다. 감지된 마찰은 목표에 도달한 세션이 겪은 것도 셉니다.",
+  };
 }

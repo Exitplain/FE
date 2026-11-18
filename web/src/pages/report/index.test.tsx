@@ -397,6 +397,197 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
   });
 });
 
+describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens)", () => {
+  const friction = (category: string, name: string, sessions: number, dropouts: number) => ({
+    category,
+    name,
+    sessions,
+    dropouts,
+    detail: category === "input_burden" ? "필수 입력 8칸 (허용 4칸)" : "",
+    screenshot_url: `/api/v1/observations/${sessions}/screenshot`,
+  });
+  const screens = (reportId: string) => ({
+    report_id: reportId,
+    available: true,
+    reason: null,
+    message: null,
+    note: "",
+    tasks: [
+      {
+        task_id: "order",
+        name: "첫 주문",
+        valid_sessions: 12,
+        screens: [
+          {
+            screen_id: "/",
+            name: "첫 화면",
+            order: 0,
+            reached: 12,
+            dropouts_here: 0,
+            is_goal: false,
+            screenshot_url: "/api/v1/observations/1/screenshot",
+            frictions: [],
+            friction_sessions: 0,
+          },
+          {
+            screen_id: "/cart",
+            name: "장바구니",
+            order: 1,
+            reached: 11,
+            dropouts_here: 1,
+            is_goal: false,
+            screenshot_url: "/api/v1/observations/2/screenshot",
+            frictions: [friction("cost", "비용 충격", 5, 1)],
+            friction_sessions: 5,
+          },
+          {
+            screen_id: "/signup",
+            name: "회원가입",
+            order: 2,
+            reached: 10,
+            dropouts_here: 7,
+            is_goal: false,
+            screenshot_url: "/api/v1/observations/3/screenshot",
+            frictions: [friction("input_burden", "입력 부담", 9, 7)],
+            friction_sessions: 9,
+          },
+        ],
+        problems: [
+          {
+            screen_id: "/signup",
+            name: "회원가입",
+            screenshot_url: "/api/v1/observations/3/screenshot",
+            reached: 10,
+            dropouts_here: 7,
+            friction_sessions: 9,
+            top: [friction("input_burden", "입력 부담", 9, 7)],
+          },
+          {
+            screen_id: "/cart",
+            name: "장바구니",
+            screenshot_url: "/api/v1/observations/2/screenshot",
+            reached: 11,
+            dropouts_here: 1,
+            friction_sessions: 5,
+            top: [friction("cost", "비용 충격", 5, 1)],
+          },
+        ],
+        causes: [
+          {
+            category: "input_burden",
+            name: "입력 부담",
+            sessions: 9,
+            dropouts: 7,
+            screens: [
+              {
+                screen_id: "/signup",
+                name: "회원가입",
+                sessions: 9,
+                screenshot_url: "/api/v1/observations/3/screenshot",
+              },
+            ],
+          },
+          {
+            category: "cost",
+            name: "비용 충격",
+            sessions: 5,
+            dropouts: 1,
+            screens: [
+              {
+                screen_id: "/cart",
+                name: "장바구니",
+                sessions: 5,
+                screenshot_url: "/api/v1/observations/2/screenshot",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("실제 화면 캡처를 넘겨 보고, 화면마다 도달·이탈과 감지된 마찰을 보여 준다", async () => {
+    server.use(
+      http.get("*/api/v1/reports/:reportId/screens", ({ params }) =>
+        HttpResponse.json(screens(String(params.reportId))),
+      ),
+    );
+    const user = userEvent.setup();
+    serveReport();
+    renderReport(await completeRun());
+
+    const walkthrough = await screen.findByRole("region", { name: "화면 둘러보기" });
+    expect(within(walkthrough).getByRole("img", { name: "첫 화면 화면 캡처" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("/api/v1/observations/1/screenshot"),
+    );
+    expect(within(walkthrough).getByText("이 화면에서 감지된 마찰이 없어요")).toBeInTheDocument();
+
+    await user.click(within(walkthrough).getByRole("button", { name: "다음 화면" }));
+    await user.click(within(walkthrough).getByRole("button", { name: "다음 화면" }));
+    expect(within(walkthrough).getByText("도달 10세션 · 여기서 이탈 7세션")).toBeInTheDocument();
+    expect(within(walkthrough).getByText("입력 부담 · 9세션")).toBeInTheDocument();
+    expect(within(walkthrough).getByText("필수 입력 8칸 (허용 4칸)")).toBeInTheDocument();
+    expect(within(walkthrough).getByRole("button", { name: "회원가입 화면 보기" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    /* 문제가 있었던 화면: 마찰이 많은 순서, 누르면 그 화면으로 */
+    const problems = screen.getByRole("region", { name: "문제가 있었던 화면" });
+    const cards = within(problems)
+      .getAllByRole("listitem")
+      .map((item) => within(item).getByRole("button"));
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent("회원가입/signup입력 부담 · 9세션이탈 7");
+    expect(cards[1]).toHaveTextContent("장바구니/cart비용 충격 · 5세션이탈 1");
+    await user.click(cards[1]);
+    expect(within(walkthrough).getByRole("button", { name: "장바구니 화면 보기" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("원인 분포는 감지된 마찰(모든 세션)이 기본이고 이탈 원인으로 바꿀 수 있다", async () => {
+    server.use(
+      http.get("*/api/v1/reports/:reportId/screens", ({ params }) =>
+        HttpResponse.json(screens(String(params.reportId))),
+      ),
+    );
+    const user = userEvent.setup();
+    serveReport();
+    renderReport(await completeRun());
+
+    const list = await screen.findByRole("list", { name: "감지된 마찰 분포" });
+    expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("입력 부담9세션 · 이탈 7");
+    await user.click(screen.getByRole("button", { name: "이탈 원인 (이탈 세션만)" }));
+    expect(screen.queryByRole("list", { name: "감지된 마찰 분포" })).not.toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "이탈 원인 분포" })).toBeInTheDocument();
+  });
+
+  it("캡처가 없는 예전·샘플 리포트는 화면 둘러보기를 숨기고 이탈 원인만 보여 준다", async () => {
+    server.use(
+      http.get("*/api/v1/reports/:reportId/screens", ({ params }) =>
+        HttpResponse.json({
+          report_id: params.reportId,
+          available: false,
+          reason: "NO_SCREENSHOTS",
+          message: "",
+          tasks: [],
+          note: "",
+        }),
+      ),
+    );
+    serveReport();
+    renderReport(await completeRun());
+    expect(await screen.findByRole("table", { name: "이탈 원인 분포" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "화면 둘러보기" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "이탈 원인 (이탈 세션만)" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("P20 공유 링크", () => {
   it("쓸 수 있는 링크가 없으면 만들고, 다시 열면 같은 링크를 쓴다", async () => {
     let created = 0;
