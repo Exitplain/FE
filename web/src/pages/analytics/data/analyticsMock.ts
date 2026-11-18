@@ -32,26 +32,6 @@ export const INSTALL_CHECKS = [
 
 export const FUNNEL_STAGES = ["랜딩", "탐색", "상세", "장바구니", "가입", "결제 정보", "완료"];
 
-/* R05 이벤트 단계 매핑 — 수집된 단계 ID → 사전 테스트 퍼널 단계 */
-export type MappingRow = {
-  eventId: string;
-  /* FUNNEL_STAGES 의 위치. null 이면 매핑 안 함 */
-  stage: number | null;
-  events: number;
-  suggestion: "일치" | "이름 유사" | "후보 없음";
-};
-
-export const MAPPING_ROWS: MappingRow[] = [
-  { eventId: "step_landing", stage: 0, events: 1240, suggestion: "일치" },
-  { eventId: "step_browse", stage: 1, events: 1104, suggestion: "일치" },
-  { eventId: "step_detail", stage: 2, events: 930, suggestion: "일치" },
-  { eventId: "step_cart", stage: 3, events: 546, suggestion: "일치" },
-  { eventId: "step_signup", stage: 4, events: 372, suggestion: "일치" },
-  { eventId: "step_payment_info", stage: 5, events: 322, suggestion: "이름 유사" },
-  { eventId: "step_done", stage: 6, events: 298, suggestion: "일치" },
-  { eventId: "step_coupon", stage: null, events: 88, suggestion: "후보 없음" },
-];
-
 export type Period = "7" | "14" | "30";
 export type Device = "all" | "mobile" | "desktop";
 

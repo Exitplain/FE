@@ -6,12 +6,11 @@ import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader"
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
-import { useToastStore } from "@/stores/useToastStore";
 
 import CompareView from "./components/CompareView";
 import ConnectView, { NotConnected, NotDeployed } from "./components/ConnectView";
 import FunnelView from "./components/FunnelView";
-import MappingView from "./components/MappingView";
+import MappingStep from "./components/MappingStep";
 import {
   ReproduceResult,
   ReproduceRunning,
@@ -21,7 +20,6 @@ import {
 import {
   COMPARE_TASKS,
   type Device,
-  MAPPING_ROWS,
   type Period,
   REPRODUCE_OUTCOMES,
   REPRODUCE_SEGMENTS,
@@ -53,7 +51,7 @@ const dayFormat = new Intl.DateTimeFormat("ko-KR", {
 
 /*
   R01~R11 실측 분석 (/projects/:projectId/analytics?view=)
-  설치(R01~R04)는 실제 API(BE measurements)를 씁니다. 매핑 이후는 아직 하드코딩 목데이터(data/analyticsMock.ts)입니다.
+  설치(R01~R04)·단계 매핑(R05)은 실제 API(BE measurements)를 씁니다. 퍼널(R06) 이후는 아직 하드코딩 목데이터(data/analyticsMock.ts)입니다.
   - 배포 주소 없음: 실측 불가 안내 (코드만 받은 프로젝트 등)
   - 미연결: E03 → 연결(R01~R04) → 단계 매핑(R05) → 수집 중(E09)
   - 연결됨: 실측 퍼널(R06·R07) → 예측 vs 실측(R08) → 원인 재현(R09~R11) → 보정(K01)
@@ -84,7 +82,6 @@ function Analytics({ project }: { project: CurrentProject }) {
   const [period, setPeriod] = useState<Period>("7");
   const [device, setDevice] = useState<Device>("all");
   const [taskId, setTaskId] = useState(COMPARE_TASKS[0].id);
-  const [mapping, setMapping] = useState(MAPPING_ROWS);
   const [gapStage, setGapStage] = useState("장바구니");
   const [segments, setSegments] = useState(REPRODUCE_SEGMENTS.map((segment) => segment.id));
   const [sessions, setSessions] = useState<ReproduceSession[]>([]);
@@ -194,42 +191,15 @@ function Analytics({ project }: { project: CurrentProject }) {
 
   if (view === "mapping") {
     return (
-      <div className="flex flex-col gap-12">
-        <ProjectPageHeader
-          projectId={project.id}
-          breadcrumb={crumb}
-          title="이벤트 단계 매핑"
-          description="실측 이벤트를 퍼널 단계에 연결해요 · 비교 기준이에요"
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => goTo(status === "unconnected" ? "connect" : "funnel")}
-              >
-                취소
-              </Button>
-              <Button
-                onClick={() => {
-                  useAnalyticsMockStore.getState().connect(project.id);
-                  useToastStore.getState().show("매핑을 저장했어요");
-                  goTo("funnel");
-                }}
-              >
-                매핑 저장
-              </Button>
-            </>
-          }
-          activeTab="analytics"
-        />
-        <MappingView
-          rows={mapping}
-          onChange={(eventId, stage) =>
-            setMapping((rows) =>
-              rows.map((row) => (row.eventId === eventId ? { ...row, stage } : row)),
-            )
-          }
-        />
-      </div>
+      <MappingStep
+        projectId={project.v1Id}
+        breadcrumb={crumb}
+        onCancel={() => goTo(status === "unconnected" ? "connect" : "funnel")}
+        onSaved={() => {
+          useAnalyticsMockStore.getState().connect(project.id);
+          goTo("funnel");
+        }}
+      />
     );
   }
 
