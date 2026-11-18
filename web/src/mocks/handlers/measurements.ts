@@ -311,7 +311,19 @@ function funnelOf(projectId: number, s: Stored, days: string, device: string): M
     until: until.toISOString(),
     min_sample: MIN_SAMPLE,
     report: s.predicted
-      ? { report_id: "report-mock-1", created_at: "2026-11-07T09:00:00+09:00", run_sequence: 3 }
+      ? {
+          report_id: "report-mock-1",
+          created_at: "2026-11-07T09:00:00+09:00",
+          run_sequence: 3,
+          run_id: "run-mock-base",
+          plan_revision_id: "plan-rev-mock",
+          segments: [
+            { id: "segment_1", name: "빠른 구매형", count: 5 },
+            { id: "segment_2", name: "꼼꼼한 비교형", count: 5 },
+            { id: "segment_3", name: "가격 민감형", count: 5 },
+            { id: "segment_4", name: "신중한 첫 방문형", count: 5 },
+          ],
+        }
       : null,
     mapping_saved: Boolean(s.savedAt),
     ...(s.predicted

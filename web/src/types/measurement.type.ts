@@ -124,7 +124,15 @@ export type MeasurementFunnel = {
   since: string;
   until: string;
   min_sample: number;
-  report: { report_id: string; created_at: string; run_sequence: number | null } | null;
+  report: {
+    report_id: string;
+    created_at: string;
+    run_sequence: number | null;
+    /* 원인 재현(R09)이 쓰는 값. 실행 없이 만든 리포트면 run_id 가 null 이라 재현할 수 없습니다 */
+    run_id: string | null;
+    plan_revision_id: string;
+    segments: { id: string; name: string; count: number }[];
+  } | null;
   mapping_saved: boolean;
   reason?: "NO_PREDICTION";
   message?: string;
