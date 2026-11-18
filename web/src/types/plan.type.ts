@@ -229,6 +229,14 @@ export type RunCreateRequest = {
   plan_revision_id: string;
   base_run_id?: string | null;
   change_note?: string;
+  /* 원인 재현(R09): 있으면 cause_repro 실행. base_run_id(비교한 완료 실행)가 필요합니다 */
+  reproduce?: {
+    task_id: string;
+    segment_ids: string[];
+    stage_id?: string;
+    stage_name?: string;
+    seed_count?: number;
+  };
 };
 
 export type RunCreated = { run_id: string; status: "queued"; status_url: string };

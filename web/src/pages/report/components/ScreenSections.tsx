@@ -205,11 +205,7 @@ export function ProblemScreens({
             onClick={() => onOpen(problem.screen_id)}
             className="flex w-full flex-col gap-2.5 rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-gray-300"
           >
-            <Shot
-              url={problem.screenshot_url}
-              alt={`${problem.name} 화면 캡처`}
-              className="h-40"
-            />
+            <Shot url={problem.screenshot_url} alt={`${problem.name} 화면 캡처`} className="h-40" />
             <span className="flex items-baseline gap-1.5">
               <span className="text-sm font-bold text-ink">{problem.name}</span>
               <span className="text-xs text-muted">{problem.screen_id}</span>

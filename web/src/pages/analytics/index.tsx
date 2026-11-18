@@ -1,11 +1,12 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
+import { createRun } from "@/apis/plan.api";
 import { queryKeys } from "@/apis/queryKeys";
 import { buildPath } from "@/constants/routes";
 import type { FunnelDays, FunnelDevice, FunnelStageCompare } from "@/types/measurement.type";
@@ -14,15 +15,9 @@ import CompareView from "./components/CompareView";
 import ConnectView, { NotConnected, NotDeployed } from "./components/ConnectView";
 import FunnelView from "./components/FunnelView";
 import MappingStep from "./components/MappingStep";
-import {
-  ReproduceResult,
-  ReproduceRunning,
-  type ReproduceSession,
-  ReproduceSetup,
-} from "./components/ReproduceViews";
-import { REPRODUCE_OUTCOMES, REPRODUCE_SEGMENTS } from "./data/analyticsMock";
+import { ReproduceResult, ReproduceRunning, ReproduceSetup } from "./components/ReproduceViews";
 import { useMeasurement, useMeasurementFunnel } from "./hooks/useMeasurement";
-import { formatError } from "./utils/funnel";
+import { formatError, reportLabel } from "./utils/funnel";
 
 /* 화면 안 단계 (?view=). 주소에 두어 새로고침·뒤로가기로 돌아올 수 있게 합니다 */
 const VIEWS = [
@@ -35,10 +30,6 @@ const VIEWS = [
   "result",
 ] as const;
 type View = (typeof VIEWS)[number];
-
-/* 재현 진행 한 단계 간격 · 동시 실행 수 (임시: 시간으로 흉내) */
-const TICK_MS = 500;
-const CONCURRENCY = 8;
 
 const dayFormat = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
@@ -92,71 +83,62 @@ function Analytics({ project }: { project: CurrentProject }) {
   const [gap, setGap] = useState<FunnelStageCompare | null>(null);
   const funnel = useMeasurementFunnel(project.v1Id, period, "all", connected);
   const task = funnel.data?.tasks.find((item) => item.task_id === taskId) ?? funnel.data?.tasks[0];
-  const gapStage = gap?.name ?? "";
-  const [segments, setSegments] = useState(REPRODUCE_SEGMENTS.map((segment) => segment.id));
-  const [sessions, setSessions] = useState<ReproduceSession[]>([]);
+  /* 원인 재현 실행·과업·구간은 주소에 둡니다 (새로고침해도 진행·결과로 돌아오게) */
+  const repro = {
+    run: searchParams.get("run") ?? "",
+    task: searchParams.get("task") ?? "",
+    stage: searchParams.get("stage") ?? "",
+    name: searchParams.get("name") ?? "",
+  };
+  const gapStage = gap?.name ?? repro.name;
+  const segmentsAll = funnel.data?.report?.segments ?? [];
+  const [segments, setSegments] = useState<string[] | null>(null);
+  const selected = segments ?? segmentsAll.map((segment) => segment.id);
 
-  const goTo = (next: View | null) => {
-    setSearchParams(next ? { view: next } : {});
+  const goTo = (next: View | null, extra: Record<string, string> = {}) => {
+    setSearchParams(next ? { view: next, ...extra } : {});
     window.scrollTo({ top: 0 });
   };
 
-  /* R10: 대기 → 진행 중 → 결과 순으로 바꾸고, 모두 끝나면 결과(R11)로 넘어갑니다 */
-  useEffect(() => {
-    if (view !== "reproducing") return;
-    const timer = window.setInterval(() => {
-      setSessions((current) => {
-        const next = current.map((session, index): ReproduceSession => {
-          if (session.status === "running") {
-            return { ...session, status: REPRODUCE_OUTCOMES[index % REPRODUCE_OUTCOMES.length] };
-          }
-          return session;
-        });
-        let slots = CONCURRENCY - next.filter((session) => session.status === "running").length;
-        return next.map((session) => {
-          if (session.status !== "queued" || slots <= 0) return session;
-          slots -= 1;
-          return { ...session, status: "running" };
-        });
+  const base = funnel.data?.report;
+  const start = useMutation({
+    mutationFn: () => {
+      if (!base?.run_id || !gap || !task) throw new Error("재현할 기준 실행이 없어요.");
+      return createRun(
+        {
+          plan_revision_id: base.plan_revision_id,
+          base_run_id: base.run_id,
+          change_note: `원인 재현 · ${gap.name}`,
+          reproduce: {
+            task_id: task.task_id,
+            segment_ids: selected,
+            stage_id: gap.id,
+            stage_name: gap.name,
+          },
+        },
+        crypto.randomUUID(),
+      );
+    },
+    onSuccess: (created) => {
+      if (!gap || !task) return;
+      goTo("reproducing", {
+        run: created.run_id,
+        task: task.task_id,
+        stage: gap.id,
+        name: gap.name,
       });
-    }, TICK_MS);
-    return () => window.clearInterval(timer);
-  }, [view]);
-
-  const reproduceDone =
-    sessions.length > 0 &&
-    sessions.every((session) => session.status === "success" || session.status === "dropout");
-  useEffect(() => {
-    if (view !== "reproducing" || !reproduceDone) return;
-    const timer = window.setTimeout(
-      () => setSearchParams({ view: "result" }, { replace: true }),
-      TICK_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [view, reproduceDone, setSearchParams]);
-
-  const startReproduce = () => {
-    let code = 0;
-    setSessions(
-      REPRODUCE_SEGMENTS.filter((segment) => segments.includes(segment.id)).flatMap((segment) =>
-        Array.from({ length: segment.count }, () => {
-          code += 1;
-          return {
-            code: `P-${String(code).padStart(3, "0")}`,
-            segment: segment.name,
-            status: "queued" as const,
-          };
-        }),
-      ),
-    );
-    goTo("reproducing");
-  };
+    },
+  });
+  const showResult = useCallback(
+    () => setSearchParams({ ...repro, view: "result" }, { replace: true }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 같은 실행 동안 주소 값은 바뀌지 않습니다
+    [repro.run, setSearchParams],
+  );
 
   const gapText =
     gap?.actual?.rate != null && gap.predicted.low != null && gap.predicted.high != null
       ? `${gap.name} · 실측 ${gap.actual.rate.toFixed(1)}% · 예측 ${Math.round(gap.predicted.low)}~${Math.round(gap.predicted.high)}%${gap.error == null ? "" : ` (${formatError(gap.error)})`}`
       : gapStage;
-  const panel = sessions.length || 20;
 
   const unlinkBadge = <StatusBadge icon="unlink" label="미연결" tone="strong" />;
   const crumb = `${project.name} / 실측 분석 · 테스트`;
@@ -337,6 +319,11 @@ function Analytics({ project }: { project: CurrentProject }) {
   }
 
   if (view === "reproduce") {
+    const blocked = !gap
+      ? "비교 화면에서 차이 구간을 다시 골라 주세요."
+      : !base?.run_id
+        ? "비교한 사전 테스트에 실행 기록이 없어 재현할 수 없어요."
+        : null;
     return (
       <div className="flex flex-col gap-12">
         <ProjectPageHeader
@@ -345,25 +332,36 @@ function Analytics({ project }: { project: CurrentProject }) {
           title={`원인 재현 · ${gapStage}`}
           actions={
             <>
+              {start.isError && (
+                <span role="alert" className="text-caption text-danger">
+                  {start.error.message}
+                </span>
+              )}
               <Button variant="secondary" onClick={() => goTo("compare")}>
                 취소
               </Button>
-              <Button disabled={segments.length === 0} onClick={startReproduce}>
-                재현 시작
+              <Button
+                disabled={Boolean(blocked) || selected.length === 0 || start.isPending}
+                onClick={() => start.mutate()}
+              >
+                {start.isPending ? "시작하는 중…" : "재현 시작"}
               </Button>
             </>
           }
           activeTab="analytics"
         />
         <ReproduceSetup
-          stage={gapStage}
           gapText={gapText}
-          selected={segments}
+          taskName={task?.name ?? ""}
+          baseLabel={funnel.data ? reportLabel(funnel.data) : "—"}
+          segments={segmentsAll}
+          selected={selected}
           onToggle={(id) =>
-            setSegments((current) =>
-              current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+            setSegments(
+              selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id],
             )
           }
+          blocked={blocked}
         />
       </div>
     );
@@ -376,20 +374,19 @@ function Analytics({ project }: { project: CurrentProject }) {
           projectId={project.id}
           breadcrumb={reproduceCrumb}
           title={`원인 재현 · ${gapStage}`}
-          description={`상세 → ${gapStage}만 실행 · ${panel}명 × 시드 3회 (1/3)`}
+          description="그 과업을 고른 세그먼트로 처음부터 실제로 다시 돌려요 · 시드 1회"
           actions={<StatusBadge icon="play" label="실행 중" tone="strong" />}
           activeTab="analytics"
         />
-        {sessions.length > 0 ? (
-          <ReproduceRunning sessions={sessions} />
+        {repro.run ? (
+          <ReproduceRunning runId={repro.run} onDone={showResult} />
         ) : (
-          /* 새로고침 등으로 진행 상태를 잃으면 설정부터 다시 */
           <div className="flex flex-col items-start gap-4 rounded-xl bg-gray-50 p-6">
             <p className="text-sm text-subtle">
-              재현 진행 상태가 없어요. 설정에서 다시 시작해 주세요.
+              재현 실행을 찾을 수 없어요. 설정에서 다시 시작해 주세요.
             </p>
-            <Button variant="secondary" onClick={() => goTo("reproduce")}>
-              재현 설정
+            <Button variant="secondary" onClick={() => goTo("compare")}>
+              예측 vs 실측
             </Button>
           </div>
         )}
@@ -403,10 +400,10 @@ function Analytics({ project }: { project: CurrentProject }) {
         projectId={project.id}
         breadcrumb={reproduceCrumb}
         title={`원인 재현 · ${gapStage}`}
-        description={`${dayFormat.format(new Date())} · 상세 → ${gapStage} 구간 · ${panel}명 × 시드 3회`}
+        description={`${dayFormat.format(new Date())} · ${gapStage} 구간 재현 결과`}
         actions={
           <>
-            <Button variant="secondary" onClick={() => goTo("reproduce")}>
+            <Button variant="secondary" onClick={() => goTo("compare")}>
               다시 재현
             </Button>
             <Button onClick={() => navigate(buildPath("calibration", { projectId: project.id }))}>
@@ -416,7 +413,17 @@ function Analytics({ project }: { project: CurrentProject }) {
         }
         activeTab="analytics"
       />
-      <ReproduceResult />
+      {repro.run ? (
+        <ReproduceResult
+          projectId={project.id}
+          runId={repro.run}
+          taskId={repro.task}
+          stageId={repro.stage}
+          stageName={gapStage}
+        />
+      ) : (
+        <p className="rounded-xl bg-gray-50 p-6 text-sm text-subtle">재현 실행을 찾을 수 없어요.</p>
+      )}
     </div>
   );
 }

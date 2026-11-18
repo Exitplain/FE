@@ -1,9 +1,11 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { ROUTES } from "@/constants/routes";
 import { setMeasurementMock } from "@/mocks/handlers/measurements";
+import { server } from "@/mocks/node";
 import { createTestProject, waitForProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
 
@@ -165,7 +167,132 @@ describe("R01~R11 실측 분석", () => {
     expect(screen.queryByRole("button", { name: "실측 데이터 연결하기" })).not.toBeInTheDocument();
   });
 
-  it("R08 → R09~R11 — 차이 구간에서 원인 재현을 시작하고 결과 가설을 본다", async () => {
+  it("R08 → R09~R11 — 차이 구간에서 고른 세그먼트로 실제 재현을 돌리고, 재현 리포트의 마찰을 원인 가설로 본다", async () => {
+    let created: Record<string, unknown> | null = null;
+    let polls = 0;
+    const runBase = {
+      id: "repro-1",
+      sequence_no: 4,
+      name: "원인 재현",
+      kind: "cause_repro",
+      change_note: "원인 재현 · 장바구니",
+      parent_run_id: "run-mock-base",
+      created_at: "2026-11-19T10:00:00+09:00",
+      started_at: "2026-11-19T10:00:01+09:00",
+      finished_at: null,
+      report: null,
+      project_id: 1,
+      cancel_requested: false,
+      error: null,
+    };
+    const progress = (finished: number) => ({
+      expected_sessions: 10,
+      started_sessions: 10,
+      finished_sessions: finished,
+      sessions_by_status: {},
+      task_runs: { total: 1, queued: 0, running: 1, succeeded: 0, failed: 0, cancelled: 0 },
+    });
+    const session = (code: string, status: string) => ({
+      id: Number(code.slice(2)),
+      session_key: code,
+      persona: { code, segment_id: "segment_1", segment_name: "빠른 구매형" },
+      task_id: "order",
+      seed: 1,
+      status,
+      reason: null,
+      steps: 5,
+      duration_seconds: 30,
+      max_frustration: 40,
+      terminal_stage: "cart",
+      stages_reached: [],
+      latest_observation: null,
+      final_screenshot_url: null,
+      started_at: null,
+      finished_at: null,
+    });
+    server.use(
+      http.post("*/api/v1/runs", async ({ request }) => {
+        created = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { run_id: "repro-1", status: "queued", status_url: "/api/v1/runs/repro-1" },
+          { status: 202 },
+        );
+      }),
+      http.get("*/api/v1/runs/repro-1", () => {
+        polls += 1;
+        return polls < 2
+          ? HttpResponse.json({
+              ...runBase,
+              status: "running",
+              phase: "running",
+              progress: progress(1),
+            })
+          : HttpResponse.json({
+              ...runBase,
+              status: "completed",
+              phase: "done",
+              progress: progress(10),
+            });
+      }),
+      http.get("*/api/v1/runs/repro-1/sessions", () =>
+        HttpResponse.json({
+          items: [session("P-001", "simulated_dropout"), session("P-002", "running")],
+          next_cursor: null,
+          total: 2,
+        }),
+      ),
+      http.get("*/api/v1/runs/repro-1/reports", () =>
+        HttpResponse.json({ report_id: "repro-report", run_ref: "repro-1", data: { tasks: [] } }),
+      ),
+      http.get("*/api/v1/reports/repro-report/screens", () =>
+        HttpResponse.json({
+          report_id: "repro-report",
+          available: true,
+          reason: null,
+          message: null,
+          note: "",
+          tasks: [
+            {
+              task_id: "order",
+              name: "첫 주문 완료",
+              valid_sessions: 10,
+              screens: [
+                {
+                  screen_id: "/cart",
+                  name: "장바구니",
+                  order: 2,
+                  reached: 8,
+                  dropouts_here: 3,
+                  is_goal: false,
+                  screenshot_url: null,
+                  friction_sessions: 5,
+                  frictions: [
+                    {
+                      category: "navigation",
+                      name: "탐색 실패",
+                      sessions: 2,
+                      dropouts: 1,
+                      detail: "",
+                      screenshot_url: null,
+                    },
+                    {
+                      category: "cost",
+                      name: "비용 충격",
+                      sessions: 4,
+                      dropouts: 2,
+                      detail: "배송비가 장바구니에서 처음 보여요",
+                      screenshot_url: null,
+                    },
+                  ],
+                },
+              ],
+              problems: [],
+              causes: [],
+            },
+          ],
+        }),
+      ),
+    );
     const user = userEvent.setup();
     await renderAnalytics(await connectedProject(), "?view=compare");
 
@@ -175,13 +302,13 @@ describe("R01~R11 실측 분석", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("5.2%p")).toBeInTheDocument();
     expect(screen.getByText("5개 단계 절댓값 평균")).toBeInTheDocument();
+    expect(screen.getByText("3차 (11월 7일) · 가장 최근")).toBeInTheDocument();
     /* 첫 단계(기준 100%)는 비교표에 넣지 않습니다 */
     expect(
       within(screen.getByRole("table", { name: "단계별 비교" })).queryByRole("row", {
         name: /첫 화면/,
       }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("3차 (11월 7일) · 가장 최근")).toBeInTheDocument();
     const cart = screen.getByRole("row", { name: /장바구니/ });
     expect(cart).toHaveTextContent("55~65%44.0%−16.0%p");
 
@@ -190,18 +317,44 @@ describe("R01~R11 실측 분석", () => {
       screen.getByRole("heading", { level: 1, name: "원인 재현 · 장바구니" }),
     ).toBeInTheDocument();
     expect(screen.getByText("장바구니 · 실측 44.0% · 예측 55~65% (−16.0%p)")).toBeInTheDocument();
+    expect(screen.getByText("고른 세그먼트 · 20명")).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "가격 민감형 · 5명" }));
+    await user.click(screen.getByRole("checkbox", { name: "꼼꼼한 비교형 · 5명" }));
+    expect(screen.getByText("고른 세그먼트 · 10명")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "재현 시작" }));
-    expect(screen.getByText("상세 → 장바구니만 실행 · 15명 × 시드 3회 (1/3)")).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("list", { name: "재현 세션" })).getAllByRole("listitem"),
-    ).toHaveLength(15);
 
+    /* 비교한 사전 테스트 실행을 기준으로, 그 과업 × 고른 세그먼트만 돌립니다 */
+    expect(await screen.findByRole("list", { name: "재현 세션" })).toBeInTheDocument();
+    expect(created).toEqual({
+      plan_revision_id: "plan-rev-mock",
+      base_run_id: "run-mock-base",
+      change_note: "원인 재현 · 장바구니",
+      reproduce: {
+        task_id: "order",
+        segment_ids: ["segment_1", "segment_4"],
+        stage_id: "/cart",
+        stage_name: "장바구니",
+      },
+    });
     expect(
-      await screen.findByRole("heading", { name: "원인 가설" }, { timeout: 8000 }),
+      screen.getByRole("listitem", { name: "P-001 · 빠른 구매형 · 이탈" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("탐색 실패")).toBeInTheDocument();
+
+    /* 실행이 끝나면 결과로 넘어가 장바구니 화면 마찰을 많은 순서로 보여줍니다 */
+    expect(
+      await screen.findByRole("heading", { name: "원인 가설" }, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    const items = within(screen.getByRole("list", { name: "원인 가설 목록" }))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(items[0]).toContain("비용 충격10명 중 4명 · 이 원인으로 이탈 2명");
+    expect(items[1]).toContain("탐색 실패");
+    expect(screen.getByText("배송비가 장바구니에서 처음 보여요")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /재현 리포트 전체 보기/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/runs/repro-1/report"),
+    );
     expect(screen.getByRole("button", { name: "조정안 확인" })).toBeInTheDocument();
   }, 15000);
 
