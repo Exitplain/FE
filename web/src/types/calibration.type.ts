@@ -34,7 +34,11 @@ export type ProposalReason =
   | "NO_PREDICTION"
   | "INSUFFICIENT_SAMPLE"
   | "NO_GAP"
+  | "NO_EVIDENCE"
   | "WAITING_NEXT_RUN";
+
+/* 조정 강도: normal 기본 · gentle 절반 ("보정 약하게") */
+export type ProposalStrength = "normal" | "gentle";
 
 /* GET /api/v1/projects/{id}/calibration/proposal?days=7 */
 export type CalibrationProposal = {
@@ -44,13 +48,29 @@ export type CalibrationProposal = {
   message?: string;
   base_revision: number;
   days: number;
+  strength: ProposalStrength;
+  /* 이만큼(실측 세션·보정용 사람 관측) 모여야 실제 조정안 */
+  min_evidence: number;
+  /* true 면 임시값: 보여만 주고 적용은 막힘 */
+  provisional: boolean;
   basis: {
     report_id: string;
     run_sequence: number | null;
     days: number;
     device: string;
+    /* 근거: 실측 차이 구간 · 사람 관측(가장 불편했던 화면) */
+    evidence: "measurement" | "observations";
+    /* 실측 첫 단계 세션 수 또는 보정용 관측 수 */
+    count: number;
     mean_error: number | null;
     gaps: ProposalGap[];
+    picks?: {
+      task_id: string;
+      task_name: string;
+      stage_id: string;
+      stage_name: string;
+      share: number;
+    }[];
   } | null;
   items: ProposalItem[];
   /* 보정 후 오차는 다음 사전 테스트가 끝난 뒤에만 실제로 보여 줍니다 (CAL-10) */
@@ -115,6 +135,10 @@ export type ObservationMatch = {
   outcome: boolean | null;
   stage: boolean | null;
   cause: boolean | null;
+  /* 사람이 고른 불편 화면이 모델 마찰 상위 2개 안에 있는가 */
+  pain_screen: boolean | null;
+  /* 사람이 고른 이유가 그 화면에서 모델이 감지한 원인에 있는가 */
+  pain_cause: boolean | null;
 };
 
 export type HumanObservation = {
@@ -127,9 +151,15 @@ export type HumanObservation = {
   stage_name: string | null;
   cause: string | null;
   cause_name: string | null;
+  /* 가장 불편했던 화면·이유·정도 (끝까지 한 참여자도 답함) */
+  pain_stage_id: string | null;
+  pain_stage_name: string | null;
+  pain_cause: string | null;
+  pain_cause_name: string | null;
+  discomfort: number | null;
   /* calibration: 보정용 · evaluation: 평가용 (조정안 계산에 쓰지 않음) */
   purpose: "calibration" | "evaluation";
-  source: "manual" | "recorder";
+  source: "manual" | "recorder" | "participant_link";
   updated_at: string;
   match: ObservationMatch;
 };
@@ -144,6 +174,8 @@ export type ObservationTask = {
     stage_name: string | null;
     cause: string | null;
     cause_name: string | null;
+    /* 모델이 마찰을 가장 많이 감지한 화면 (상위 2개) */
+    pain_top: string[];
   };
 };
 
@@ -156,7 +188,13 @@ export type HumanObservationList = {
   tasks: ObservationTask[];
   causes: { key: string; name: string }[];
   items: HumanObservation[];
-  summary: { outcome: MatchCount; stage: MatchCount; cause: MatchCount };
+  summary: {
+    outcome: MatchCount;
+    stage: MatchCount;
+    cause: MatchCount;
+    pain_screen: MatchCount;
+    pain_cause: MatchCount;
+  };
   /* evaluation: 평가용 관측만으로 셈 · all: 평가용이 없어 전체로 셈 */
   summary_basis: "evaluation" | "all";
   replaced?: boolean;
@@ -168,6 +206,9 @@ export type ObservationInput = {
   outcome: "success" | "dropout";
   stage_id?: string;
   cause?: string;
+  pain_stage_id?: string;
+  pain_cause?: string;
+  discomfort?: number;
   purpose: "calibration" | "evaluation";
 };
 

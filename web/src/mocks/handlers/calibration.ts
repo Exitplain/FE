@@ -25,6 +25,8 @@ type State = {
   observations: HumanObservation[];
   /* 비교 기준 리포트가 있는지 (없으면 관측 저장 409) */
   predicted: boolean;
+  /* 근거가 10 미만이라 임시값인지 */
+  provisional: boolean;
 };
 const store = new Map<string, State>();
 let nextId = 100;
@@ -47,6 +49,7 @@ function stateOf(projectId: string): State {
     afterRun: false,
     observations: [],
     predicted: true,
+    provisional: false,
   };
   store.set(projectId, fresh);
   return fresh;
@@ -66,9 +69,15 @@ function revisionOf(state: State) {
   return state.history[0]?.revision ?? 0;
 }
 
-function proposalOf(projectId: string): CalibrationProposal {
+function proposalOf(
+  projectId: string,
+  strength: "normal" | "gentle" = "normal",
+): CalibrationProposal {
   const state = stateOf(projectId);
-  const full = sampleProposal(Number(projectId), revisionOf(state));
+  const full = sampleProposal(Number(projectId), revisionOf(state), {
+    provisional: state.provisional,
+    strength,
+  });
   if (!state.reason) return full;
   return {
     ...full,
@@ -118,15 +127,33 @@ export const calibrationHandlers = [
       next_cursor: null,
     }),
   ),
-  http.get("*/api/v1/projects/:projectId/calibration/proposal", ({ params }) =>
-    HttpResponse.json(proposalOf(String(params.projectId))),
+  http.get("*/api/v1/projects/:projectId/calibration/proposal", ({ params, request }) =>
+    HttpResponse.json(
+      proposalOf(
+        String(params.projectId),
+        new URL(request.url).searchParams.get("strength") === "gentle" ? "gentle" : "normal",
+      ),
+    ),
   ),
   http.post("*/api/v1/projects/:projectId/calibrations", async ({ params, request }) => {
     const projectId = String(params.projectId);
     const state = stateOf(projectId);
-    const body = (await request.json()) as { expected_revision: number; keys: string[] };
+    const body = (await request.json()) as {
+      expected_revision: number;
+      keys: string[];
+      strength?: "normal" | "gentle";
+    };
     if (body.expected_revision !== revisionOf(state)) return conflict();
-    const proposal = proposalOf(projectId);
+    const proposal = proposalOf(projectId, body.strength ?? "normal");
+    if (proposal.provisional) {
+      return HttpResponse.json(
+        {
+          error: { code: "PROVISIONAL", message: proposal.message ?? "임시값이에요", fields: {} },
+          request_id: "req_mock",
+        },
+        { status: 422 },
+      );
+    }
     const chosen = proposal.items.filter((item) => body.keys.includes(item.key));
     const created = record(state, {
       changes: chosen,
@@ -224,6 +251,7 @@ const OBS_TASKS: HumanObservationList["tasks"] = [
       stage_name: "회원가입",
       cause: "input_burden",
       cause_name: "입력 부담",
+      pain_top: ["/signup", "/cart"],
     },
   },
   {
@@ -240,6 +268,7 @@ const OBS_TASKS: HumanObservationList["tasks"] = [
       stage_name: null,
       cause: null,
       cause_name: null,
+      pain_top: ["/cart"],
     },
   },
 ];
@@ -254,20 +283,37 @@ const OBS_CAUSES = [
   ["unknown", "원인 미상"],
 ].map(([key, name]) => ({ key, name }));
 
-function matchOf(row: Pick<HumanObservation, "task_id" | "outcome" | "stage_id" | "cause">) {
+/* 모델이 화면에서 감지한 원인 예시 (BE screen_causes) */
+const SCREEN_CAUSES: Record<string, string[]> = {
+  "/signup": ["input_burden", "trust"],
+  "/cart": ["cost", "navigation"],
+};
+
+function matchOf(
+  row: Pick<
+    HumanObservation,
+    "task_id" | "outcome" | "stage_id" | "cause" | "pain_stage_id" | "pain_cause"
+  >,
+) {
   const predicted = OBS_TASKS.find((t) => t.task_id === row.task_id)!.predicted;
   const dropout = row.outcome === "dropout";
+  const painCause = row.pain_cause && row.pain_cause !== "unknown" ? row.pain_cause : null;
   return {
     outcome: row.outcome === predicted.outcome,
     stage: dropout ? row.stage_id === predicted.stage_id : null,
     cause: dropout && row.cause !== "unknown" ? row.cause === predicted.cause : null,
+    pain_screen: row.pain_stage_id ? predicted.pain_top.includes(row.pain_stage_id) : null,
+    pain_cause:
+      painCause && row.pain_stage_id
+        ? (SCREEN_CAUSES[row.pain_stage_id] ?? []).includes(painCause)
+        : null,
   };
 }
 
 function observationList(projectId: string, state: State): HumanObservationList {
   const evaluation = state.observations.filter((o) => o.purpose === "evaluation");
   const basis = evaluation.length ? evaluation : state.observations;
-  const count = (key: "outcome" | "stage" | "cause") => {
+  const count = (key: keyof HumanObservation["match"]) => {
     const values = basis.map((o) => o.match[key]).filter((v) => v !== null);
     return { matched: values.filter(Boolean).length, total: values.length };
   };
@@ -279,7 +325,13 @@ function observationList(projectId: string, state: State): HumanObservationList 
     items: [...state.observations].sort((a, b) =>
       (a.participant_code + a.task_id).localeCompare(b.participant_code + b.task_id),
     ),
-    summary: { outcome: count("outcome"), stage: count("stage"), cause: count("cause") },
+    summary: {
+      outcome: count("outcome"),
+      stage: count("stage"),
+      cause: count("cause"),
+      pain_screen: count("pain_screen"),
+      pain_cause: count("pain_cause"),
+    },
     summary_basis: evaluation.length ? "evaluation" : "all",
   };
 }
@@ -306,6 +358,11 @@ function upsert(
     stage_name: input.outcome === "dropout" ? stageName : null,
     cause: input.cause || null,
     cause_name: input.outcome === "dropout" ? causeName : null,
+    pain_stage_id: input.pain_stage_id || null,
+    pain_stage_name: task.stages.find((st) => st.id === input.pain_stage_id)?.name ?? null,
+    pain_cause: input.pain_cause || null,
+    pain_cause_name: OBS_CAUSES.find((c) => c.key === input.pain_cause)?.name ?? null,
+    discomfort: input.discomfort ?? null,
     purpose: input.purpose,
     source,
     updated_at: new Date().toISOString(),
@@ -314,6 +371,8 @@ function upsert(
       outcome: input.outcome,
       stage_id: input.stage_id || null,
       cause: input.cause || null,
+      pain_stage_id: input.pain_stage_id || null,
+      pain_cause: input.pain_cause || null,
     }),
   };
   if (index >= 0) state.observations[index] = row;

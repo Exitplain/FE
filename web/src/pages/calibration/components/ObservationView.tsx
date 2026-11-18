@@ -18,6 +18,8 @@ import type {
   ObservationInput,
 } from "@/types/calibration.type";
 
+import TrendLineChart from "@/components/TrendLineChart/TrendLineChart";
+
 import { KpiTrio } from "./CalibrationViews";
 
 const CODE_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
@@ -30,10 +32,27 @@ function observationKey(projectId: string) {
   return [...queryKeys.calibration.all, projectId, "observations"] as const;
 }
 
-/* 한 관측이 예측과 맞는지: 판단할 수 있는 항목이 모두 맞으면 일치 */
+const NONE = "__none__";
+
+/* 한 관측이 예측과 맞는지: 불편 화면을 골랐으면 그 일치, 아니면 판단할 수 있는 항목이 모두 맞을 때 */
 function agrees(row: HumanObservation) {
+  if (row.match.pain_screen !== null) return row.match.pain_screen;
   const values = Object.values(row.match).filter((value) => value !== null);
   return values.length > 0 && values.every(Boolean);
+}
+
+/* 응답이 쌓일수록 불편 화면 일치율(누적 %)이 어떻게 바뀌는지 */
+function agreementTrend(items: HumanObservation[]) {
+  let matched = 0;
+  let total = 0;
+  return [...items]
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
+    .flatMap((row, index) => {
+      if (row.match.pain_screen === null) return [];
+      total += 1;
+      matched += row.match.pain_screen ? 1 : 0;
+      return [{ x: `${index + 1}`, rate: Math.round((matched / total) * 1000) / 10 }];
+    });
 }
 
 /*
@@ -73,6 +92,9 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
   const [stageId, setStageId] = useState<string | null>(null);
   const [cause, setCause] = useState(data.causes[0]?.key ?? "unknown");
   const [purpose, setPurpose] = useState<ObservationInput["purpose"]>("calibration");
+  const [painStage, setPainStage] = useState<string>(NONE);
+  const [painCause, setPainCause] = useState(data.causes[0]?.key ?? "unknown");
+  const [discomfort, setDiscomfort] = useState("3");
   const [touched, setTouched] = useState(false);
   const codeId = useId();
   const fileId = useId();
@@ -99,7 +121,9 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
         task_id: task.task_id,
         outcome,
         purpose,
+        discomfort: Number(discomfort),
         ...(outcome === "dropout" ? { stage_id: stage.id, cause } : {}),
+        ...(painStage !== NONE ? { pain_stage_id: painStage, pain_cause: painCause } : {}),
       }),
     onSuccess: (next) => {
       onSaved(next, "관측을 저장했어요");
@@ -214,6 +238,27 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
             />
           </>
         )}
+        <Picker
+          label="가장 불편했던 화면"
+          value={task.stages.find((item) => item.id === painStage)?.name ?? "특별히 없었어요"}
+          options={["특별히 없었어요", ...task.stages.map((item) => item.name)]}
+          onSelect={(index) => setPainStage(index === 0 ? NONE : task.stages[index - 1].id)}
+        />
+        {painStage !== NONE && (
+          <Picker
+            label="불편했던 이유"
+            value={data.causes.find((item) => item.key === painCause)?.name ?? painCause}
+            options={data.causes.map((item) => item.name)}
+            onSelect={(index) => setPainCause(data.causes[index].key)}
+          />
+        )}
+        <RadioRow
+          legend="불편 정도"
+          name="discomfort"
+          value={discomfort}
+          options={["1", "2", "3", "4", "5"].map((n) => [n, n] as const)}
+          onChange={setDiscomfort}
+        />
         <RadioRow
           legend="용도"
           name="purpose"
@@ -258,11 +303,15 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
               value: count(data.summary.outcome),
               note: data.summary_basis === "evaluation" ? "평가용 관측 기준" : "완료·이탈",
             },
-            { label: "단계 일치", value: count(data.summary.stage), note: "사람 이탈 기준" },
             {
-              label: "원인 일치",
-              value: count(data.summary.cause),
-              note: "원인을 아는 이탈 기준",
+              label: "불편 화면 일치",
+              value: count(data.summary.pain_screen),
+              note: "모델 마찰 상위 2개 화면 안",
+            },
+            {
+              label: "불편 이유 일치",
+              value: count(data.summary.pain_cause),
+              note: "그 화면에서 모델이 본 마찰",
             },
           ]}
         />
@@ -276,8 +325,9 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
                 <th className="w-20 py-3 font-medium">참여자</th>
                 <th className="w-28 py-3 font-medium">과업</th>
                 <th className="w-14 py-3 font-medium">결과</th>
-                <th className="w-24 py-3 font-medium">멈춘 단계</th>
-                <th className="py-3 font-medium">원인</th>
+                <th className="w-24 py-3 font-medium">불편 화면</th>
+                <th className="py-3 font-medium">이유</th>
+                <th className="w-12 py-3 font-medium">정도</th>
                 <th className="w-16 py-3 font-medium">용도</th>
                 <th className="w-16 py-3 font-medium">예측과</th>
                 <th className="w-10 py-3" aria-label="삭제" />
@@ -293,8 +343,13 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
                   <td className="py-3 text-gray-800">
                     {item.outcome === "success" ? "완료" : "이탈"}
                   </td>
-                  <td className="py-3 text-gray-800">{item.stage_name ?? "—"}</td>
-                  <td className="py-3 text-gray-800">{item.cause_name ?? "—"}</td>
+                  <td className="py-3 text-gray-800">
+                    {item.pain_stage_name ?? item.stage_name ?? "—"}
+                  </td>
+                  <td className="py-3 text-gray-800">
+                    {item.pain_cause_name ?? item.cause_name ?? "—"}
+                  </td>
+                  <td className="py-3 text-gray-800">{item.discomfort ?? "—"}</td>
                   <td className="py-3 text-gray-800">
                     {item.purpose === "evaluation" ? "평가용" : "보정용"}
                   </td>
@@ -316,9 +371,24 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
             </tbody>
           </table>
           <p className="text-xs text-muted">
-            예측: 과업별 다수 결과 · 가장 많이 이탈한 단계 · 1위 원인 (가장 최근 사전 테스트)
+            비교: 사람이 고른 불편 화면이 모델이 마찰을 가장 많이 본 화면(상위 2개) 안에 있는지 ·
+            가장 최근 사전 테스트 기준
           </p>
         </section>
+        {agreementTrend(data.items).length > 1 && (
+          <section aria-labelledby="agreement-trend-title" className="flex flex-col gap-3">
+            <h2 id="agreement-trend-title" className="text-lg font-bold text-ink">
+              불편 화면 일치율 추이
+            </h2>
+            <TrendLineChart
+              title="응답이 쌓일수록 불편 화면 일치율"
+              unit="%"
+              domain={[0, 100]}
+              data={agreementTrend(data.items)}
+              series={[{ key: "rate", label: "누적 일치율", color: "#171717" }]}
+            />
+          </section>
+        )}
       </div>
     </div>
   );

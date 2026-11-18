@@ -29,7 +29,7 @@ describe("K01~K04 보정", () => {
 
     expect(await screen.findByText("조정안 있음")).toBeInTheDocument();
     expect(
-      screen.getByText("3차 vs 실측 7일 · 오차 4.5%p · 차이 구간 장바구니"),
+      screen.getByText("3차 vs 실측 7일 (24세션) · 오차 4.5%p · 차이 구간 장바구니"),
     ).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "조정안" });
     expect(within(table).getByRole("row", { name: /빠른 구매형/ })).toHaveTextContent(
@@ -149,7 +149,7 @@ describe("K01~K04 보정", () => {
     await user.click(screen.getByRole("button", { name: "관측 저장" }));
     expect(await screen.findByText("입력한 관측 1건")).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /H-001/ })).toHaveTextContent(
-      "H-001첫 주문 완료이탈회원가입입력 부담보정용일치",
+      "H-001첫 주문 완료이탈회원가입입력 부담3보정용일치",
     );
     expect(screen.getByText("결과 일치").nextElementSibling).toHaveTextContent("1 / 1");
     expect(useToastStore.getState().toasts.at(-1)?.message).toBe("관측을 저장했어요");
@@ -176,6 +176,106 @@ describe("K01~K04 보정", () => {
     await user.click(within(list).getByRole("button", { name: "닫기" }));
     expect(await within(list).findByText(/닫힘/)).toBeInTheDocument();
     expect(within(list).queryByRole("button", { name: "링크 복사" })).not.toBeInTheDocument();
+  });
+
+  it("표본이 10 미만이면 임시 조정안을 보여 주고 보정 적용을 막는다", async () => {
+    const projectId = await createTestProject();
+    setCalibrationMock(projectId, { reason: null, provisional: true });
+    await renderCalibration(projectId);
+
+    expect(await screen.findByText("임시 조정안")).toBeInTheDocument();
+    expect(screen.getByText("임시값이에요 · 6/10세션")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "보정 적용" })).toBeDisabled();
+    /* 값은 미리 보기로 보여줍니다 */
+    expect(screen.getByRole("table", { name: "조정안" })).toHaveTextContent("×0.85");
+  });
+
+  it("조정 강도를 '약하게'로 바꾸면 절반 크기의 조정안으로 다시 계산한다", async () => {
+    const user = userEvent.setup();
+    const projectId = await createTestProject();
+    setCalibrationMock(projectId, { reason: null });
+    await renderCalibration(projectId);
+
+    const table = await screen.findByRole("table", { name: "조정안" });
+    expect(within(table).getByRole("row", { name: /빠른 구매형/ })).toHaveTextContent("×0.85");
+    await user.click(screen.getByRole("radio", { name: "약하게 (절반)" }));
+    expect(
+      await within(screen.getByRole("table", { name: "조정안" })).findByText("×0.95"),
+    ).toBeInTheDocument();
+  });
+
+  it("보정 이력이 있으면 예측 오차 추이를 꺾은선으로 보여준다 (표로도 읽힘)", async () => {
+    const projectId = await createTestProject();
+    setCalibrationMock(projectId, {
+      reason: "WAITING_NEXT_RUN",
+      history: [
+        {
+          id: 9,
+          revision: 2,
+          applied_at: "2026-11-19T09:00:00+09:00",
+          applied_by: "maker",
+          params: {},
+          changes: [],
+          changes_summary: "전체 마찰 가중치 · 비용 충격 1.00→1.10",
+          base_comparison: "4차 vs 실측 최근 7일",
+          error_before_pp: 3.1,
+          error_after_pp: null,
+          restored_from: null,
+        },
+        {
+          id: 8,
+          revision: 1,
+          applied_at: "2026-11-18T09:00:00+09:00",
+          applied_by: "maker",
+          params: {},
+          changes: [],
+          changes_summary: "빠른 구매형 인내심 임계치 1.00→0.85",
+          base_comparison: "3차 vs 실측 최근 7일",
+          error_before_pp: 4.5,
+          error_after_pp: 3.1,
+          restored_from: null,
+        },
+      ],
+    });
+    await renderCalibration(projectId, "?view=history");
+
+    const trend = await screen.findByRole("table", { name: "보정별 예측 오차 추이" });
+    const rows = within(trend).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("r14.5%p3.1%p");
+    expect(rows[2]).toHaveTextContent("r23.1%p—");
+  });
+
+  it("K04 — 가장 불편했던 화면·이유·정도를 넣으면 모델 마찰과 비교하고 일치율 추이를 그린다", async () => {
+    const user = userEvent.setup();
+    await renderCalibration(await createTestProject(), "?view=observe");
+    await screen.findByText("입력한 관측 0건");
+
+    const save = async (code: string, screenName: string, reasonName: string) => {
+      const input = screen.getByLabelText("참여자 코드");
+      await user.clear(input);
+      await user.type(input, code);
+      await user.click(screen.getByRole("radio", { name: "완료" }));
+      await user.click(screen.getByRole("button", { name: /^가장 불편했던 화면:/ }));
+      await user.click(screen.getByRole("menuitemradio", { name: screenName }));
+      await user.click(screen.getByRole("button", { name: /^불편했던 이유:/ }));
+      await user.click(screen.getByRole("menuitemradio", { name: reasonName }));
+      await user.click(screen.getByRole("radio", { name: "4" }));
+      await user.click(screen.getByRole("button", { name: "관측 저장" }));
+      await screen.findByRole("row", { name: new RegExp(code) });
+    };
+    /* 장바구니·비용 충격 → 모델 마찰 상위·그 화면 원인 → 둘 다 일치 */
+    await save("H-101", "장바구니", "비용 충격");
+    /* 첫 화면 → 모델 마찰 상위가 아님 → 다름 */
+    await save("H-102", "첫 화면", "탐색 실패");
+
+    expect(screen.getByRole("row", { name: /H-101/ })).toHaveTextContent(
+      "H-101첫 주문 완료완료장바구니비용 충격4보정용일치",
+    );
+    expect(screen.getByRole("row", { name: /H-102/ })).toHaveTextContent("다름");
+    expect(screen.getByText("불편 화면 일치").nextElementSibling).toHaveTextContent("1 / 2");
+    expect(screen.getByText("불편 이유 일치").nextElementSibling).toHaveTextContent("1 / 2");
+    const trend = screen.getByRole("table", { name: "응답이 쌓일수록 불편 화면 일치율" });
+    expect(within(trend).getAllByRole("row")).toHaveLength(3);
   });
 
   it("참여자 코드 형식이 틀리면 저장하지 않고 안내한다", async () => {
