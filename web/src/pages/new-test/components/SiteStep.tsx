@@ -8,6 +8,7 @@ import Input from "@/components/Input/Input";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 
 import type { ApiError } from "@/types/api.type";
+import type { SourceSnapshot } from "@/types/source.type";
 
 import {
   useDiscoverPlan,
@@ -170,11 +171,7 @@ export default function SiteStep({
   };
   const source = useNewTestStore((state) => state.source);
   const sourceReady = source?.state === "ready" && source.previewable === true;
-  const codeNextHint = !source
-    ? "코드를 먼저 받아 주세요"
-    : source.state === "ready" && !sourceReady
-      ? "빌드가 필요한 코드는 아직 테스트할 수 없어요 · 빌드 결과물 zip 이나 배포 URL 을 써 주세요"
-      : null;
+  const codeNextHint = codeHint(source, sourceReady);
 
   /*
     E08 접근 불가는 서버가 사이트를 열지 못한 5xx(503 SITE_UNREACHABLE) 만.
@@ -453,6 +450,26 @@ export default function SiteStep({
       />
     </div>
   );
+}
+
+/*
+  코드 모드 "다음" 옆 안내. 정적 사이트인데 서버가 미리보기 가능 여부(previewable)를 주지 않으면
+  서버에 미리보기가 아직 배포되지 않은 것이라 빌드 문제로 안내하지 않습니다.
+*/
+function codeHint(source: SourceSnapshot | null, ready: boolean) {
+  if (!source) return "코드를 먼저 받아 주세요";
+  if (source.state !== "ready" || ready) return null;
+  if (source.runnable === "needs_build") {
+    return "빌드가 필요한 코드는 아직 테스트할 수 없어요 · 빌드 결과물 zip 이나 배포 URL 을 써 주세요";
+  }
+  if (source.runnable !== "static") return "실행 방법을 판단하지 못한 코드라 테스트할 수 없어요";
+  if (source.previewable === undefined) {
+    return "서버에 미리보기가 아직 준비되지 않았어요 · 배포를 확인해 주세요";
+  }
+  if (!source.files_available || source.connection_status !== "active") {
+    return "받은 코드가 지워졌어요 · 코드를 다시 받아 주세요";
+  }
+  return "미리보기 이전에 받은 코드예요 · 코드를 다시 받아 주세요";
 }
 
 /* 계정 저장 실패 문구 — 401 로그인 · 403 권한 · 0 연결 실패, 그 밖은 서버 message */
