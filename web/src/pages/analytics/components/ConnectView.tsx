@@ -64,9 +64,12 @@ export function NotDeployed({ message }: { message?: string }) {
 */
 export default function ConnectView({
   projectId,
+  siteUrl,
   onMapping,
 }: {
   projectId: number;
+  /* 프로젝트 사이트 주소. 설치 확인 때 새 탭으로 열 수 있게 링크로 둡니다 */
+  siteUrl?: string;
   onMapping: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -179,7 +182,19 @@ export default function ConnectView({
             {checking ? "확인 중…" : "설치 확인"}
           </Button>
         </div>
-        <p className="text-caption text-subtle">설치 후 사이트를 열고 확인을 누르세요</p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-subtle">
+          코드를 넣고 사이트를 배포한 뒤, 사이트를 열고 확인을 누르세요
+          {siteUrl && (
+            <a
+              href={siteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-ink underline underline-offset-4"
+            >
+              사이트 열기 ↗
+            </a>
+          )}
+        </p>
         <p role="status" className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption">
           {installed && data ? (
             <>
@@ -194,7 +209,7 @@ export default function ConnectView({
             </>
           ) : checking ? (
             <span className="font-bold text-ink">
-              ··· 첫 수집 대기 중 · 사이트를 새 탭에서 열어보세요
+              ··· 첫 수집 대기 중 · 코드를 넣고 배포한 사이트를 새 탭에서 열어보세요
             </span>
           ) : install === "failed" ? (
             <>
