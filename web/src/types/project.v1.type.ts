@@ -62,6 +62,7 @@ export type V1ProjectDetail = V1ProjectSummary & {
 /* POST /api/v1/projects 요청 (정의 밖 필드를 보내면 422) */
 export type V1ProjectCreateRequest = {
   name: string;
-  entry_url: string;
+  /* 선택. 비우면 주소 없는 프로젝트가 되고, 새 테스트 1단계에서 입력한 주소를 서버가 등록합니다 */
+  entry_url?: string;
   journey_note?: string;
 };

@@ -84,6 +84,27 @@ function normalizeUrl(value: string) {
   return url.href;
 }
 
+/*
+  주소 없이 만든 프로젝트에 새 테스트 1단계(check·discoveries)에서 보낸 주소를 등록합니다 (BE attach_entry_url).
+  이미 주소가 있으면 바꾸지 않습니다. 중복·내부 주소 검사는 mock 에서 하지 않습니다.
+*/
+export function attachEntryUrlMock(projectId: number, raw: unknown) {
+  const project = created.find((item) => item.id === projectId);
+  if (!project || project.entry_url || typeof raw !== "string" || !raw.trim()) return;
+  try {
+    const url = new URL(normalizeUrl(raw.trim()));
+    if (!/^https?:$/.test(url.protocol)) return;
+    Object.assign(project, {
+      entry_url: url.href,
+      domain: url.hostname,
+      allowed_origins: [url.origin],
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    /* 형식 오류는 탐색 mock 이 422 로 알립니다 */
+  }
+}
+
 const DEFAULT_LIMIT = 20;
 
 /* 커서는 다음 페이지가 시작할 위치입니다 (BE 는 불투명 문자열) */
@@ -117,30 +138,33 @@ export const projectHandlers = [
     const entry = typeof body.entry_url === "string" ? body.entry_url.trim() : "";
     const journey = typeof body.journey_note === "string" ? body.journey_note : "";
     if (!name) return fieldError("name", "프로젝트 이름을 입력해주세요");
-    let entryUrl: string;
-    try {
-      entryUrl = normalizeUrl(entry);
-      if (!/^https?:$/.test(new URL(entryUrl).protocol)) throw new Error("protocol");
-    } catch {
-      return fieldError("entry_url", "HTTP 또는 HTTPS로 시작하는 주소를 입력해주세요");
-    }
-    if (
-      [SAMPLE_DETAIL, ...created].some(
-        (project) => !project.archived_at && project.entry_url === entryUrl,
+    /* 주소는 선택입니다. 비우면 주소 없는 프로젝트(허용 주소도 없음)가 됩니다 */
+    let entryUrl = "";
+    if (entry) {
+      try {
+        entryUrl = normalizeUrl(entry);
+        if (!/^https?:$/.test(new URL(entryUrl).protocol)) throw new Error("protocol");
+      } catch {
+        return fieldError("entry_url", "HTTP 또는 HTTPS로 시작하는 주소를 입력해주세요");
+      }
+      if (
+        [SAMPLE_DETAIL, ...created].some(
+          (project) => !project.archived_at && project.entry_url === entryUrl,
+        )
       )
-    )
-      return fieldError("entry_url", "이미 등록된 프로젝트입니다.", 409, "DUPLICATE_PROJECT");
+        return fieldError("entry_url", "이미 등록된 프로젝트입니다.", 409, "DUPLICATE_PROJECT");
+    }
     const now = new Date().toISOString();
-    const url = new URL(entryUrl);
+    const url = entryUrl ? new URL(entryUrl) : null;
     const project: V1ProjectDetail = {
       ...structuredClone(SAMPLE_DETAIL),
       id: FIRST_CREATED_ID + created.length,
       name,
       entry_url: entryUrl,
-      domain: url.hostname,
+      domain: url?.hostname ?? "",
       is_sample: false,
       journey_note: journey,
-      allowed_origins: [url.origin],
+      allowed_origins: url ? [url.origin] : [],
       updated_at: now,
       created_at: now,
     };

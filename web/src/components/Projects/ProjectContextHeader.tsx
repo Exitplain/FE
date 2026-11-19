@@ -34,7 +34,10 @@ export default function ProjectContextHeader({
             </Link>
           ))}
       </div>
-      <p className="text-caption text-subtle">{description ?? project.url}</p>
+      {/* 주소 없이 만든 프로젝트는 첫 테스트에서 주소를 입력하기 전까지 이 줄이 없습니다 */}
+      {(description ?? project.url) && (
+        <p className="text-caption text-subtle">{description ?? project.url}</p>
+      )}
     </header>
   );
 }
