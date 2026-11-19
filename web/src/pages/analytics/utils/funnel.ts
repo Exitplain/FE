@@ -33,3 +33,6 @@ export function reportLabel(funnel: MeasurementFunnel) {
   const day = formatDay(funnel.report.created_at);
   return funnel.report.run_sequence ? `${funnel.report.run_sequence}차 (${day})` : day;
 }
+
+/* 과업 고르기의 "전체" — 과업마다 단계별 이동을 아래로 모두 보여 줍니다 (실제 고객 데이터 화면에서만) */
+export const ALL_TASKS = "all";

@@ -55,6 +55,28 @@ describe("R01~R11 실제 고객 데이터 분석", () => {
     ).toBeInTheDocument();
   });
 
+  it("과업 전체 — 모든 과업의 단계별 이동을 아래로 이어 보여주고, 기기별로도 나눠 본다", async () => {
+    const user = userEvent.setup();
+    await renderAnalytics(await connectedProject());
+
+    // 기기 "전체"와 이름이 같아 과업 묶음 안에서 고릅니다
+    const taskGroup = await screen.findByRole("radiogroup", { name: "과업" });
+    await user.click(within(taskGroup).getByRole("radio", { name: "전체" }));
+
+    const order = screen.getByRole("table", { name: "첫 주문 완료" });
+    const coupon = screen.getByRole("table", { name: "쿠폰으로 주문" });
+    expect(within(order).getAllByRole("row")).toHaveLength(6);
+    expect(within(coupon).getAllByRole("row")).toHaveLength(3);
+    expect(within(coupon).getByRole("row", { name: /주문 완료/ })).toHaveTextContent(
+      "298회 방문 · 24.0% · 이탈 45.4%",
+    );
+    expect(screen.getByText(/과업 2개/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "모바일" }));
+    expect(await screen.findAllByRole("heading", { name: "모바일 · 856회 방문" })).toHaveLength(2);
+    expect(screen.getByRole("heading", { level: 2, name: "쿠폰으로 주문" })).toBeInTheDocument();
+  });
+
   it("E09 — 표본이 모자라면 수집 중으로 알리고 단계마다 표본 부족을 표시한다", async () => {
     await renderAnalytics(await connectedProject({ scale: 0.05 }));
 
