@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import type { WorkspaceProject } from "@/types/workspace.type";
 import { cn } from "@/utils/cn";
+import { siteHost } from "@/utils/siteHost";
 
 import "./project-picker.css";
 
@@ -104,7 +105,7 @@ export default function ProjectPicker({
       >
         <span className="truncate">
           {selected
-            ? `${selected.name} · ${new URL(selected.url).hostname}`
+            ? [selected.name, siteHost(selected.url)].filter(Boolean).join(" · ")
             : "프로젝트를 선택하세요"}
         </span>
         <Icon name="chevron-down" className="size-5 text-subtle" />
@@ -120,7 +121,7 @@ export default function ProjectPicker({
             ...projects.map((project) => ({
               id: project.id,
               name: project.name,
-              description: new URL(project.url).hostname,
+              description: siteHost(project.url),
             })),
             { id: "new", name: "+ 새 프로젝트", description: "새 사이트 등록" },
           ].map((option, index) => (
@@ -145,9 +146,11 @@ export default function ProjectPicker({
                 >
                   {option.name}
                 </span>
-                <span className="block text-xs leading-4 break-all text-muted">
-                  {option.description}
-                </span>
+                {option.description && (
+                  <span className="block text-xs leading-4 break-all text-muted">
+                    {option.description}
+                  </span>
+                )}
               </span>
               {option.id === value && <Icon name="check" className="size-5" />}
             </button>

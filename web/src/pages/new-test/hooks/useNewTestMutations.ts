@@ -142,7 +142,7 @@ export async function runSiteCheck(
     /* 코드로 확인할 때는 프로젝트 주소에 접속해 보지 않습니다 (서버가 받은 코드를 미리보기로 엽니다) */
     if (!input.sourceSnapshotId) {
       try {
-        check = (await checkSite(input.projectId)).check;
+        check = (await checkSite(input.projectId, input.entryUrl)).check;
       } catch (error) {
         if (error instanceof ApiError && (error.status === 401 || error.status === 403))
           throw error;
@@ -228,6 +228,7 @@ export function restoreSiteCheck(projectKey: string, kept = false) {
   mutate 의 onSuccess·onError 는 화면이 그대로 있을 때만 부릅니다 (다음 단계로 이동 등 화면 일).
 */
 export function useDiscoverPlan(projectKey: string) {
+  const queryClient = useQueryClient();
   const job = useSiteCheckStore((state) => state.jobs[projectKey]);
   const mounted = useRef(false);
   useEffect(() => {
@@ -245,9 +246,22 @@ export function useDiscoverPlan(projectKey: string) {
   ) => {
     if (useSiteCheckStore.getState().jobs[projectKey]?.status === "pending") return;
     const { request, ...input } = variables;
+    /*
+      주소 없이 만든 프로젝트는 확인하면서 서버가 주소를 등록하니 목록을 다시 받습니다.
+      상세(제목 아래 주소)는 여기서 받지 않습니다. 위저드가 project.url 을 보고 있어 입력이 흔들리고,
+      실행을 시작하면(useStartRun) 프로젝트를 모두 다시 받습니다.
+    */
+    const refreshList = () =>
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectsV1.list() });
     runSiteCheck(projectKey, input, request).then(
-      (result) => mounted.current && callbacks.onSuccess?.(result),
-      (error: ApiError) => mounted.current && callbacks.onError?.(error),
+      (result) => {
+        refreshList();
+        if (mounted.current) callbacks.onSuccess?.(result);
+      },
+      (error: ApiError) => {
+        refreshList();
+        if (mounted.current) callbacks.onError?.(error);
+      },
     );
   };
   return {

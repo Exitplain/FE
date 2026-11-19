@@ -48,7 +48,9 @@ export default function ProjectPageHeader({
         <h1 className="flex-1 text-2xl font-bold text-ink">{title}</h1>
         {actions != null && <div className="flex items-center gap-2">{actions}</div>}
       </div>
-      {description != null && <p className="text-sm text-subtle">{description}</p>}
+      {description != null && description !== "" && (
+        <p className="text-sm text-subtle">{description}</p>
+      )}
       {toolbar}
       <nav aria-label="프로젝트 메뉴" className="flex gap-6 border-b border-line">
         {TABS.map((tab) => {

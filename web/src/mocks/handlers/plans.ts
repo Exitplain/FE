@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse } from "msw";
 
 import { MockApiError } from "../personaMock";
+import { attachEntryUrlMock } from "./projects";
 import {
   checkSite,
   confirmPlan,
@@ -59,10 +60,15 @@ async function json(request: Request): Promise<Record<string, unknown>> {
 const projectIdOf = (params: Record<string, unknown>) => Number(params.projectId);
 
 export const planHandlers = [
-  http.post("*/api/v1/projects/:projectId/check", ({ params }) =>
-    handle(() => checkSite(projectIdOf(params))),
+  http.post("*/api/v1/projects/:projectId/check", async ({ params, request }) =>
+    handle(async () => {
+      attachEntryUrlMock(projectIdOf(params), (await json(request)).entry_url);
+      return checkSite(projectIdOf(params));
+    }),
   ),
   http.post("*/api/v1/projects/:projectId/discoveries", async ({ params, request }) => {
+    const body = await json(request.clone()).catch(() => ({}) as Record<string, unknown>);
+    if (!body.source_snapshot_id) attachEntryUrlMock(projectIdOf(params), body.entry_url);
     /* Prefer: respond-async 면 BE 처럼 running 으로 바로 202, 진행은 GET 으로 */
     if (request.headers.get("Prefer")?.includes("respond-async")) {
       return handle(async () => startDiscovery(projectIdOf(params), await json(request)), 202);

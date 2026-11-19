@@ -20,10 +20,14 @@ import axiosInstance from "./axiosInstance";
   모두 로그인 + 프로젝트 소유자만 됩니다 (401 AUTH_REQUIRED · 403 FORBIDDEN).
 */
 
-/* P02 사이트 주소 확인 (프로젝트 주소로 실제 GET). 접속하지 못해도 200 + status "failed" */
-export async function checkSite(projectId: number): Promise<SiteCheckResponse> {
+/*
+  P02 사이트 주소 확인 (프로젝트 주소로 실제 GET). 접속하지 못해도 200 + status "failed"
+  주소 없이 만든 프로젝트는 보낸 entry_url 을 먼저 프로젝트에 등록한 뒤 확인합니다 (이미 주소가 있으면 서버가 무시).
+*/
+export async function checkSite(projectId: number, entryUrl?: string): Promise<SiteCheckResponse> {
   const { data } = await axiosInstance.post<SiteCheckResponse>(
     `/api/v1/projects/${projectId}/check`,
+    entryUrl ? { entry_url: entryUrl } : undefined,
   );
   return data;
 }
