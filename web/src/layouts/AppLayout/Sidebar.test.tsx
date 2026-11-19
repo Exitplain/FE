@@ -41,6 +41,39 @@ async function renderAt(route: string) {
 }
 
 describe("Sidebar 프로젝트 하위 메뉴 (Figma Sidebar 프로젝트 선택 상태)", () => {
+  it("점 세 개 메뉴에서 삭제 확인창을 열고 취소해도 프로젝트와 현재 화면을 유지한다", async () => {
+    const user = userEvent.setup();
+    const { nav } = await renderAt("/projects/1/tests");
+    const trigger = within(nav).getByRole("button", { name: "스튜디오 예약 프로젝트 메뉴" });
+    await user.click(trigger);
+    expect(
+      within(nav).getByRole("menu", { name: "스튜디오 예약 프로젝트 메뉴" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "프로젝트 삭제" }));
+    const dialog = screen.getByRole("dialog", { name: "프로젝트를 삭제하시겠습니까?" });
+    expect(within(dialog).getByText("스튜디오 예약")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "삭제" })).toBeEnabled();
+    await user.click(within(dialog).getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "스튜디오 예약" })).toBeInTheDocument();
+    expect(within(nav).getByRole("list", { name: "반찬로드 메뉴" })).toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("샘플 프로젝트 삭제는 막고 점 세 개 메뉴를 Escape로 닫는다", async () => {
+    const user = userEvent.setup();
+    const { nav } = await renderAt("/");
+    const trigger = within(nav).getByRole("button", { name: "반찬로드 프로젝트 메뉴" });
+    await user.click(trigger);
+    const remove = screen.getByRole("menuitem", { name: /프로젝트 삭제/ });
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    await user.click(remove);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("프로젝트 밖 화면에서는 하위 메뉴를 접어 두고, 접힌 메뉴는 읽거나 Tab 으로 갈 수 없다", async () => {
     const { nav, container } = await renderAt("/");
 

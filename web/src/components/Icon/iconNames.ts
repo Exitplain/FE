@@ -41,6 +41,7 @@ export const ICON_NAMES = [
   "status-fail",
   "status-running",
   "status-wait",
+  "trash",
   /* P14·R01 실측 미연결. Figma icon/unlink 20 그리드를 24 그리드로 옮김 */
   "unlink",
   "verdict-before",

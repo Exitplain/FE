@@ -32,3 +32,8 @@ export async function createProjectV1(body: V1ProjectCreateRequest): Promise<V1P
   const { data } = await axiosInstance.post<V1ProjectDetail>("/api/v1/projects", body);
   return data;
 }
+
+/* 보관 삭제. 이미 삭제됐어도 204, 실행 중 409 RUN_IN_PROGRESS, 샘플·타인 프로젝트 403. */
+export async function deleteProjectV1(projectId: number): Promise<void> {
+  await axiosInstance.delete(`/api/v1/projects/${projectId}`);
+}

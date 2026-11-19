@@ -11,6 +11,7 @@ import type { ProjectRecord } from "@/types/project.type";
 import { cn } from "@/utils/cn";
 
 import AccountControls from "./AccountControls";
+import ProjectActions from "./ProjectActions";
 
 /*
   로그인 후 화면 공통 사이드바 (Figma W01 `Sidebar`, 256px).
@@ -252,7 +253,7 @@ function activeSubMenu(rest: string): SubMenuKey | null {
     Tab 이동·화면 낭독기에서 뺍니다.
   치수 (Figma): 하위 항목 x=52 · 높이 36 · 글자 안쪽 20(x=72), 프로젝트 항목과 4px, 다음 프로젝트와 8px
 */
-function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name"> }) {
+function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name" | "isSample"> }) {
   const { pathname } = useLocation();
   const base = buildPath("projectDetail", { projectId: project.id });
   const inProject = pathname === base || pathname.startsWith(`${base}/`);
@@ -260,18 +261,25 @@ function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name
 
   return (
     <div className="flex flex-col">
-      <Link
-        to={base}
-        data-sidebar-item="" /* = ITEM_ATTR */
-        aria-current={inProject && !activeKey ? "page" : undefined}
-        className={cn(itemClass, inProject ? "font-bold text-ink" : idleItemClass)}
-      >
-        <Icon
-          name={inProject ? "folder-open" : "folder"}
-          className={cn(NAV_ICON, inProject ? "text-ink" : "text-subtle")}
-        />
-        {project.name}
-      </Link>
+      <div className="flex items-center">
+        <Link
+          to={base}
+          data-sidebar-item="" /* = ITEM_ATTR */
+          aria-current={inProject && !activeKey ? "page" : undefined}
+          className={cn(
+            itemClass,
+            inProject ? "font-bold text-ink" : idleItemClass,
+            "mr-0 min-w-0 flex-1 pr-2",
+          )}
+        >
+          <Icon
+            name={inProject ? "folder-open" : "folder"}
+            className={cn(NAV_ICON, inProject ? "text-ink" : "text-subtle")}
+          />
+          <span className="truncate">{project.name}</span>
+        </Link>
+        <ProjectActions project={project} />
+      </div>
 
       <div
         data-submenu={project.id}
