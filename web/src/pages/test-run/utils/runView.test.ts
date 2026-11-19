@@ -115,6 +115,23 @@ describe("taskTabs — 전체 과업 탭과 과업별 진행", () => {
     ]);
   });
 
+  it("서버가 준 진행 순서·상태가 있으면 그 순서(왼쪽 → 오른쪽)와 상태를 따른다", () => {
+    const tabs = taskTabs({
+      ...base,
+      sessions: [task("delivery", 1, "success")],
+      serverTasks: [
+        { task_id: "delivery", name: "배송 확인", position: 1, status: "done", seeds: 1 },
+        { task_id: "order", name: "첫 주문", position: 2, status: "running", seeds: 1 },
+        { task_id: "coupon", name: "쿠폰 받기", position: 3, status: "queued", seeds: 1 },
+      ],
+    });
+    expect(tabs.map((tab) => [tab.id, tab.state])).toEqual([
+      ["delivery", "done"],
+      ["order", "running"],
+      ["coupon", "queued"],
+    ]);
+  });
+
   it("진행 중인 방문이 있으면 진행 중, 과업 방문이 모두 끝나면 완료 (실행 순서와 관계없이)", () => {
     const tabs = taskTabs({
       ...base,

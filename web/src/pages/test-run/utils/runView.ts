@@ -1,3 +1,4 @@
+import type { RunTaskProgress } from "@/types/run.type";
 import type { IconName } from "@/components/Icon/iconNames";
 import type { StatusTone } from "@/components/StatusBadge/StatusBadge";
 import type { PersonaSession, SessionStatus, Stage } from "@/types/persona.type";
@@ -146,6 +147,7 @@ export function taskTabs({
   expectedSessions,
   phase,
   truncated = false,
+  serverTasks = [],
 }: {
   sessions: PersonaSession[];
   plannedIds?: readonly string[];
@@ -153,9 +155,15 @@ export function taskTabs({
   expectedSessions: number;
   phase: RunPhase;
   truncated?: boolean;
+  /* 서버의 과업 진행 순서·상태 (RunDetail.tasks). 있으면 탭 순서와 대기·진행·완료를 이것으로 정합니다 */
+  serverTasks?: readonly RunTaskProgress[];
 }): TaskTab[] {
   const seen = taskOptions(sessions);
-  const ids = [...new Set([...plannedIds, ...seen.map((task) => task.id)])];
+  const server = new Map(serverTasks.map((task) => [task.task_id, task]));
+  const ordered = [...serverTasks]
+    .sort((a, b) => a.position - b.position)
+    .map((task) => task.task_id);
+  const ids = [...new Set([...ordered, ...plannedIds, ...seen.map((task) => task.id)])];
   const planned = plannedIds.length;
   const total =
     planned > 0 && expectedSessions > 0 && expectedSessions % planned === 0
@@ -166,8 +174,14 @@ export function taskTabs({
     const counts = countSessions(sessions.filter((session) => session.task_id === id));
     const started = counts.all;
     const waitingOnly = counts.running === 0 && counts.queued === started;
-    const state: TaskTabState =
-      started === 0
+    const reported = server.get(id)?.status;
+    const state: TaskTabState = reported
+      ? ended || reported === "done" || reported === "failed" || reported === "cancelled"
+        ? "done"
+        : reported === "running" || counts.running > 0
+          ? "running"
+          : "queued"
+      : started === 0
         ? ended
           ? "done"
           : "queued"
@@ -182,7 +196,7 @@ export function taskTabs({
                 : "running";
     return {
       id,
-      name: names[id] ?? seen.find((task) => task.id === id)?.name ?? id,
+      name: names[id] ?? server.get(id)?.name ?? seen.find((task) => task.id === id)?.name ?? id,
       state,
       started,
       finished: counts.finished,
