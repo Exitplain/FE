@@ -201,9 +201,15 @@ function Analytics({ project }: { project: CurrentProject }) {
           activeTab="analytics"
         />
         {measurement.data && !measurement.data.available ? (
-          <NotDeployed message={measurement.data.message} />
+          <NotDeployed
+            message={measurement.data.message}
+            onCsv={() => goTo("connect", { method: "csv" })}
+          />
         ) : (
-          <NotConnected onConnect={() => goTo("connect")} />
+          <NotConnected
+            onConnect={() => goTo("connect")}
+            onCsv={() => goTo("connect", { method: "csv" })}
+          />
         )}
         {/* 코드를 못 넣는 프로젝트도 참여자 응답으로 사람 관측을 모을 수 있어요 */}
         <ParticipantLinks projectId={project.id} />
@@ -226,6 +232,7 @@ function Analytics({ project }: { project: CurrentProject }) {
           projectId={project.v1Id}
           siteUrl={/^https?:\/\//.test(project.url) ? project.url : undefined}
           onMapping={() => goTo("mapping")}
+          initialMethod={searchParams.get("method") === "csv" ? "csv" : "script"}
         />
       </div>
     );

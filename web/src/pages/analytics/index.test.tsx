@@ -1,4 +1,4 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -98,7 +98,7 @@ describe("R01~R11 실제 고객 데이터 분석", () => {
     const key = `ep_${Number(projectId).toString(16).padStart(12, "0")}`;
     expect(await screen.findByText(new RegExp(`data-project="${key}"`))).toBeInTheDocument();
     expect(screen.getByText("https://shop.example.com 에서 온 수집만 받아요")).toBeInTheDocument();
-    expect(screen.getByText("설치를 확인하면 열려요")).toBeInTheDocument();
+    expect(screen.getByText("설치를 확인하거나 CSV 를 올리면 열려요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "사이트 열기 ↗" })).toHaveAttribute("target", "_blank");
 
     await user.click(screen.getByRole("button", { name: "설치 확인" }));
@@ -199,6 +199,86 @@ describe("R01~R11 실제 고객 데이터 분석", () => {
     expect(
       screen.queryByRole("button", { name: "실제 고객 데이터 연결하기" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("R01b — 스크립트를 넣을 수 없으면 CSV 형식을 보고 올린 뒤 단계 매핑으로 간다", async () => {
+    const user = userEvent.setup();
+    const projectId = await createTestProject();
+    setMeasurementMock(Number(projectId), { deployed: false });
+    /* jsdom 은 업로드 파일 내용을 보내지 못해 서버 응답을 정해 둡니다 (실제 검사는 BE) */
+    const item = {
+      id: 1,
+      filename: "visits.csv",
+      rows_total: 3,
+      rows_imported: 2,
+      sessions: 1,
+      first_at: "2026-11-18T05:03:22Z",
+      last_at: "2026-11-18T05:04:05Z",
+      created_at: "2026-11-19T10:00:00Z",
+    };
+    let uploaded = false;
+    const uploads: string[] = [];
+    server.use(
+      http.post("*/api/v1/projects/:projectId/measurement/imports", ({ request }) => {
+        uploads.push(request.headers.get("Content-Type") ?? "");
+        if (uploads.length === 1) {
+          return HttpResponse.json(
+            {
+              error: {
+                code: "VALIDATION_ERROR",
+                message: "필수 열이 없어요: session_id, timestamp, path",
+                fields: {},
+              },
+            },
+            { status: 422 },
+          );
+        }
+        uploaded = true;
+        setMeasurementMock(Number(projectId), { imports: [item] });
+        return HttpResponse.json(
+          {
+            ...item,
+            skipped: { invalid: 1, outside_window: 0, duplicate: 0 },
+            errors: [{ line: 4, message: "timestamp 형식을 읽지 못했어요" }],
+          },
+          { status: 201 },
+        );
+      }),
+      http.delete("*/api/v1/projects/:projectId/measurement/imports/:importId", () => {
+        uploaded = false;
+        setMeasurementMock(Number(projectId), { imports: [] });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await renderAnalytics(projectId);
+
+    await user.click(await screen.findByRole("button", { name: "CSV 로 올리기" }));
+    expect(await screen.findByRole("table", { name: "CSV 열" })).toHaveTextContent("session_id");
+    expect(screen.getByLabelText("CSV 예시")).toHaveTextContent(
+      "session_id,timestamp,path,step,device",
+    );
+    expect(screen.queryByRole("button", { name: "단계 매핑하기" })).not.toBeInTheDocument();
+
+    const file = () =>
+      new File(["session_id,timestamp,path\n"], "visits.csv", { type: "text/csv" });
+    await user.upload(screen.getByLabelText("CSV 파일"), file());
+    expect(await screen.findByRole("alert")).toHaveTextContent("필수 열이 없어요");
+
+    await user.upload(screen.getByLabelText("CSV 파일"), file());
+    expect(await screen.findByRole("status")).toHaveTextContent("2줄을 넣었어요 · 방문 1회");
+    expect(uploaded).toBe(true);
+    /* multipart 로 보냅니다 (JSON 기본 헤더가 붙으면 서버가 파일을 받지 못함) */
+    expect(uploads[1]).toMatch(/^multipart\/form-data; boundary=/);
+    expect(screen.getByRole("list", { name: "건너뛴 줄" })).toHaveTextContent(
+      "4번째 줄: timestamp 형식을 읽지 못했어요",
+    );
+    expect(await screen.findByRole("list", { name: "올린 파일" })).toHaveTextContent("visits.csv");
+    expect(await screen.findByRole("button", { name: "단계 매핑하기" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "visits.csv 지우기" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("list", { name: "올린 파일" })).not.toBeInTheDocument(),
+    );
   });
 
   it("R08 → R09~R11 — 차이 구간에서 고른 세그먼트로 실제 재현을 돌리고, 재현 리포트의 불편한 점을 원인 가설로 본다", async () => {

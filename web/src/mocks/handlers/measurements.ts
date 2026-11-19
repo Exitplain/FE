@@ -1,6 +1,8 @@
 import { http, HttpResponse } from "msw";
 
 import type {
+  MeasurementImport,
+  MeasurementImportResult,
   FunnelStageCompare,
   FunnelTaskCompare,
   MappingRowData,
@@ -26,13 +28,18 @@ type Stored = {
   savedAt: string | null;
   /* 실측 퍼널 세션 수 배율 (테스트에서 표본 부족을 흉내 낼 때 줄입니다) */
   scale: number;
+  /* CSV 로 올린 로그 */
+  imports: MeasurementImport[];
 };
 const store = new Map<number, Stored>();
+/* 올린 CSV 내용 (같은 파일 409) */
+const contents = new Map<number, Set<string>>();
 const AUTO_RECEIVE = import.meta.env.MODE !== "test";
 const ORIGIN = "https://shop.example.com";
 
 export function resetMeasurementMock() {
   store.clear();
+  contents.clear();
 }
 
 export function setMeasurementMock(projectId: number, patch: Partial<Stored>) {
@@ -50,6 +57,7 @@ function stateOf(projectId: number): Stored {
       mapping: {},
       savedAt: null,
       scale: 1,
+      imports: [],
     }
   );
 }
@@ -74,11 +82,134 @@ function statusOf(projectId: number, s: Stored): MeasurementStatus {
     last_origin: s.key && s.received ? ORIGIN : null,
     sessions_24h: s.received ? 3 : 0,
     events_24h: s.received ? 7 : 0,
-    mapping_saved_at: s.key ? s.savedAt : null,
+    mapping_saved_at: s.key || s.imports.length ? s.savedAt : null,
+    imports: {
+      count: s.imports.length,
+      sessions: s.imports.reduce((sum, item) => sum + item.sessions, 0),
+      last_at: s.imports[0]?.created_at ?? null,
+    },
   };
 }
 
+function productError(status: number, code: string, message: string, fields = {}) {
+  return HttpResponse.json(
+    { error: { code, message, fields }, request_id: "req_mock" },
+    { status },
+  );
+}
+
+/* BE csv_import 와 같은 규칙을 간단히: 머리글 필수 열, 줄마다 session_id·timestamp·path 검사 */
+function importCsv(
+  text: string,
+  filename: string,
+  nextId: number,
+): MeasurementImportResult | Response {
+  const [header = "", ...lines] = text
+    .replace(/^\ufeff/, "")
+    .trim()
+    .split(/\r?\n/);
+  const columns = header.split(",").map((name) => name.trim().toLowerCase());
+  const missing = ["session_id", "timestamp", "path"].filter((name) => !columns.includes(name));
+  if (missing.length) {
+    return productError(422, "VALIDATION_ERROR", `필수 열이 없어요: ${missing.join(", ")}`);
+  }
+  const at = (name: string, cells: string[]) => cells[columns.indexOf(name)]?.trim() ?? "";
+  const errors: MeasurementImportResult["errors"] = [];
+  const sessions = new Set<string>();
+  const times: number[] = [];
+  lines.forEach((line, index) => {
+    const cells = line.split(",");
+    const time = Date.parse(at("timestamp", cells).replace(" ", "T"));
+    const path = at("path", cells);
+    if (!at("session_id", cells))
+      errors.push({ line: index + 2, message: "session_id 가 비었거나 너무 길어요" });
+    else if (Number.isNaN(time))
+      errors.push({
+        line: index + 2,
+        message: "timestamp 형식을 읽지 못했어요 (예: 2026-11-18 14:03:22)",
+      });
+    else if (!path.startsWith("/") && !/^https?:\/\//.test(path))
+      errors.push({ line: index + 2, message: "path 는 /로 시작하는 경로나 전체 주소여야 해요" });
+    else {
+      sessions.add(at("session_id", cells));
+      times.push(time);
+    }
+  });
+  if (times.length === 0) {
+    return productError(
+      422,
+      "NO_VALID_ROWS",
+      "넣을 수 있는 줄이 없어요. 형식과 최근 30일 안의 기록인지 확인해 주세요.",
+      {
+        rows: errors.map((error) => `${error.line}번째 줄: ${error.message}`),
+      },
+    );
+  }
+  return {
+    id: nextId,
+    filename,
+    rows_total: lines.length,
+    rows_imported: times.length,
+    sessions: sessions.size,
+    first_at: new Date(Math.min(...times)).toISOString(),
+    last_at: new Date(Math.max(...times)).toISOString(),
+    created_at: new Date().toISOString(),
+    skipped: { invalid: errors.length, outside_window: 0, duplicate: 0 },
+    errors: errors.slice(0, 20),
+  };
+}
+
+const TEMPLATE =
+  "\ufeffsession_id,timestamp,path,step,device\n" +
+  "a81f3c,2026-11-18 14:03:22,/,,desktop\n" +
+  "a81f3c,2026-11-18 14:04:05,/cart,cart,desktop\n";
+
 export const measurementHandlers = [
+  http.get("*/api/v1/projects/:projectId/measurement/imports", ({ params }) =>
+    HttpResponse.json({ items: stateOf(Number(params.projectId)).imports }),
+  ),
+  http.post("*/api/v1/projects/:projectId/measurement/imports", async ({ params, request }) => {
+    const projectId = Number(params.projectId);
+    const s = stateOf(projectId);
+    /*
+      jsdom 은 FormData 본문을 formData() 로 다시 읽지 못해 multipart 본문에서 파일 부분을 직접 꺼냅니다
+      (파일 이름도 "blob" 으로 올 수 있어 같은 파일 여부는 내용으로 봅니다)
+    */
+    const raw = await request.text();
+    const part =
+      /name="file"(?:; filename="([^"]*)")?\r?\n(?:[^\r\n]+\r?\n)*\r?\n([\s\S]*?)\r?\n--/.exec(raw);
+    if (!part) return productError(422, "VALIDATION_ERROR", "CSV 파일을 올려 주세요.");
+    const [, filename = "upload.csv", text] = part;
+    if (contents.get(projectId)?.has(text)) {
+      return productError(409, "DUPLICATE_IMPORT", "이미 올린 파일이에요.");
+    }
+    const result = importCsv(text, filename, s.imports.length + 1);
+    if (result instanceof Response) return result;
+    const item: MeasurementImport = {
+      id: result.id,
+      filename: result.filename,
+      rows_total: result.rows_total,
+      rows_imported: result.rows_imported,
+      sessions: result.sessions,
+      first_at: result.first_at,
+      last_at: result.last_at,
+      created_at: result.created_at,
+    };
+    s.imports = [item, ...s.imports];
+    store.set(projectId, s);
+    contents.set(projectId, new Set([...(contents.get(projectId) ?? []), text]));
+    return HttpResponse.json(result, { status: 201 });
+  }),
+  http.delete("*/api/v1/projects/:projectId/measurement/imports/:importId", ({ params }) => {
+    const projectId = Number(params.projectId);
+    const s = stateOf(projectId);
+    s.imports = s.imports.filter((item) => item.id !== Number(params.importId));
+    store.set(projectId, s);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get("*/api/v1/projects/:projectId/measurement/csv-template", () =>
+    HttpResponse.text(TEMPLATE, { headers: { "Content-Type": "text/csv; charset=utf-8" } }),
+  ),
   http.get("*/api/v1/projects/:projectId/measurement", ({ params }) => {
     const projectId = Number(params.projectId);
     const s = stateOf(projectId);

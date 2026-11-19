@@ -2,6 +2,8 @@ import type {
   FunnelDays,
   FunnelDevice,
   MeasurementFunnel,
+  MeasurementImport,
+  MeasurementImportResult,
   MeasurementMapping,
   MeasurementStatus,
   MeasurementSteps,
@@ -66,6 +68,46 @@ export async function getMeasurementFunnel(
   const { data } = await axiosInstance.get<MeasurementFunnel>(
     `/api/v1/projects/${projectId}/measurement/funnel`,
     { params: { days, device } },
+  );
+  return data;
+}
+
+/*
+  스크립트를 넣을 수 없는 사이트의 CSV 로그 올리기 (5MB·10만 줄까지).
+  형식이 틀린 줄은 건너뛰고 결과에 줄 번호와 이유가 옵니다. 같은 파일을 다시 올리면 409 DUPLICATE_IMPORT.
+*/
+export async function uploadMeasurementCsv(
+  projectId: number,
+  file: File,
+): Promise<MeasurementImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await axiosInstance.post<MeasurementImportResult>(
+    `/api/v1/projects/${projectId}/measurement/imports`,
+    form,
+    /* 브라우저가 multipart 경계를 넣도록 Content-Type 은 비웁니다 (기본값이 JSON) */
+    { headers: { "Content-Type": undefined } },
+  );
+  return data;
+}
+
+export async function getMeasurementImports(projectId: number): Promise<MeasurementImport[]> {
+  const { data } = await axiosInstance.get<{ items: MeasurementImport[] }>(
+    `/api/v1/projects/${projectId}/measurement/imports`,
+  );
+  return data.items;
+}
+
+/* 잘못 올린 파일을 그 파일로 넣은 줄과 함께 지웁니다 */
+export async function deleteMeasurementImport(projectId: number, importId: number): Promise<void> {
+  await axiosInstance.delete(`/api/v1/projects/${projectId}/measurement/imports/${importId}`);
+}
+
+/* 머리글과 예시 줄이 든 CSV (엑셀에서 한글이 깨지지 않게 BOM 포함) */
+export async function getMeasurementCsvTemplate(projectId: number): Promise<Blob> {
+  const { data } = await axiosInstance.get<Blob>(
+    `/api/v1/projects/${projectId}/measurement/csv-template`,
+    { responseType: "blob" },
   );
   return data;
 }
