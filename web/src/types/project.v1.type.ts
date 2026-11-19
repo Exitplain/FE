@@ -21,6 +21,8 @@ export type V1ProjectMeasurement = {
   last_received_at: string | null;
   /* 마지막으로 CSV 를 올린 시각 (예전 서버 응답에는 없을 수 있음) */
   last_imported_at?: string | null;
+  /* 단계 매핑을 저장한 시각 (예측과 비교할 수 있음). 예전 서버 응답에는 없을 수 있음 */
+  mapping_saved_at?: string | null;
 };
 
 /* 가장 최근 보정. 없거나 기본 모형으로 되돌렸으면 before (revision 등은 null) */

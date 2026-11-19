@@ -49,6 +49,47 @@ describe("C05 프로젝트 개요 (GET /api/v1/projects/{id})", () => {
     expect(screen.queryByText("미연결")).not.toBeInTheDocument();
   });
 
+  it("실제 고객 데이터 분석 단계의 세 칸을 수집·비교·원인 재현 진행으로 칠한다", async () => {
+    const projectId = await createTestProject();
+    setProjectLoopMock(Number(projectId), {
+      measurement: {
+        status: "connected",
+        last_received_at: null,
+        last_imported_at: "2026-11-19T10:00:00+09:00",
+        mapping_saved_at: "2026-11-19T11:00:00+09:00",
+      },
+    });
+    const run = (id: string, kind: string) => ({
+      id,
+      sequence_no: 1,
+      name: "1차",
+      kind,
+      status: "completed",
+      change_note: "",
+      parent_run_id: null,
+      created_at: "2026-11-17T05:00:00+00:00",
+      started_at: null,
+      finished_at: "2026-11-17T05:20:00+00:00",
+      report: null,
+    });
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", () =>
+        HttpResponse.json({ items: [run("run-1", "pretest")], next_cursor: null, total: 1 }),
+      ),
+    );
+    renderDetail(projectId);
+
+    /* CSV 수집 + 매핑 저장 → 3칸 중 2칸, 원인 재현은 아직 */
+    expect(
+      await screen.findByRole("img", { name: "실제 고객 데이터 분석 진행 2/3" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "사전 테스트 진행 3/3" })).toBeInTheDocument();
+    /* 진단 루프 버튼과 요약 카드 링크 둘 다 "분석 보기" */
+    expect(await screen.findAllByRole("link", { name: "실제 고객 데이터 분석 보기" })).toHaveLength(
+      2,
+    );
+  });
+
   it("마지막 사전 테스트가 있으면 차수·상태를 보여준다", async () => {
     const detail = await getProjectDetail(1);
     const last = {

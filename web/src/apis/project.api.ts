@@ -111,7 +111,7 @@ export async function getProjects(): Promise<ProjectRecord[]> {
   - 최대 이탈 구간은 리포트 전체를 받아야 해서 비워 둡니다 (BE 요약에 들어오면 채움)
 */
 /* 프로젝트 상세의 실측 상태 → 개요 카드. 스크립트 수집이나 CSV 기록이 있으면 연결됨 */
-function analyticsOf(measurement: V1ProjectDetail["measurement"]) {
+function analyticsOf(measurement: V1ProjectDetail["measurement"], reproduced = false) {
   const status = measurement?.status ?? "unconnected";
   const received = measurement?.last_received_at ?? null;
   const imported = measurement?.last_imported_at ?? null;
@@ -128,6 +128,11 @@ function analyticsOf(measurement: V1ProjectDetail["measurement"]) {
           : ("unconnected" as const),
     lastDataLabel: latest ? formatRunDate(latest) : null,
     source: received ? ("script" as const) : imported ? ("csv" as const) : null,
+    steps: [status === "connected", !!measurement?.mapping_saved_at, reproduced] as [
+      boolean,
+      boolean,
+      boolean,
+    ],
   };
 }
 
@@ -157,7 +162,10 @@ export function toProjectOverview(project: V1ProjectDetail, runs?: RunItem[]): P
       dateLabel: createdAt ? formatRunDate(createdAt) : null,
     },
     analytics: {
-      ...analyticsOf(project.measurement),
+      ...analyticsOf(
+        project.measurement,
+        (runs ?? []).some((item) => item.kind === "cause_repro"),
+      ),
       landingSessions: null,
       completedSessions: null,
       completionRate: null,

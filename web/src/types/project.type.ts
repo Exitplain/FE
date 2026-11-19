@@ -31,6 +31,8 @@ export type ProjectOverview = {
     lastDataLabel?: string | null;
     /* 연결 방법 */
     source?: "script" | "csv" | null;
+    /* 진단 루프 2단계의 세 칸: 수집(스크립트·CSV) · 예측과 비교(매핑 저장) · 원인 재현 */
+    steps?: [boolean, boolean, boolean];
     landingSessions: number | null;
     completedSessions: number | null;
     completionRate: number | null;
