@@ -16,6 +16,7 @@ import {
   sessionGroup,
   sessionSegment,
   taskOptions,
+  taskTabs,
 } from "./runView";
 
 function session(
@@ -91,6 +92,98 @@ describe("taskOptions — 과업 탭", () => {
     ).toEqual([
       { id: "order", name: "첫 주문" },
       { id: "coupon", name: "쿠폰으로 주문" },
+    ]);
+  });
+});
+
+describe("taskTabs — 전체 과업 탭과 과업별 진행", () => {
+  /* 과업마다 방문 2회 (페르소나 2명 × 시드 1) */
+  const task = (taskId: string, n: number, status: SessionStatus) =>
+    session(`p${n}_${taskId}`, status, { task_id: taskId, task_name: taskId });
+  const base = {
+    plannedIds: ["order", "coupon", "delivery"],
+    names: { order: "첫 주문", coupon: "쿠폰 받기", delivery: "배송 확인" },
+    expectedSessions: 6,
+    phase: "running" as const,
+  };
+
+  it("계획한 과업을 처음부터 모두, 계획 순서대로 보여 주고 시작 전 과업은 대기", () => {
+    expect(taskTabs({ ...base, sessions: [] })).toEqual([
+      { id: "order", name: "첫 주문", state: "queued", started: 0, finished: 0, total: 2 },
+      { id: "coupon", name: "쿠폰 받기", state: "queued", started: 0, finished: 0, total: 2 },
+      { id: "delivery", name: "배송 확인", state: "queued", started: 0, finished: 0, total: 2 },
+    ]);
+  });
+
+  it("진행 중인 방문이 있으면 진행 중, 과업 방문이 모두 끝나면 완료 (실행 순서와 관계없이)", () => {
+    const tabs = taskTabs({
+      ...base,
+      sessions: [
+        task("coupon", 1, "success"),
+        task("coupon", 2, "simulated_dropout"),
+        task("delivery", 1, "running"),
+        task("delivery", 2, "success"),
+      ],
+    });
+    expect(tabs.map((tab) => [tab.id, tab.state, tab.finished])).toEqual([
+      ["order", "queued", 0],
+      ["coupon", "done", 2],
+      ["delivery", "running", 1],
+    ]);
+  });
+
+  it("세션 이름보다 받은 과업 이름을 쓰고, 저장 목록에 없는 과업은 뒤에 붙인다", () => {
+    const tabs = taskTabs({ ...base, sessions: [task("extra", 1, "running")] });
+    expect(tabs.map((tab) => tab.id)).toEqual(["order", "coupon", "delivery", "extra"]);
+    expect(tabs[0].name).toBe("첫 주문");
+    expect(tabs[3]).toMatchObject({ name: "extra", state: "running" });
+  });
+
+  it("실행이 끝나면 방문이 없던 과업도 완료", () => {
+    const tabs = taskTabs({
+      ...base,
+      phase: "completed",
+      sessions: [task("order", 1, "success")],
+    });
+    expect(tabs.map((tab) => tab.state)).toEqual(["done", "done", "done"]);
+  });
+
+  it("예상 방문 수가 과업 수로 나누어떨어지지 않으면 과업별 전체 수는 모른다", () => {
+    expect(taskTabs({ ...base, expectedSessions: 7, sessions: [] })[0].total).toBeNull();
+  });
+
+  it("방문 목록이 잘렸으면 개수만으로 완료라고 하지 않는다", () => {
+    const tabs = taskTabs({
+      ...base,
+      truncated: true,
+      sessions: [task("order", 1, "success"), task("order", 2, "success")],
+    });
+    expect(tabs[0].state).toBe("running");
+  });
+
+  it("실행이 끝났으면 진행 중으로 남은 방문이 있어도 완료로 본다", () => {
+    const tabs = taskTabs({ ...base, phase: "cancelled", sessions: [task("order", 1, "running")] });
+    expect(tabs[0].state).toBe("done");
+  });
+
+  it("대기 방문만 있는 과업은 대기", () => {
+    expect(taskTabs({ ...base, sessions: [task("order", 1, "queued")] })[0].state).toBe("queued");
+  });
+
+  it("과업별 예상 수는 계획한 과업 수로 나눈다 (계획에 없는 과업이 섞여도)", () => {
+    const tabs = taskTabs({ ...base, sessions: [task("extra", 1, "running")] });
+    expect(tabs.map((tab) => tab.total)).toEqual([2, 2, 2, 2]);
+  });
+
+  it("저장한 과업 목록이 없으면 방문에 나온 과업만 (기존과 같음)", () => {
+    const tabs = taskTabs({
+      ...base,
+      plannedIds: [],
+      sessions: [task("coupon", 1, "running"), task("order", 1, "running")],
+    });
+    expect(tabs.map((tab) => [tab.id, tab.total])).toEqual([
+      ["coupon", null],
+      ["order", null],
     ]);
   });
 });

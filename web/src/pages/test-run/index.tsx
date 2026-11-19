@@ -28,10 +28,12 @@ import SessionLive from "./components/SessionLive";
 import ThinkAloudFeed from "./components/ThinkAloudFeed";
 import { useCancelRun, useRunEvents, useRunSessions } from "./hooks/useRunData";
 import { runTitle } from "./hooks/useRunTitle";
-import { toPersonaRun, v1Phase } from "./utils/runAdapter";
-import { FILTER_LABELS, type RunPhase, type SessionFilter, taskOptions } from "./utils/runView";
+import { runTaskNames, toPersonaRun, v1Phase } from "./utils/runAdapter";
+import { FILTER_LABELS, type RunPhase, type SessionFilter, taskTabs } from "./utils/runView";
 
 const FILTER_KEYS = Object.keys(FILTER_LABELS) as SessionFilter[];
+/* 남긴 과업 목록이 없을 때 (매번 새 배열을 만들지 않게) */
+const EMPTY_IDS: readonly string[] = [];
 
 /* Figma 제목 오른쪽 상태 (중지는 Figma 에 없어 임시 표시) */
 const PHASE_BADGE = {
@@ -78,6 +80,8 @@ function RunView({ project, runId }: { project: CurrentProject; runId: string })
   const events = useRunEvents(runId, active);
   /* 실행을 시작한 브라우저에 남긴 과업 이름 (실행 응답에는 과업 id 만 있음) */
   const savedTaskNames = useRunTaskNamesStore((state) => state.byRunId[runId]);
+  /* 실행을 시작할 때 남긴 과업 전체 (계획 순서). 있으면 방문 전에도 과업 탭을 모두 그립니다 */
+  const plannedTaskIds = useRunTaskNamesStore((state) => state.orderByRunId?.[runId]);
   /*
     이 화면에서 진행 중인 실행을 본 적이 있는지. 끝나면 리포트로 자동 이동하는 조건입니다
     (분석 단계가 polling 간격보다 짧게 지나가도, 세션 라이브를 보던 중이어도 이동하도록 여기서 기억).
@@ -180,6 +184,8 @@ function RunView({ project, runId }: { project: CurrentProject; runId: string })
           phase={phase!}
           run={run}
           totalSessions={sessions.data?.total ?? run.sessions.length}
+          plannedTaskIds={plannedTaskIds ?? EMPTY_IDS}
+          savedTaskNames={savedTaskNames}
           autoNavigate={sawActive}
           missingSession={sessionId != null && !session}
         />
@@ -194,6 +200,8 @@ function RunDashboard({
   phase,
   run,
   totalSessions,
+  plannedTaskIds,
+  savedTaskNames,
   autoNavigate,
   missingSession,
 }: {
@@ -203,21 +211,42 @@ function RunDashboard({
   run: PersonaRun;
   /* 서버의 전체 세션 수 (한 번에 200개까지만 받아 화면 수보다 많을 수 있음) */
   totalSessions: number;
+  plannedTaskIds: readonly string[];
+  savedTaskNames: Record<string, string> | undefined;
   /* 진행 중인 실행을 이 화면에서 봤으면 끝날 때 리포트로 자동 이동합니다 */
   autoNavigate: boolean;
   missingSession: boolean;
 }) {
   const navigate = useNavigate();
-  const tasks = taskOptions(run.sessions);
+  const tasks = taskTabs({
+    sessions: run.sessions,
+    plannedIds: plannedTaskIds,
+    names: runTaskNames(detail, plannedTaskIds, savedTaskNames),
+    expectedSessions: detail.progress.expected_sessions,
+    phase,
+    truncated: totalSessions > run.sessions.length,
+  });
   const { order, summary, title } = runTitle(run);
   const cancel = useCancelRun(detail.id);
   const showToast = useToastStore((state) => state.show);
   /* 과업·상태 필터는 주소에 두어 세션 라이브에 갔다 와도 유지합니다 */
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTask = searchParams.get("task");
+  /*
+    주소에 과업이 없으면 진행 중인 과업 → 방문이 있는 과업 → 첫 과업.
+    진행 중인 과업을 한 번 고르면 그 과업에 머뭅니다 (polling 으로 다음 과업이 돌기 시작해도 보던 화면이 바뀌지 않게)
+  */
+  const fallbackTask =
+    tasks.find((task) => task.state === "running") ??
+    tasks.find((task) => task.started > 0) ??
+    tasks[0];
+  const [pinnedTask, setPinnedTask] = useState<string | null>(null);
+  if (pinnedTask == null && fallbackTask?.state === "running") setPinnedTask(fallbackTask.id);
   const activeTaskId = tasks.some((task) => task.id === requestedTask)
     ? requestedTask!
-    : (tasks[0]?.id ?? "");
+    : tasks.some((task) => task.id === pinnedTask)
+      ? pinnedTask!
+      : (fallbackTask?.id ?? "");
   const requestedFilter = searchParams.get("filter");
   const filter: SessionFilter = (FILTER_KEYS as string[]).includes(requestedFilter ?? "")
     ? (requestedFilter as SessionFilter)
@@ -262,7 +291,7 @@ function RunDashboard({
   /* 제품 API 는 패널·시드 수를 주지 않아, 이 과업의 페르소나 수와 서버의 예상 세션 수로 보여 줍니다 */
   const panelSize = new Set(taskSessions.map((session) => session.code)).size;
   const condition = [
-    /* 세션이 시작돼야 과업을 알 수 있어 준비 중에는 뺍니다 */
+    /* 남긴 과업 목록이 없으면 방문이 시작돼야 과업을 알 수 있어 준비 중에는 빠집니다 */
     ...(tasks.length > 0 ? [`과업 ${tasks.length}개`] : []),
     /* Figma P10 은 기기 조건을 빼고 보여줍니다 */
     `방문 ${detail.progress.started_sessions} / ${detail.progress.expected_sessions}`,
@@ -345,6 +374,7 @@ function RunDashboard({
           <RunProgress
             phase={phase}
             sessions={run.sessions}
+            tabs={tasks}
             taskId={activeTaskId}
             onTaskChange={(id) => {
               /* 지금 과업을 다시 누른 경우에는 필터를 그대로 둡니다 */

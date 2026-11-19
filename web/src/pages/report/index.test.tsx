@@ -16,7 +16,8 @@ import type { RunReport } from "@/types/report.type";
 import ReportPage from "./index";
 import { cannedReport, orderTask } from "./reportFixture";
 
-function renderReport(runId: string, search = "") {
+/* 기본은 첫 과업(order)으로 엽니다. 주소에 과업이 없을 때(전체)를 보려면 search 에 "" 를 넘깁니다 */
+function renderReport(runId: string, search = "?task=order") {
   return renderWithProviders(<ReportPage />, {
     route: `${buildPath("report", { projectId: "1", runId })}${search}`,
     path: ROUTES.report.path,
@@ -253,13 +254,15 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "첫 주문 · 1차" })).toBeInTheDocument();
   });
 
-  it("과업 칩 전체를 고르면 과업을 이탈 많은 순 카드로 비교하고, 카드를 누르면 그 과업으로 간다", async () => {
+  it("주소에 과업이 없으면 기본으로 과업 전체를 이탈 많은 순 카드로 비교하고, 카드를 누르면 그 과업으로 간다", async () => {
     serveReport();
     const user = userEvent.setup();
-    renderReport(await completeRun());
+    renderReport(await completeRun(), "");
 
-    await user.click(await screen.findByRole("radio", { name: "전체" }));
-    expect(screen.getByRole("heading", { level: 1, name: "전체 과업 · 1차" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "전체 과업 · 1차" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "전체" })).toHaveAttribute("aria-checked", "true");
     /* 실행 전체 기준 요약: 이탈이 있었던 과업 수 · 전체 달성률(summary) · 기록 세션 */
     expect(screen.getByText(/에서 이탈이 있었어요/)).toHaveTextContent("2개 과업 중 2개에서");
     expect(screen.getByText("59%")).toBeInTheDocument();
@@ -283,6 +286,29 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
       "aria-checked",
       "true",
     );
+  });
+
+  it("과업을 보다가 전체 칩을 고르면 과업 전체 비교로 바꾼다", async () => {
+    serveReport();
+    const user = userEvent.setup();
+    renderReport(await completeRun(), "?task=order");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "전체" }));
+    expect(screen.getByRole("heading", { level: 1, name: "전체 과업 · 1차" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "과업별 결과" })).toBeInTheDocument();
+  });
+
+  it("주소의 과업 id 를 모르면 첫 과업으로 연다", async () => {
+    serveReport();
+    renderReport(await completeRun(), "?task=unknown");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "첫 주문" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("과업이 하나뿐이면 전체 칩을 보여 주지 않는다", async () => {
@@ -311,8 +337,9 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     );
     await user.click(within(menu).getByRole("menuitemradio", { name: /2차/ }));
 
+    /* 다른 실행은 과업 선택 없이 열리므로 기본인 과업 전체로 엽니다 */
     expect(
-      await screen.findByRole("heading", { level: 1, name: "첫 주문 · 2차" }),
+      await screen.findByRole("heading", { level: 1, name: "전체 과업 · 2차" }),
     ).toBeInTheDocument();
   });
 
