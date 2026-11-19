@@ -33,10 +33,12 @@ describe("useNewTestStore", () => {
     });
   });
 
-  it("계획을 받으면 서버 계획의 기본 과업(추천)과 세그먼트 인원을 미리 고른다", () => {
+  it("계획을 받으면 과업은 고르지 않은 채로 두고 세그먼트 인원은 서버 기본값으로 고른다", () => {
     const { server } = setPlan();
 
-    expect(useNewTestStore.getState().taskIds).toEqual(server.task_ids);
+    /* 서버 계획에 기본 과업(추천)이 있어도 미리 고르지 않습니다 */
+    expect(server.task_ids.length).toBeGreaterThan(0);
+    expect(useNewTestStore.getState().taskIds).toEqual([]);
     expect(useNewTestStore.getState().segmentCounts).toEqual([3, 3, 2, 2]);
     expect(useNewTestStore.getState().seedCount).toBe(1);
   });
@@ -74,9 +76,10 @@ describe("useNewTestStore", () => {
 
   it("다시 탐색하면 이전에 고른 과업 중 새 결과에 있는 것은 유지한다", () => {
     setPlan();
-    /* 추천(order·coupon) 중 order 를 끄고 cart 를 켭니다 */
+    /* 새 결과에 없는 과업("gone")은 다시 탐색하면 빠집니다 */
+    useNewTestStore.getState().toggleTask("coupon");
+    useNewTestStore.getState().toggleTask("gone");
     useNewTestStore.getState().toggleTask("cart");
-    useNewTestStore.getState().toggleTask("order");
     setPlan();
 
     expect(useNewTestStore.getState().taskIds).toEqual(["coupon", "cart"]);

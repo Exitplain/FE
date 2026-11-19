@@ -157,7 +157,8 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
     ),
   setLastStep: (lastStep) => set((state) => (state.lastStep === lastStep ? state : { lastStep })),
   /*
-    다시 탐색해도 이전에 고른 과업 중 새 결과에 있는 것은 유지하고, 없으면 서버 계획의 기본 과업(추천)을 고릅니다.
+    과업은 미리 고르지 않습니다 (서버 계획의 기본 과업(추천)도 고르지 않음). 다시 탐색하면 이전에 고른 과업 중
+    새 결과에 있는 것만 유지합니다.
     세그먼트 인원은 지금 값의 합계가 서버 범위(로그인 없이 4~20명, 테스트 계정이면 계정 수) 안이면 유지하고,
     아니면 서버 기본값으로 맞춥니다.
     시드는 고른 값을 유지하되 서버 범위(1~3회) 안으로 맞춥니다. 처음 값은 BE 기본값(1회)과 같고,
@@ -170,7 +171,7 @@ export const useNewTestStore = create<NewTestState & NewTestActions>()((set) => 
       return {
         plan,
         planAt: at ?? Date.now(),
-        taskIds: kept.length > 0 ? kept : server.task_ids,
+        taskIds: kept,
         segmentCounts:
           inRange(sum(state.segmentCounts), { min: plan.personaMin, max: plan.personaMax }) &&
           state.segmentCounts.length === counts.length
