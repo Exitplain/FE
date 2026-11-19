@@ -1,3 +1,4 @@
+import { STAGE_LABELS } from "@/constants/persona";
 import type { PersonaRun, PersonaSession, Stage } from "@/types/persona.type";
 import type { RunEvent, RunSession, RunSessionStatus } from "@/types/run.type";
 
@@ -33,6 +34,17 @@ function startedSessions(run: PersonaRun) {
     .filter(({ session }) => session.status !== "queued");
 }
 
+/* BE agent/explain.py 의 한 줄 설명을 흉내 냅니다. 진행 중인 방문은 null (BE 와 같음) */
+function mockExplanation(session: PersonaSession) {
+  if (session.status === "queued" || session.status === "running") return null;
+  if (session.status === "success") return "목표 화면에 도달했어요";
+  if (session.status === "simulated_dropout") {
+    const where = session.terminal_stage ? `${STAGE_LABELS[session.terminal_stage]} 화면에서 ` : "";
+    return `${where}이탈${session.reason ? ` · ${session.reason}` : ""}`;
+  }
+  return session.reason || null;
+}
+
 function toRunSession(session: PersonaSession, id: number): RunSession {
   const stages = (session.trace ?? []).map((point) => funnelKey(point.stage)).filter(Boolean);
   return {
@@ -47,6 +59,7 @@ function toRunSession(session: PersonaSession, id: number): RunSession {
     seed: session.seed ?? 1,
     status: session.status as RunSessionStatus,
     reason: session.reason || null,
+    explanation: mockExplanation(session),
     steps: session.steps,
     duration_seconds: session.elapsed_ms != null ? Math.round(session.elapsed_ms / 1000) : null,
     max_frustration: Math.max(0, ...(session.trace ?? []).map((point) => point.score)),

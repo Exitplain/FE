@@ -262,6 +262,37 @@ describe("P08~P11 실행 화면", () => {
     await user.click(screen.getByRole("link", { name: "실행 화면으로" }));
     expect(await screen.findByRole("list", { name: "방문" })).toBeInTheDocument();
   });
+  it("P11 — 실행 중이라도 먼저 끝난 방문은 서버가 만든 끝난 이유를 보여주고, 진행 중 방문은 비워 둔다", async () => {
+    const user = userEvent.setup();
+    const why =
+      "회원가입 화면(/signup)에서 이탈 · 주 원인 입력 부담: 필수 입력 7칸 (허용 4칸) · 불만 72/60";
+    serveRun({}, [
+      session(1, {
+        status: "simulated_dropout",
+        reason: "Configured frustration threshold exceeded",
+        explanation: why,
+      }),
+      session(2, {
+        persona: { code: "P-002", segment_id: "segment_2", segment_name: "꼼꼼한 비교형" },
+        explanation: null,
+      }),
+    ]);
+    renderRun("fixed-run");
+
+    await user.click((await screen.findAllByRole("link", { name: /P-001/ }))[0]);
+    expect(await screen.findByText(why)).toBeInTheDocument();
+    expect(screen.getByText("끝난 이유")).toBeInTheDocument();
+    /* 영어 원문 사유 대신 설명을 씁니다 */
+    expect(screen.queryByText(/Configured frustration/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "실행 화면으로" }));
+    await user.click((await screen.findAllByRole("link", { name: /P-002/ }))[0]);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "P-002 · 라이브" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("끝난 이유")).not.toBeInTheDocument();
+  });
+
   it("P10 — 분석 단계를 보여주고, 끝나면 리포트로 자동 이동한다", async () => {
     const run = await startRun(["order"]);
     /* 준비 2 + 시드 3회 × (세션 2틱 + 시드 전환) 뒤 분석 단계 */

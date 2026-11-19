@@ -33,6 +33,8 @@ export function sessionFixture(overrides: Partial<ReportSessionDetail> = {}): Re
     final_screenshot: "/api/v1/sessions/7/final-screenshot",
     status: "simulated_dropout",
     reason: "필수 입력이 많아 멈춤",
+    explanation:
+      "가입 화면(/signup)에서 이탈 · 주 원인 입력 부담: 필수 입력 7칸 (허용 4칸) · 불만 72/70",
     steps: 3,
     duration_seconds: 185,
     terminal_stage: "signup",
