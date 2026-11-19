@@ -192,6 +192,26 @@ describe("taskTabs — 전체 과업 탭과 과업별 진행", () => {
     expect(tabs.map((tab) => tab.total)).toEqual([2, 2, 2, 2]);
   });
 
+  it("서버 과업 목록이 있으면 직접 추가한 과업까지 센 과업 수로 나눈다", () => {
+    /* 고른 과업 2개 + 직접 추가 1개, AI 고객 10명 × 시드 1 → 전체 30, 과업마다 10 */
+    const tabs = taskTabs({
+      ...base,
+      plannedIds: ["order", "coupon"],
+      expectedSessions: 30,
+      sessions: [],
+      serverTasks: [
+        { task_id: "order", name: "첫 주문", position: 1, status: "running", seeds: 1 },
+        { task_id: "coupon", name: "쿠폰 받기", position: 2, status: "queued", seeds: 1 },
+        { task_id: "custom_1", name: "배송지 바꾸기", position: 3, status: "queued", seeds: 1 },
+      ],
+    });
+    expect(tabs.map((tab) => [tab.id, tab.total])).toEqual([
+      ["order", 10],
+      ["coupon", 10],
+      ["custom_1", 10],
+    ]);
+  });
+
   it("저장한 과업 목록이 없으면 방문에 나온 과업만 (기존과 같음)", () => {
     const tabs = taskTabs({
       ...base,
