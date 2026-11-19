@@ -21,6 +21,34 @@ export type MeasurementStatus = {
   events_24h: number;
   /* R05 매핑을 저장했으면 퍼널·비교 화면을 엽니다 */
   mapping_saved_at: string | null;
+  /* CSV 로 올린 로그 (스크립트를 넣을 수 없는 사이트). 예전 서버 응답에는 없을 수 있습니다 */
+  imports?: { count: number; sessions: number; last_at: string | null };
+};
+
+/*
+  실측 CSV 올리기 (BE measurements/csv_import.py)
+  POST   /api/v1/projects/{id}/measurement/imports  (multipart file) → 201 MeasurementImportResult
+  GET    /api/v1/projects/{id}/measurement/imports  → { items }
+  DELETE /api/v1/projects/{id}/measurement/imports/{import_id} → 204 (그 파일로 넣은 줄도 함께)
+  GET    /api/v1/projects/{id}/measurement/csv-template → 예시 CSV
+*/
+export type MeasurementImport = {
+  id: number;
+  filename: string;
+  rows_total: number;
+  rows_imported: number;
+  sessions: number;
+  /* 넣은 줄 중 가장 이른·늦은 시각 */
+  first_at: string | null;
+  last_at: string | null;
+  created_at: string;
+};
+
+export type MeasurementImportResult = MeasurementImport & {
+  /* 형식이 틀린 줄 · 최근 30일 밖이거나 미래 시각인 줄 · 같은 줄 반복 */
+  skipped: { invalid: number; outside_window: number; duplicate: number };
+  /* 형식이 틀린 줄 앞 20개 (line 은 머리글을 1로 센 줄 번호) */
+  errors: { line: number; message: string }[];
 };
 
 export type MeasurementStep = {

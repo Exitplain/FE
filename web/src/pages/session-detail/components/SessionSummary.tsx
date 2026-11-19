@@ -12,7 +12,7 @@ const RECENT = 3;
 
 /*
   Figma P15(이탈) · P16(완료) 요약 탭.
-  위: KPI 4칸 / 왼쪽: 근거 발화 · 단계 흐름 · 좌절 점수 변화 / 오른쪽: 최근 스텝
+  위: KPI 4칸 / 왼쪽: 끝난 이유(서버 explanation) · 근거 발화 · 단계 흐름 · 좌절 점수 변화 / 오른쪽: 최근 스텝
   질문하기는 BE 세션 질문 API(POST /api/v1/sessions/{id}/questions)가 아직 없어 숨깁니다.
 */
 export default function SessionSummary({
@@ -50,6 +50,14 @@ export default function SessionSummary({
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 flex flex-col gap-8">
+          {session.explanation && (
+            <section aria-labelledby="session-explanation-title" className="flex flex-col gap-1">
+              <h2 id="session-explanation-title" className="text-xs text-subtle">
+                {dropout ? "왜 이탈했나요?" : "어떻게 끝났나요?"}
+              </h2>
+              <p className="text-sm font-bold text-ink">{session.explanation}</p>
+            </section>
+          )}
           {quote && (
             <figure className="flex flex-col gap-1">
               <figcaption className="text-xs text-subtle">근거 발화</figcaption>

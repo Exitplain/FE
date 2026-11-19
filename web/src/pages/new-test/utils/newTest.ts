@@ -6,6 +6,7 @@ import type {
   Plan,
   PlanReview,
   RevisionPersonas,
+  SegmentProfile,
   SiteCheck,
 } from "@/types/plan.type";
 
@@ -114,6 +115,8 @@ export type WizardPlan = {
   seedRange: { min: number; max: number };
   review: PlanReview;
   check: SiteCheck | null;
+  /* 3단계에서 추론한 세그먼트 유형 (추론 전이면 name 이 null) */
+  segmentProfiles: SegmentProfile[];
 };
 
 export function toWizardPlan(
@@ -138,6 +141,7 @@ export function toWizardPlan(
     seedRange: plan.options.capabilities.limits.seed_count ?? { min: SEED_DEFAULT, max: SEED_MAX },
     review: plan.review,
     check,
+    segmentProfiles: plan.segment_profiles ?? [],
   };
 }
 
@@ -160,7 +164,13 @@ export function withServerPlan(current: WizardPlan, plan: Plan): WizardPlan {
     ...personaRange(plan),
     seedCount: plan.limits.seed_count,
     viewportWidth: plan.limits.viewport_width,
+    segmentProfiles: plan.segment_profiles ?? [],
   };
+}
+
+/* 세그먼트 유형을 아직 추론하지 않았는지 (이름이 하나라도 없으면 추론 전) */
+export function needsSegmentInference(plan: WizardPlan | null) {
+  return !!plan && (plan.segmentProfiles.length === 0 || plan.segmentProfiles.some((p) => !p.name));
 }
 
 /* BE context·additional_request 최대 길이 */
@@ -443,4 +453,21 @@ export function toPanelSegments(personas: RevisionPersonas): PanelSegment[] {
       },
     };
   });
+}
+
+/*
+  확인 화면의 "직접 추가한 과업" 줄.
+  서버가 이번 실행에 넣는다고 알려 준 과업(review.tasks.custom_names)이면 AI 가 성공 기준을 만들어 함께 테스트하고,
+  아니면 예전처럼 실행에 넣지 않습니다. 둘이 섞이면 과업마다 따로 적습니다.
+*/
+export function customTaskSummary(customTasks: string[], runningNames: string[] | undefined) {
+  const running = new Set(runningNames ?? []);
+  const inRun = customTasks.filter((task) => running.has(task));
+  const notInRun = customTasks.filter((task) => !running.has(task));
+  return [
+    inRun.length > 0 ? `${inRun.join(" · ")} (AI가 성공 기준을 만들어 함께 테스트해요)` : "",
+    notInRun.length > 0 ? `${notInRun.join(" · ")} (실행에 포함 안 됨)` : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
 }

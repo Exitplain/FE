@@ -109,6 +109,8 @@ export type RunSession = {
   seed: number;
   status: RunSessionStatus;
   reason: string | null;
+  /* 왜 끝났는지 한 줄 (BE agent/explain.py). 진행 중인 방문은 null, 예전 서버는 없음 */
+  explanation?: string | null;
   steps: number;
   duration_seconds: number | null;
   max_frustration: number | null;

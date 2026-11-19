@@ -76,6 +76,7 @@ export function toPersonaSession(detail: ReportSessionDetail): PersonaSession {
     goal: "",
     status: toStatus(detail.status),
     reason: detail.reason ?? "",
+    explanation: detail.explanation ?? null,
     steps: detail.steps,
     events,
     trace,

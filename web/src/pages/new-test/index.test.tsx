@@ -55,6 +55,8 @@ async function goToConfirm(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
   await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
   await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+  /* 3단계에 들어오면 세그먼트 유형을 한 번 추론합니다 (segment-inferences) */
+  await screen.findByText("빠른 구매형");
   await user.click(await screen.findByRole("button", { name: "다음: 시작 전 확인" }));
   await screen.findByRole("list", { name: "입력 요약" });
 }
@@ -856,20 +858,24 @@ describe("P02~P07 제품 API 계약", () => {
       "POST /api/v1/projects/1/discoveries",
       "POST /api/v1/projects/1/plans",
       "PATCH /api/v1/plans/:id",
+      "POST /api/v1/plans/:id/segment-inferences",
       "PATCH /api/v1/plans/:id",
       "POST /api/v1/plans/:id/confirmations",
       "GET /api/v1/plan-revisions/:id/personas",
       "POST /api/v1/runs",
     ]);
     const patches = calls(requests, "PATCH", /^\/api\/v1\/plans\//);
-    expect(patches.map((request) => request.headers.get("If-Match"))).toEqual(['"1"', '"2"']);
+    expect(patches.map((request) => request.headers.get("If-Match"))).toEqual(['"1"', '"3"']);
+    expect(JSON.parse(calls(requests, "POST", /segment-inferences$/)[0].body)).toEqual({
+      revision: 2,
+    });
     expect(JSON.parse(patches[0].body)).toMatchObject({
       audience: { context: "첫 방문자", ages: ["any"] },
     });
     expect(JSON.parse(patches[1].body).segments).toHaveLength(4);
     /* 시드를 바꾸지 않으면 limits 는 보내지 않습니다 */
     expect(JSON.parse(patches[1].body)).not.toHaveProperty("limits");
-    expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 3 });
+    expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 4 });
     expect(calls(requests, "POST", /^\/api\/v1\/runs$/)[0].headers.get("Idempotency-Key")).toMatch(
       /^[0-9a-f-]{36}$/,
     );
@@ -1058,7 +1064,8 @@ describe("P02~P07 제품 API 계약", () => {
     expect(JSON.parse(patches[2].body)).toEqual({
       audience: { context: "퇴근 후 주문하는 직장인", ages: ["any"] },
     });
-    expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 4 });
+    /* 저장 1 → 세그먼트 유형 추론 2 → 인원 저장 3 → 타겟 저장 4 (타겟이 바뀌어 유형은 확정 때 다시 정함) */
+    expect(JSON.parse(calls(requests, "POST", /confirmations$/)[0].body)).toEqual({ revision: 5 });
   });
 
   it("입력이 그대로면 페르소나 생성 전에 다시 저장하지 않는다", async () => {
@@ -1448,5 +1455,62 @@ describe("P02 어떻게 테스트할까요? — 코드만 있어요", () => {
     expect(
       await screen.findByText("코드를 준비했어요 · 파일 11개 · 정적 사이트 · 화면 경로 15개"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("P05b 세그먼트 유형 추론", () => {
+  async function toPersonaStep(user: ReturnType<typeof userEvent.setup>) {
+    await renderWizard();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+    await screen.findByRole("heading", { name: "세그먼트 비율" });
+  }
+
+  it("3단계에 들어오면 세그먼트 이름·상황·능력치를 보여 주고, 다시 정할 수 있다", async () => {
+    const user = userEvent.setup();
+    let inferences = 0;
+    const listener = ({ request }: { request: Request }) => {
+      if (request.url.endsWith("/segment-inferences")) inferences += 1;
+    };
+    server.events.on("request:start", listener);
+    onTestFinished(() => server.events.removeListener("request:start", listener));
+    await toPersonaStep(user);
+
+    const list = screen.getByRole("list", { name: "세그먼트별 인원" });
+    expect(await within(list).findByText("빠른 구매형")).toBeInTheDocument();
+    expect(
+      within(list).getByText("입력 단계를 최소화하고 바로 주문하려는 방문자"),
+    ).toBeInTheDocument();
+    expect(within(list).getByText(/인내심 22 · 숙련도 80/)).toBeInTheDocument();
+    expect(inferences).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "다시 정하기" }));
+    await waitFor(() => expect(inferences).toBe(2));
+    /* 인원은 그대로 고칠 수 있습니다 */
+    expect(screen.getByRole("button", { name: "세그먼트 1 1명 늘리기" })).toBeEnabled();
+  });
+
+  it("추론에 실패해도 다음 단계로 갈 수 있고, 다시 시도할 수 있다", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post(
+        "*/api/v1/plans/:planId/segment-inferences",
+        () =>
+          HttpResponse.json(
+            { error: { code: "PERSONA_GENERATION_FAILED", message: "실패", fields: {} } },
+            { status: 503 },
+          ),
+        { once: true },
+      ),
+    );
+    await toPersonaStep(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("세그먼트 유형을 정하지 못했어요");
+    expect(screen.getByText("세그먼트 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(await screen.findByText("빠른 구매형")).toBeInTheDocument();
   });
 });

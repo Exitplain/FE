@@ -67,9 +67,14 @@ export type PlanBlocking = { step: number; code: string; message: string };
 
 export type PlanReview = {
   site: { entry_url: string; login_mode: "none" | "test_account"; edit_step: number };
-  tasks: { names: string[]; edit_step: number };
+  /* custom_names: 이번 실행에 들어가는 직접 추가한 과업 (BE EXITPLAIN_RUN_CUSTOM_TASKS 를 켰을 때만, 예전 서버는 없음) */
+  tasks: { names: string[]; custom_names?: string[]; edit_step: number };
   audience: { context: string; age_labels: string[]; edit_step: number };
-  not_in_run: { custom_tasks: string[]; additional_request: string };
+  /* BE 는 직접 추가한 과업을 {id, text, state} 로 보냅니다 (mock 은 글자만) */
+  not_in_run: {
+    custom_tasks: (string | { id: string; text: string; state: string })[];
+    additional_request: string;
+  };
   funnels: { auto: boolean; stages_per_task: Record<string, number> };
   personas: { segments: number; total: number; edit_step: number };
   limits: PlanLimits;
@@ -85,6 +90,27 @@ export type PlanLimits = {
   max_steps: number;
   timeout_seconds: number;
   cost_cap: number | null;
+};
+
+/*
+  3단계에서 추론한 세그먼트 유형 (POST /api/v1/plans/{id}/segment-inferences).
+  인원(count)은 segments 와 같고, 추론 전이면 name 등이 null 입니다.
+  타겟 설명·연령대를 바꾸면 서버가 비웁니다 (다시 추론).
+*/
+export type SegmentProfile = {
+  id: string;
+  count: number;
+  name: string | null;
+  situation: string | null;
+  age_group: AgeKey | null;
+  variables: {
+    patience: number;
+    digital_literacy: number;
+    price_sensitivity: number;
+    trust_need: number;
+  } | null;
+  basis: string[] | null;
+  avatar: string | null;
 };
 
 /* GET·PATCH /api/v1/plans/{id} — 응답 헤더 ETag: "{revision}" */
@@ -118,6 +144,9 @@ export type Plan = {
     stages: { id: string; name: string; order: number }[];
   }[];
   segments: { id: string; count: number }[];
+  /* 예전 서버 응답에는 없을 수 있습니다 */
+  segment_profiles?: SegmentProfile[];
+  segment_generator?: string | null;
   limits: PlanLimits;
   review: PlanReview;
   snapshots: { plan_revision_id: string; plan_revision: number; confirmed_at: string }[];

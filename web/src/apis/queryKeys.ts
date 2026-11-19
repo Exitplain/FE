@@ -60,6 +60,7 @@ export const queryKeys = {
   measurement: (projectId: number) => ["measurement", projectId] as const,
   /* R05 단계 매핑. 저장하면 응답으로 바로 채웁니다 */
   measurementMapping: (projectId: number) => ["measurement", projectId, "mapping"] as const,
+  measurementImports: (projectId: number) => ["measurement", projectId, "imports"] as const,
   /* R06·R08 실측 퍼널 (기간·기기별) */
   measurementFunnel: (projectId: number, days: string, device: string) =>
     ["measurement", projectId, "funnel", days, device] as const,

@@ -19,7 +19,7 @@ import FunnelView from "./components/FunnelView";
 import MappingStep from "./components/MappingStep";
 import { ReproduceResult, ReproduceRunning, ReproduceSetup } from "./components/ReproduceViews";
 import { useMeasurement, useMeasurementFunnel } from "./hooks/useMeasurement";
-import { formatError, reportLabel } from "./utils/funnel";
+import { ALL_TASKS, formatError, reportLabel } from "./utils/funnel";
 
 /* 화면 안 단계 (?view=). 주소에 두어 새로고침·뒤로가기로 돌아올 수 있게 합니다 */
 const VIEWS = [
@@ -84,6 +84,8 @@ function Analytics({ project }: { project: CurrentProject }) {
   const [taskId, setTaskId] = useState("");
   const [gap, setGap] = useState<FunnelStageCompare | null>(null);
   const funnel = useMeasurementFunnel(project.v1Id, period, "all", connected);
+  /* 과업 "전체"는 실제 고객 데이터 화면(R06)에서만 씁니다. 비교(R08)·재현은 과업 하나가 필요해 첫 과업을 씁니다 */
+  const allTasks = taskId === ALL_TASKS && (funnel.data?.tasks.length ?? 0) > 1;
   const task = funnel.data?.tasks.find((item) => item.task_id === taskId) ?? funnel.data?.tasks[0];
   /* 원인 재현 실행·과업·구간은 주소에 둡니다 (새로고침해도 진행·결과로 돌아오게) */
   const repro = {
@@ -199,9 +201,15 @@ function Analytics({ project }: { project: CurrentProject }) {
           activeTab="analytics"
         />
         {measurement.data && !measurement.data.available ? (
-          <NotDeployed message={measurement.data.message} />
+          <NotDeployed
+            message={measurement.data.message}
+            onCsv={() => goTo("connect", { method: "csv" })}
+          />
         ) : (
-          <NotConnected onConnect={() => goTo("connect")} />
+          <NotConnected
+            onConnect={() => goTo("connect")}
+            onCsv={() => goTo("connect", { method: "csv" })}
+          />
         )}
         {/* 코드를 못 넣는 프로젝트도 참여자 응답으로 사람 관측을 모을 수 있어요 */}
         <ParticipantLinks projectId={project.id} />
@@ -224,6 +232,7 @@ function Analytics({ project }: { project: CurrentProject }) {
           projectId={project.v1Id}
           siteUrl={/^https?:\/\//.test(project.url) ? project.url : undefined}
           onMapping={() => goTo("mapping")}
+          initialMethod={searchParams.get("method") === "csv" ? "csv" : "script"}
         />
       </div>
     );
@@ -259,7 +268,9 @@ function Analytics({ project }: { project: CurrentProject }) {
           actions={
             view === "funnel" ? (
               <>
-                {task?.collecting ? (
+                {(
+                  allTasks ? funnel.data?.tasks.every((item) => item.collecting) : task?.collecting
+                ) ? (
                   <StatusBadge icon="more" label="수집 중" tone="muted" />
                 ) : task ? (
                   <StatusBadge icon="activity" label="비교 가능" tone="muted" />
@@ -301,6 +312,7 @@ function Analytics({ project }: { project: CurrentProject }) {
             task={task}
             period={period}
             device={device}
+            allTasks={allTasks}
             onTaskChange={setTaskId}
             onPeriodChange={setPeriod}
             onDeviceChange={setDevice}

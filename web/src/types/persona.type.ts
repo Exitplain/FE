@@ -196,6 +196,11 @@ export type PersonaSession = PersonaProfile & {
   screenshot_url?: string | null;
   /* 제품 API: 서버가 붙인 주 이탈 원인 이름 (예: "입력 부담") */
   cause_name?: string | null;
+  /*
+    제품 API: 왜 끝났는지 한 줄 (BE agent/explain.py). 끝난 방문에만 있음.
+    예: "회원가입 화면(/signup)에서 이탈 · 주 원인 입력 부담: 필수 입력 7칸 (허용 4칸) · 불만 72/60"
+  */
+  explanation?: string | null;
   tokens?: number;
   cost_usd?: number;
 };

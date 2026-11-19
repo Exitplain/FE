@@ -35,7 +35,8 @@ const AGE_CHIPS: { label: string; ages: AgeKey[] }[] = [
   P05 과업 · 타겟 (P05a 선택 전) — Figma Wizard/Body: 왼쪽 입력(704) · 오른쪽 "사이트에서 찾은 기능"(368)
   - 과업은 한 줄 칩으로 고르고, 근거 화면은 오른쪽 기능 목록에 둡니다. 추천 과업은 미리 골라 둡니다.
   - 과업이 0개면 바로 빨간 안내를 띄우고 다음을 막습니다(P05a).
-  - 직접 추가한 과업은 BE 가 실행하지 못해 실행에 넣지 않고 따로 둡니다(태그 칩).
+  - 직접 추가한 과업은 태그 칩으로 모아 저장합니다. 실행에 넣을지는 BE 설정(EXITPLAIN_RUN_CUSTOM_TASKS)이 정하고,
+    넣으면 확정 때 AI 가 성공 기준을 만듭니다 (확인 화면이 review.tasks.custom_names 로 알려 줌).
   - 추가 메모는 additional_request 로 기록만 남고 실행 행동은 바꾸지 않습니다.
 */
 export default function TaskTargetStep({
@@ -132,7 +133,10 @@ export default function TaskTargetStep({
             <div className="flex flex-col gap-2">
               <label htmlFor={customId} className="flex items-baseline gap-2">
                 <span className="text-caption font-medium text-ink">과업 직접 추가</span>
-                <span className="text-xs text-muted">선택 · Enter로 하나씩 추가</span>
+                <span className="text-xs text-muted">
+                  선택 · Enter로 하나씩 추가 · 끝에 무엇을 하는지 분명하게 (예: 배송지를 다른 주소로
+                  바꾸기)
+                </span>
               </label>
               {/* Figma Input/과업 추가(태그): 입력칸 안에 추가한 과업 칩과 입력이 함께 있습니다 */}
               <div

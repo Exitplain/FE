@@ -6,6 +6,7 @@ import Button from "@/components/Button/Button";
 import Icon from "@/components/Icon/Icon";
 import { useNewTestStore } from "@/stores/useNewTestStore";
 import {
+  customTaskSummary,
   ageSummary,
   isPlanExpired,
   runConditions,
@@ -79,6 +80,11 @@ export default function ConfirmStep({
   /* 만료는 아래 만료 안내로 따로 보여 줍니다 */
   const blocking = plan.review.blocking.filter((item) => item.code !== "DISCOVERY_EXPIRED");
   const tasks = plan.tasks.filter((task) => store.taskIds.includes(task.id));
+  /* 서버가 이번 실행에 넣는 직접 추가한 과업 (BE 설정을 켰을 때만) */
+  const runningCustom = store.customTasks.filter((task) =>
+    (plan.review.tasks.custom_names ?? []).includes(task),
+  );
+  const taskTotal = tasks.length + runningCustom.length;
   const panel = store.agents;
   const stages = Math.max(0, ...tasks.map((task) => task.funnel_stages ?? 0));
 
@@ -115,7 +121,7 @@ export default function ConfirmStep({
       ? [
           {
             label: "직접 추가한 과업",
-            value: `${store.customTasks.join(" · ")} (실행에 포함 안 됨)`,
+            value: customTaskSummary(store.customTasks, plan.review.tasks.custom_names),
             step: "task" as const,
           },
         ]
@@ -127,7 +133,7 @@ export default function ConfirmStep({
     },
     {
       label: "페르소나",
-      value: `AI 고객 ${panel}명 · 과업 ${tasks.length}개 · ${calibratedLabel ? `예측 맞추기 ${calibratedLabel}` : calibratedLabel === null ? "예측 맞추기 전" : "예측 맞추기 확인 중"}`,
+      value: `AI 고객 ${panel}명 · 과업 ${taskTotal}개 · ${calibratedLabel ? `예측 맞추기 ${calibratedLabel}` : calibratedLabel === null ? "예측 맞추기 전" : "예측 맞추기 확인 중"}`,
       step: "persona",
     },
     {

@@ -165,6 +165,53 @@ describe("P08~P11 실행 화면", () => {
     expect(within(tabs).getByRole("radio", { name: "배송 지역 확인하기" })).toBeInTheDocument();
   });
 
+  it("실행을 시작할 때 남긴 과업은 방문 전에도 모두 탭으로 보이고, 과업마다 진행 상태를 붙인다", async () => {
+    const user = userEvent.setup();
+    useRunTaskNamesStore.getState().register("fixed-run", [
+      { id: "get-coupon", name: "첫 주문 쿠폰 받기" },
+      { id: "check-delivery", name: "배송 지역 확인하기" },
+      { id: "change-schedule", name: "배송 일정 변경하기" },
+    ]);
+    /* 과업마다 방문 2회. 지금은 배송 지역 과업만 돌고 있어요 (BE 는 과업 id 순서로 돌림) */
+    serveRun(
+      {
+        name: "1차·첫 주문 쿠폰 받기 외 2개",
+        progress: {
+          expected_sessions: 6,
+          started_sessions: 2,
+          finished_sessions: 1,
+          sessions_by_status: {},
+          task_runs: { total: 3, queued: 2, running: 1, succeeded: 0, failed: 0, cancelled: 0 },
+        },
+      },
+      [
+        session(1, { task_id: "check-delivery", status: "success" }),
+        session(2, { task_id: "check-delivery" }),
+      ],
+    );
+    renderRun("fixed-run");
+
+    const tabs = await screen.findByRole("radiogroup", { name: "과업" });
+    const radios = within(tabs).getAllByRole("radio");
+    expect(radios.map((radio) => radio.textContent?.trim())).toEqual([
+      "첫 주문 쿠폰 받기대기",
+      "배송 지역 확인하기진행 중",
+      "배송 일정 변경하기대기",
+    ]);
+    /* 주소에 과업이 없으면 진행 중인 과업을 먼저 보여 줘요 */
+    expect(within(tabs).getByRole("radio", { name: "배송 지역 확인하기" })).toBeChecked();
+    expect(screen.getByText("과업 3개 · 방문 2 / 6")).toBeInTheDocument();
+
+    await user.click(within(tabs).getByRole("radio", { name: "배송 일정 변경하기" }));
+    expect(
+      screen.getByText("아직 시작 전이에요 · 시작하면 방문이 여기에 나타나요"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "진행률" })).toHaveAttribute(
+      "aria-valuetext",
+      "0 / 2회 방문 끝남",
+    );
+  });
+
   it("P09 — 과업별 진행·필터·타일과 Think-aloud 를 보여준다", async () => {
     const user = userEvent.setup();
     const run = await startRun();
@@ -215,6 +262,37 @@ describe("P08~P11 실행 화면", () => {
     await user.click(screen.getByRole("link", { name: "실행 화면으로" }));
     expect(await screen.findByRole("list", { name: "방문" })).toBeInTheDocument();
   });
+  it("P11 — 실행 중이라도 먼저 끝난 방문은 서버가 만든 끝난 이유를 보여주고, 진행 중 방문은 비워 둔다", async () => {
+    const user = userEvent.setup();
+    const why =
+      "회원가입 화면(/signup)에서 이탈 · 주 원인 입력 부담: 필수 입력 7칸 (허용 4칸) · 불만 72/60";
+    serveRun({}, [
+      session(1, {
+        status: "simulated_dropout",
+        reason: "Configured frustration threshold exceeded",
+        explanation: why,
+      }),
+      session(2, {
+        persona: { code: "P-002", segment_id: "segment_2", segment_name: "꼼꼼한 비교형" },
+        explanation: null,
+      }),
+    ]);
+    renderRun("fixed-run");
+
+    await user.click((await screen.findAllByRole("link", { name: /P-001/ }))[0]);
+    expect(await screen.findByText(why)).toBeInTheDocument();
+    expect(screen.getByText("끝난 이유")).toBeInTheDocument();
+    /* 영어 원문 사유 대신 설명을 씁니다 */
+    expect(screen.queryByText(/Configured frustration/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "실행 화면으로" }));
+    await user.click((await screen.findAllByRole("link", { name: /P-002/ }))[0]);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "P-002 · 라이브" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("끝난 이유")).not.toBeInTheDocument();
+  });
+
   it("P10 — 분석 단계를 보여주고, 끝나면 리포트로 자동 이동한다", async () => {
     const run = await startRun(["order"]);
     /* 준비 2 + 시드 3회 × (세션 2틱 + 시드 전환) 뒤 분석 단계 */
