@@ -3,7 +3,7 @@ import { Fragment, StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { ROUTES } from "@/constants/routes";
@@ -16,6 +16,9 @@ import { useSiteCheckStore } from "@/stores/useSiteCheckStore";
 import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { createTestProject, waitForProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
+import axiosInstance from "@/apis/axiosInstance";
+import { queryKeys } from "@/apis/queryKeys";
+import { useOnboardingStore } from "@/stores/useOnboardingStore";
 
 import NewTestPage from "./index";
 
@@ -72,6 +75,47 @@ async function checkSite(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => useNewTestStore.getState().reset("", ""));
 
 describe("P02~P07 새 테스트", () => {
+  it("첫 테스트 안내는 실제 검증과 단계 이동을 따라가며 실행 요청은 대신 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    const post = vi.spyOn(axiosInstance, "post");
+    onTestFinished(() => {
+      useOnboardingStore.setState({ accounts: {}, tour: null, reportTips: {} });
+      post.mockRestore();
+    });
+    const { queryClient } = await renderWizard();
+    act(() => {
+      queryClient.setQueryData(queryKeys.auth.session(), {
+        authenticated: true,
+        user: { id: 42, email: "maker@example.com" },
+      });
+      useOnboardingStore.getState().start("id:42");
+    });
+    expect(await screen.findByRole("heading", { name: "사이트를 확인하세요" })).toBeInTheDocument();
+    await checkSite(user);
+    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    expect(
+      await screen.findByRole("heading", { name: "고객이 달성할 목표를 고르세요" }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText("타겟 고객 설명"), "처음 방문한 고객");
+    await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
+    expect(
+      await screen.findByRole("heading", { name: "AI 고객 구성을 확인하세요" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "다음: 시작 전 확인" }));
+    expect(
+      await screen.findByRole("heading", { name: "입력한 설정을 마지막으로 확인하세요" }),
+    ).toBeInTheDocument();
+    await goToReview(user);
+    expect(
+      await screen.findByRole("heading", { name: "생성된 페르소나를 확인하면 준비 끝이에요" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "준비 안내 마치기" }));
+    expect(screen.queryByRole("region", { name: "첫 테스트 준비 안내" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "실행 시작" })).toBeEnabled();
+    expect(post.mock.calls.some(([url]) => url === "/api/v1/runs")).toBe(false);
+    expect(useOnboardingStore.getState().reportTips["id:42"]).toBe("1");
+  });
+
   it("프로젝트 주소를 미리 채우고 4단계 중 첫 단계를 보여준다", async () => {
     await renderWizard();
 

@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import Stepper from "@/components/Stepper/Stepper";
+import OnboardingHint from "@/components/Onboarding/OnboardingHint";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { queryKeys } from "@/apis/queryKeys";
 import { buildPath } from "@/constants/routes";
@@ -350,6 +351,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
 
   return (
     <div className="flex flex-col gap-12">
+      <OnboardingHint key={step} step={step} />
       <ProjectPageHeader
         projectId={project.id}
         breadcrumb={`${project.name} / 사전 테스트 · 테스트`}
@@ -360,51 +362,52 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
       <Stepper steps={STEPS.map((key) => STEP_LABELS[key])} current={STEPS.indexOf(step)} />
 
       {save.error && <SaveError error={save.error} />}
-
-      {step === "site" && (
-        <SiteStep
-          projectId={project.v1Id}
-          notice={notice}
-          /* 사이트를 다시 확인하면 만료 안내는 지웁니다 */
-          onDiscovered={() => setNotice(null)}
-          onNext={() => goTo("task")}
-        />
-      )}
-      {step === "task" && plan && (
-        <TaskTargetStep
-          plan={plan}
-          saving={save.isPending}
-          onPrev={() => goTo("site")}
-          onNext={() => {
-            const state = useNewTestStore.getState();
-            saveThen(taskTargetPatch(plan, state), "persona");
-          }}
-        />
-      )}
-      {step === "persona" && plan && (
-        <PersonaStep
-          calibratedLabel={calibratedLabel}
-          saving={save.isPending}
-          onPrev={() => goTo("task")}
-          onNext={() => {
-            const state = useNewTestStore.getState();
-            saveThen(
-              segmentsPatch(plan, state.segmentCounts, state.seedCount, state.viewportWidth),
-              "confirm",
-            );
-          }}
-        />
-      )}
-      {step === "confirm" && plan && (
-        <ConfirmStep
-          plan={plan}
-          calibratedLabel={calibratedLabel}
-          onPrev={() => goTo("persona")}
-          saving={save.isPending}
-          onNext={() => review(plan)}
-          onExpired={() => backToSite(EXPIRED_NOTICE)}
-        />
-      )}
+      <div data-onboarding-region={step}>
+        {step === "site" && (
+          <SiteStep
+            projectId={project.v1Id}
+            notice={notice}
+            /* 사이트를 다시 확인하면 만료 안내는 지웁니다 */
+            onDiscovered={() => setNotice(null)}
+            onNext={() => goTo("task")}
+          />
+        )}
+        {step === "task" && plan && (
+          <TaskTargetStep
+            plan={plan}
+            saving={save.isPending}
+            onPrev={() => goTo("site")}
+            onNext={() => {
+              const state = useNewTestStore.getState();
+              saveThen(taskTargetPatch(plan, state), "persona");
+            }}
+          />
+        )}
+        {step === "persona" && plan && (
+          <PersonaStep
+            calibratedLabel={calibratedLabel}
+            saving={save.isPending}
+            onPrev={() => goTo("task")}
+            onNext={() => {
+              const state = useNewTestStore.getState();
+              saveThen(
+                segmentsPatch(plan, state.segmentCounts, state.seedCount, state.viewportWidth),
+                "confirm",
+              );
+            }}
+          />
+        )}
+        {step === "confirm" && plan && (
+          <ConfirmStep
+            plan={plan}
+            calibratedLabel={calibratedLabel}
+            onPrev={() => goTo("persona")}
+            saving={save.isPending}
+            onNext={() => review(plan)}
+            onExpired={() => backToSite(EXPIRED_NOTICE)}
+          />
+        )}
+      </div>
     </div>
   );
 }

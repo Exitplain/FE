@@ -5,6 +5,7 @@ import Button from "@/components/Button/Button";
 import Field from "@/components/Field/Field";
 import Input from "@/components/Input/Input";
 import Modal from "@/components/Modal/Modal";
+import OnboardingHint from "@/components/Onboarding/OnboardingHint";
 import { buildPath } from "@/constants/routes";
 import { cn } from "@/utils/cn";
 
@@ -46,6 +47,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
         </>
       }
     >
+      <OnboardingHint step="create" />
       <form
         id={formId}
         ref={formRef}

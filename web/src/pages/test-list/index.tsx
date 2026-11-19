@@ -5,6 +5,7 @@ import Button from "@/components/Button/Button";
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import smile from "@/assets/characters/character-smile.svg";
 import Icon from "@/components/Icon/Icon";
+import OnboardingHint from "@/components/Onboarding/OnboardingHint";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { wantsResumeActiveRun } from "@/constants/navigationState";
@@ -89,6 +90,7 @@ function TestList({ project }: { project: CurrentProject }) {
 
   return (
     <div className="flex flex-col gap-12">
+      <OnboardingHint step="test" />
       <ProjectPageHeader
         projectId={project.id}
         breadcrumb={`${project.name} · 테스트`}

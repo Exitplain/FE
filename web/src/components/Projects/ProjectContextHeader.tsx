@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { buttonVariants } from "@/components/Button/buttonVariants";
 import Icon from "@/components/Icon/Icon";
+import OnboardingHint from "@/components/Onboarding/OnboardingHint";
 import { buildPath } from "@/constants/routes";
 import type { ProjectRecord } from "@/types/project.type";
 
@@ -38,6 +39,7 @@ export default function ProjectContextHeader({
       {(description ?? project.url) && (
         <p className="text-caption text-subtle">{description ?? project.url}</p>
       )}
+      {!title && <OnboardingHint step="test" />}
     </header>
   );
 }

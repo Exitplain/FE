@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Outlet, useSearchParams } from "react-router-dom";
 
 import MeshBackground from "@/components/MeshBackground/MeshBackground";
+import OnboardingHost from "@/components/Onboarding/OnboardingHost";
 import ProjectCreateDialogHost from "@/components/Projects/ProjectCreateDialogHost";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useSessionExpiry } from "@/hooks/useSessionExpiry";
@@ -41,6 +42,7 @@ export default function AppLayout() {
       </main>
       <AuthDialog />
       <ProjectCreateDialogHost />
+      <OnboardingHost />
     </div>
   );
 }
