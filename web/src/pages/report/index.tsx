@@ -103,11 +103,13 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
 
   const data = report.data?.data;
   const tasks = data?.tasks ?? [];
-  /* ?task=all 이면 과업 "전체" (과업이 둘 이상일 때만) */
-  const showAll = params.get("task") === ALL_TASKS && tasks.length > 1;
-  const task = showAll
-    ? undefined
-    : (tasks.find((item) => item.task_id === params.get("task")) ?? tasks[0]);
+  /*
+    ?task 가 없거나 all 이면 과업 "전체" (과업이 둘 이상일 때만).
+    모르는 과업 id 는 첫 과업으로 엽니다 (오래된 링크 대비)
+  */
+  const taskParam = params.get("task");
+  const showAll = tasks.length > 1 && (taskParam === null || taskParam === ALL_TASKS);
+  const task = showAll ? undefined : (tasks.find((item) => item.task_id === taskParam) ?? tasks[0]);
   const order = run.data?.sequence_no;
   const title = showAll
     ? `전체 과업${order ? ` · ${order}차` : ""}`
