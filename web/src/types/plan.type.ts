@@ -87,6 +87,27 @@ export type PlanLimits = {
   cost_cap: number | null;
 };
 
+/*
+  3단계에서 추론한 세그먼트 유형 (POST /api/v1/plans/{id}/segment-inferences).
+  인원(count)은 segments 와 같고, 추론 전이면 name 등이 null 입니다.
+  타겟 설명·연령대를 바꾸면 서버가 비웁니다 (다시 추론).
+*/
+export type SegmentProfile = {
+  id: string;
+  count: number;
+  name: string | null;
+  situation: string | null;
+  age_group: AgeKey | null;
+  variables: {
+    patience: number;
+    digital_literacy: number;
+    price_sensitivity: number;
+    trust_need: number;
+  } | null;
+  basis: string[] | null;
+  avatar: string | null;
+};
+
 /* GET·PATCH /api/v1/plans/{id} — 응답 헤더 ETag: "{revision}" */
 export type Plan = {
   id: string;
@@ -118,6 +139,9 @@ export type Plan = {
     stages: { id: string; name: string; order: number }[];
   }[];
   segments: { id: string; count: number }[];
+  /* 예전 서버 응답에는 없을 수 있습니다 */
+  segment_profiles?: SegmentProfile[];
+  segment_generator?: string | null;
   limits: PlanLimits;
   review: PlanReview;
   snapshots: { plan_revision_id: string; plan_revision: number; confirmed_at: string }[];

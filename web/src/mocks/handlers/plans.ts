@@ -10,6 +10,7 @@ import {
   getDiscovery,
   getPlan,
   getTestAccounts,
+  inferSegments,
   MockPlanError,
   patchPlan,
   putTestAccounts,
@@ -112,6 +113,10 @@ export const planHandlers = [
       200,
       () => ({ ETag: `"${revision}"` }),
     );
+  }),
+  http.post("*/api/v1/plans/:planId/segment-inferences", async ({ params, request }) => {
+    await delay(); // 브라우저에서만 조금 기다립니다 (Node 테스트에서는 바로)
+    return handle(async () => inferSegments(String(params.planId), await json(request)));
   }),
   http.post("*/api/v1/plans/:planId/confirmations", async ({ params, request }) =>
     handle(async () => confirmPlan(String(params.planId), await json(request)), 201),
