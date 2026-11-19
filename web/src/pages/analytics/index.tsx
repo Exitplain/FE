@@ -81,10 +81,11 @@ function Analytics({ project }: { project: CurrentProject }) {
 
   const [period, setPeriod] = useState<FunnelDays>("7");
   const [device, setDevice] = useState<FunnelDevice>("all");
-  const [taskId, setTaskId] = useState("");
+  /* 처음에는 과업 "전체"로 봅니다 (과업이 하나면 그 과업) */
+  const [taskId, setTaskId] = useState(ALL_TASKS);
   const [gap, setGap] = useState<FunnelStageCompare | null>(null);
   const funnel = useMeasurementFunnel(project.v1Id, period, "all", connected);
-  /* 과업 "전체"는 실제 고객 데이터 화면(R06)에서만 씁니다. 비교(R08)·재현은 과업 하나가 필요해 첫 과업을 씁니다 */
+  /* 과업 "전체"는 R06·R08 에서 과업마다 위아래로 이어 봅니다. 재현은 고른 차이 구간의 과업을 씁니다 */
   const allTasks = taskId === ALL_TASKS && (funnel.data?.tasks.length ?? 0) > 1;
   const task = funnel.data?.tasks.find((item) => item.task_id === taskId) ?? funnel.data?.tasks[0];
   /* 원인 재현 실행·과업·구간은 주소에 둡니다 (새로고침해도 진행·결과로 돌아오게) */
@@ -322,9 +323,11 @@ function Analytics({ project }: { project: CurrentProject }) {
             funnel={funnel.data}
             task={task}
             period={period}
+            allTasks={allTasks}
             onPeriodChange={setPeriod}
             onTaskChange={setTaskId}
-            onReproduce={(stage) => {
+            onReproduce={(stage, target) => {
+              setTaskId(target.task_id);
               setGap(stage);
               goTo("reproduce");
             }}
