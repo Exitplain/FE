@@ -50,17 +50,39 @@ export default function DiagnosisLoop({
             key={stage.title}
             className="space-y-4 lg:border-r lg:border-line lg:pr-6 lg:last:border-0"
           >
-            <div className="flex gap-1">
-              {Array.from({ length: index === 2 ? 1 : 3 }, (_, step) => (
-                <span
-                  key={step}
-                  className={cn(
-                    "h-1.5 flex-1 rounded-full bg-gray-200",
-                    index < current && "bg-subtle",
-                    index === current && step === 0 && "border border-ink bg-highlight",
-                  )}
-                />
-              ))}
+            <div
+              className="flex gap-1"
+              role="img"
+              aria-label={`${stage.title} 진행 ${
+                index < current
+                  ? index === 2
+                    ? 1
+                    : 3
+                  : index === 1 && index === current
+                    ? (overview.analytics.steps ?? []).filter(Boolean).length
+                    : 0
+              }/${index === 2 ? 1 : 3}`}
+            >
+              {Array.from({ length: index === 2 ? 1 : 3 }, (_, step) => {
+                /* 실제 고객 데이터 분석이 지금 단계면 세 칸을 실제 진행(수집 · 비교 · 원인 재현)으로 칠합니다 */
+                const steps =
+                  index === 1 && index === current ? overview.analytics.steps : undefined;
+                const done = index < current || !!steps?.[step];
+                const next = steps ? steps.findIndex((value) => !value) : 0;
+                return (
+                  <span
+                    key={step}
+                    className={cn(
+                      "h-1.5 flex-1 rounded-full bg-gray-200",
+                      done && "bg-subtle",
+                      index === current &&
+                        !done &&
+                        step === next &&
+                        "border border-ink bg-highlight",
+                    )}
+                  />
+                );
+              })}
             </div>
             <div>
               <h3 className="flex items-center gap-2 text-sm font-bold">
