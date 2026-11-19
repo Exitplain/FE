@@ -386,6 +386,7 @@ export default function Sidebar() {
         ))}
         {/* C03은 현재 화면·필터를 유지한 채 공통 레이아웃 위에 표시합니다 */}
         <Link
+          data-tour="create-project"
           to={{
             pathname: location.pathname,
             search: `?${createParams.toString()}`,

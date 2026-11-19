@@ -286,7 +286,8 @@ describe("사이드바 로그인", () => {
         axiosInstance.get("/api/v1/network-check"),
       ]);
     });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "세션 만료" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "로그인 또는 회원가입" })).not.toBeInTheDocument();
     expect(useDemoSessionStore.getState().account).not.toBeNull();
   });
 

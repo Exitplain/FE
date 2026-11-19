@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
+import OnboardingHint from "@/components/Onboarding/OnboardingHint";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import RangeBarChart from "@/components/RangeBarChart/RangeBarChart";
@@ -197,6 +198,7 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
         activeTab="tests"
       />
 
+      {report.data && <OnboardingHint report projectId={project.id} />}
       {report.isPending && <ReportLoading />}
       {failed && status === 404 && notFoundState()}
       {failed && status === 401 && <ReportLoginRequired onLogin={openLogin} />}

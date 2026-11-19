@@ -13,6 +13,7 @@ import { cn } from "@/utils/cn";
 
 import { useConfirmPlan } from "../hooks/useNewTestMutations";
 import { confirmFixStep, isDiscoveryExpiredError, STEPS, toPanelSegments } from "../utils/newTest";
+import OnboardingHint from "@/components/Onboarding/OnboardingHint";
 import { StatusRow, StepFooter } from "./StepSection";
 
 type PersonaReviewStepProps = {
@@ -144,6 +145,7 @@ export default function PersonaReviewStep({
       <p role="status" className="sr-only">
         페르소나 세그먼트 {segments.length}개를 만들었어요
       </p>
+      <OnboardingHint step="ready" projectId={projectId} />
       <ul aria-label="페르소나 세그먼트" className="grid grid-cols-4 gap-6">
         {segments.map((segment, index) => (
           <SegmentCard key={segment.id} segment={segment} swatch={SWATCHES[index % 4]} />
