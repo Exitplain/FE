@@ -297,7 +297,8 @@ function review(plan: Plan, discovery: StoredDiscovery): Plan["review"] {
     .map((task) => task.name);
   return {
     site: { entry_url: discovery.entry_url, login_mode: discovery.login_mode, edit_step: 1 },
-    tasks: { names, edit_step: 2 },
+    /* mock 서버는 직접 추가한 과업을 실행에 넣지 않습니다 (BE 기본값과 같음) */
+    tasks: { names, custom_names: [], edit_step: 2 },
     audience: {
       context: plan.audience.context,
       age_labels: plan.audience.ages.map((age) => AGES[age]),

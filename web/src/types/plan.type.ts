@@ -67,9 +67,14 @@ export type PlanBlocking = { step: number; code: string; message: string };
 
 export type PlanReview = {
   site: { entry_url: string; login_mode: "none" | "test_account"; edit_step: number };
-  tasks: { names: string[]; edit_step: number };
+  /* custom_names: 이번 실행에 들어가는 직접 추가한 과업 (BE EXITPLAIN_RUN_CUSTOM_TASKS 를 켰을 때만, 예전 서버는 없음) */
+  tasks: { names: string[]; custom_names?: string[]; edit_step: number };
   audience: { context: string; age_labels: string[]; edit_step: number };
-  not_in_run: { custom_tasks: string[]; additional_request: string };
+  /* BE 는 직접 추가한 과업을 {id, text, state} 로 보냅니다 (mock 은 글자만) */
+  not_in_run: {
+    custom_tasks: (string | { id: string; text: string; state: string })[];
+    additional_request: string;
+  };
   funnels: { auto: boolean; stages_per_task: Record<string, number> };
   personas: { segments: number; total: number; edit_step: number };
   limits: PlanLimits;
