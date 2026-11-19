@@ -95,9 +95,9 @@ export function projectLoop(project: ProjectRecord, items: ProjectItem[]): Proje
     if (status === "completed")
       return loop(
         4,
-        "실측 분석",
-        "실측 연결 전",
-        "실측 데이터 연결하기",
+        "실제 고객 데이터 분석",
+        "실제 고객 데이터 연결 전",
+        "실제 고객 데이터 연결하기",
         buildPath("analytics", { projectId: project.id }),
       );
     if (status === "failed")
@@ -128,9 +128,9 @@ export function projectLoop(project: ProjectRecord, items: ProjectItem[]): Proje
   if (pretests.some((item) => ["completed", "partially_completed"].includes(item.status))) {
     return loop(
       4,
-      "실측 분석",
-      "실측 연결 전",
-      "실측 데이터 연결하기",
+      "실제 고객 데이터 분석",
+      "실제 고객 데이터 연결 전",
+      "실제 고객 데이터 연결하기",
       buildPath("analytics", { projectId: project.id }),
     );
   }

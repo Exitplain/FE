@@ -56,13 +56,13 @@ export default function CauseCompare({
         </table>
       )}
       {comparable && rows.length === 0 && (
-        <p className="text-caption text-subtle">두 실행 모두 이 과업에서 이탈한 세션이 없어요</p>
+        <p className="text-caption text-subtle">두 실행 모두 이 과업에서 이탈한 방문이 없어요</p>
       )}
       <p className="flex items-center gap-2 text-xs text-subtle">
         <Icon name="info" className="size-5" />
         {comparable
-          ? "같은 패널·시드로 재테스트한 결과만 원인 비교에 써요"
-          : "패널 인원이나 시드 수가 달라 원인 분포는 비교하지 않아요"}
+          ? "같은 패널·반복으로 재테스트한 결과만 원인 비교에 써요"
+          : "패널 인원이나 반복 수가 달라 원인 분포는 비교하지 않아요"}
       </p>
     </section>
   );

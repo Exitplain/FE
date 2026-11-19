@@ -30,11 +30,13 @@ export function NotConnected({ onConnect }: { onConnect: () => void }) {
     >
       <img src={characterDefault} alt="" className="mb-10 h-40 w-auto" />
       <h2 id="not-connected-title" className="text-lg font-bold text-ink">
-        실측 데이터가 아직 없어요
+        실제 고객 데이터가 아직 없어요
       </h2>
-      <p className="text-sm text-subtle">스크립트 한 줄로 실측을 모아 예측과 비교해요</p>
+      <p className="text-sm text-subtle">
+        스크립트 한 줄로 실제 고객 데이터를 모아 예측과 비교해요
+      </p>
       <Button variant="secondary" className="mt-4" onClick={onConnect}>
-        실측 데이터 연결하기
+        실제 고객 데이터 연결하기
       </Button>
     </section>
   );
@@ -49,10 +51,10 @@ export function NotDeployed({ message }: { message?: string }) {
     >
       <img src={characterDefault} alt="" className="mb-10 h-40 w-auto" />
       <h2 id="not-deployed-title" className="text-lg font-bold text-ink">
-        배포된 사이트가 있어야 실측할 수 있어요
+        배포된 사이트가 있어야 실제 고객 데이터를 모을 수 있어요
       </h2>
       <p className="text-sm text-subtle">
-        {message ?? "실측 분석은 실제 방문자가 오는 배포 주소가 있어야 해요."}
+        {message ?? "실제 고객 데이터 분석은 실제 방문자가 오는 배포 주소가 있어야 해요."}
       </p>
     </section>
   );
@@ -148,7 +150,7 @@ export default function ConnectView({
         <div className="flex flex-col gap-2 text-caption">
           <p className="flex items-center gap-2 text-subtle">
             <span className="font-bold text-ink">모으는 것 · 모으지 않는 것</span>
-            화면 이동만 익명 수집 · 개인정보·에이전트 제외
+            화면 이동만 익명 수집 · 개인정보·AI 고객 제외
             <button
               type="button"
               aria-expanded={showAll}
@@ -204,7 +206,7 @@ export default function ConnectView({
                 {data.last_received_at && timeFormat.format(new Date(data.last_received_at))}
               </span>
               <span className="text-subtle">
-                최근 24시간 {data.sessions_24h}세션 · {data.events_24h}건
+                최근 24시간 {data.sessions_24h}회 방문 · {data.events_24h}건
               </span>
             </>
           ) : checking ? (
@@ -248,7 +250,9 @@ export default function ConnectView({
           </h2>
           <p className="flex items-center gap-2 text-caption text-subtle">
             <Icon name={installed ? "status-done" : "status-wait"} className="size-5" />
-            {installed ? "수집된 단계를 사전 테스트 퍼널에 연결해요" : "설치를 확인하면 열려요"}
+            {installed
+              ? "수집된 단계를 사전 테스트 단계별 이동에 연결해요"
+              : "설치를 확인하면 열려요"}
           </p>
         </div>
         {installed && <Button onClick={onMapping}>단계 매핑하기</Button>}

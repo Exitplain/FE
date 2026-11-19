@@ -56,13 +56,13 @@ function stateOf(projectId: string): State {
 }
 
 const MESSAGES: Record<string, string> = {
-  NOT_CONNECTED: "실측 데이터를 먼저 연결해 주세요.",
+  NOT_CONNECTED: "실제 고객 데이터를 먼저 연결해 주세요.",
   NOT_MAPPED: "단계 매핑을 먼저 저장해 주세요.",
   NO_PREDICTION: "먼저 사전 테스트를 한 번 실행해야 비교할 수 있어요.",
-  INSUFFICIENT_SAMPLE: "실측 세션이 단계마다 100개는 모여야 조정안을 만들 수 있어요.",
+  INSUFFICIENT_SAMPLE: "실제 고객 데이터 방문이 단계마다 100개는 모여야 조정안을 만들 수 있어요.",
   NO_GAP: "모든 단계가 예측 범위 안이라 바꿀 값이 없어요.",
   WAITING_NEXT_RUN:
-    "보정을 적용한 뒤 아직 새 사전 테스트가 없어요. 다음 사전 테스트가 끝나면 다시 비교해요.",
+    "예측 맞추기를 적용한 뒤 아직 새 사전 테스트가 없어요. 다음 사전 테스트가 끝나면 다시 비교해요.",
 };
 
 function revisionOf(state: State) {
@@ -94,7 +94,7 @@ const conflict = () =>
     {
       error: {
         code: "REVISION_CONFLICT",
-        message: "다른 보정이 먼저 적용됐어요. 새로고침한 뒤 다시 확인해 주세요.",
+        message: "다른 예측 맞추기가 먼저 적용됐어요. 새로고침한 뒤 다시 확인해 주세요.",
         fields: {},
       },
       request_id: "req_mock",
@@ -160,7 +160,7 @@ export const calibrationHandlers = [
       changes_summary: chosen
         .map((c) => `${c.segment_name} ${c.label} ${c.current.toFixed(2)}→${c.proposed.toFixed(2)}`)
         .join(" · "),
-      base_comparison: "3차 vs 실측 최근 7일",
+      base_comparison: "3차 vs 실제 고객 데이터 최근 7일",
       error_before_pp: proposal.basis?.mean_error ?? null,
     });
     state.history = [created, ...state.history];
@@ -212,7 +212,10 @@ function compareOf(state: State): CalibrationCompare {
     revision: latest?.revision ?? 0,
     status: waiting ? "waiting" : "ready",
     ...(waiting
-      ? { message: "이 보정으로 돈 사전 테스트가 아직 없어요. 끝나면 같은 실측 기간으로 비교해요." }
+      ? {
+          message:
+            "이 예측 맞추기로 돈 사전 테스트가 아직 없어요. 끝나면 같은 실제 고객 데이터 기간으로 비교해요.",
+        }
       : {}),
     before: { report_id: "report-mock-1", mean_error: 4.5, gaps: 1 },
     after: waiting

@@ -21,7 +21,7 @@ export function issueFixture(overrides: Partial<V1Issue> = {}): V1Issue {
     last_seen_at: "2026-11-07T03:00:00+00:00",
     run_id: "run-3",
     report_id: "report-3",
-    evidence: "'첫 주문 완료' 과업에서 가상 세션 18개가 '가입 단계' 화면에서 이탈했어요.",
+    evidence: "'첫 주문 완료' 과업에서 가상 방문 18개가 '가입 단계' 화면에서 이탈했어요.",
     ...overrides,
   };
 }

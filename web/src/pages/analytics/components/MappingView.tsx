@@ -45,8 +45,8 @@ export default function MappingView({
             <tr className="border-b border-line text-xs text-muted">
               <th className="w-56 py-3 font-medium">수집된 단계 ID</th>
               <th className="w-8" aria-label="연결" />
-              <th className="py-3 font-medium">사전 테스트 퍼널 단계</th>
-              <th className="w-28 py-3 font-medium">최근 7일 세션</th>
+              <th className="py-3 font-medium">사전 테스트 이동 단계</th>
+              <th className="w-28 py-3 font-medium">최근 7일 방문</th>
               <th className="w-24 py-3 font-medium">자동 추천</th>
             </tr>
           </thead>
@@ -107,7 +107,7 @@ export default function MappingView({
         </table>
       )}
       <p className="text-xs text-muted">
-        단계 이름은 가장 최근 사전 테스트의 실행 퍼널과 같아요 · 단계 ID 는 화면 경로예요
+        단계 이름은 가장 최근 사전 테스트의 실행 단계별 이동과 같아요 · 단계 ID 는 화면 경로예요
       </p>
     </section>
   );

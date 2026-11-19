@@ -184,7 +184,7 @@ export function runConditions(data: ReportData) {
 export function describeReport(createdAt: string, data: ReportData): string {
   const { personas, seeds } = runConditions(data);
   const parts = [formatDay(createdAt)];
-  if (personas > 0 && seeds > 0) parts.push(`AI 고객 ${personas}명 × 시드 ${seeds}회`);
+  if (personas > 0 && seeds > 0) parts.push(`AI 고객 ${personas}명 × 반복 ${seeds}회`);
   if (data.status === "partial") parts.push("부분 결과");
   return parts.join(" · ");
 }

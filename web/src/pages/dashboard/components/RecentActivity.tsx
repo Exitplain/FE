@@ -45,7 +45,7 @@ export function RecentIssues({
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg leading-[26px] font-bold">최근 발견한 문제</h2>
-          <span className="text-xs text-muted">영향 = 가상 세션 수</span>
+          <span className="text-xs text-muted">영향 = 가상 방문 수</span>
         </div>
         {issues && issues.length > 0 && (
           <Link

@@ -124,7 +124,7 @@ export default function TaskTargetStep({
               ) : (
                 <p className="text-caption font-medium text-gray-800">
                   과업 {store.taskIds.length}개 선택 · {store.agents}명 × {store.taskIds.length}개 ×
-                  시드 {store.seedCount}회
+                  반복 {store.seedCount}회
                 </p>
               )}
             </div>

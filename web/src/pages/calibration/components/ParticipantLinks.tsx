@@ -20,7 +20,7 @@ const STATE_LABEL: Record<ParticipantLink["state"], string> = {
   full: "다 모임",
 };
 const PURPOSES = [
-  { value: "calibration", label: "보정용" },
+  { value: "calibration", label: "예측 맞추기용" },
   { value: "evaluation", label: "평가용" },
 ] as const;
 
@@ -99,8 +99,8 @@ export default function ParticipantLinks({ projectId }: { projectId: string }) {
             >
               <span className="font-bold text-ink">{link.task_name}</span>
               <span className="text-subtle">
-                {link.purpose === "evaluation" ? "평가용" : "보정용"} · {STATE_LABEL[link.state]} ·
-                응답 {link.responses}/{link.max_responses} ·{" "}
+                {link.purpose === "evaluation" ? "평가용" : "예측 맞추기용"} ·{" "}
+                {STATE_LABEL[link.state]} · 응답 {link.responses}/{link.max_responses} ·{" "}
                 {dayFormat.format(new Date(link.expires_at))}
                 까지
               </span>

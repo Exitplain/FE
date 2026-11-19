@@ -36,7 +36,7 @@ export default function IssueDetailModal({
     >
       <dl className="grid grid-cols-3 gap-4 rounded-xl bg-gray-50 p-5">
         <div>
-          <dt className="text-xs text-muted">영향 (가상 세션)</dt>
+          <dt className="text-xs text-muted">영향 (가상 방문)</dt>
           <dd className="mt-2 font-bold">
             {issue.impact[0] === issue.impact[1] ? issue.impact[0] : issue.impact.join("~")}개
           </dd>
@@ -54,7 +54,7 @@ export default function IssueDetailModal({
         <h3 className="font-bold">관측 근거</h3>
         <p className="text-sm leading-7 text-subtle">{issue.evidence}</p>
         <p className="text-xs text-muted">
-          가상 세션의 관측 예시이며 실제 사용자 이탈률이 아니에요.
+          가상 방문의 관측 예시이며 실제 사용자 이탈률이 아니에요.
         </p>
       </section>
     </Modal>

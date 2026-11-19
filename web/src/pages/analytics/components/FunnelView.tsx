@@ -92,7 +92,7 @@ export default function FunnelView({
         <p className="ml-auto text-xs text-subtle">
           {byDevice
             ? "디바이스별로 나눠 보여줘요"
-            : `${periodText(funnel)} · 세션 ${formatCount(task.base_sessions)}`}
+            : `${periodText(funnel)} · 방문 ${formatCount(task.base_sessions)}`}
         </p>
       </div>
 
@@ -110,9 +110,9 @@ export default function FunnelView({
         <section aria-labelledby="actual-funnel-title" className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between">
             <h2 id="actual-funnel-title" className="text-lg font-bold text-ink">
-              실측 퍼널
+              실제 고객 데이터 단계별 이동
             </h2>
-            <span className="text-xs text-muted">실측(실제 사용자) · 단일값</span>
+            <span className="text-xs text-muted">실제 고객 데이터 · 단일값</span>
           </div>
           <FunnelBars task={task} labelledBy="actual-funnel-title" sampleCheck={task.collecting} />
         </section>
@@ -129,7 +129,7 @@ export default function FunnelView({
             return (
               <section key={key} aria-labelledby={id} className="flex flex-col gap-2 p-4">
                 <h2 id={id} className="font-bold text-ink">
-                  {label} · {formatCount(deviceTask?.base_sessions ?? 0)} 세션
+                  {label} · {formatCount(deviceTask?.base_sessions ?? 0)}회 방문
                 </h2>
                 {deviceTask ? (
                   <FunnelBars task={deviceTask} labelledBy={id} compact />
@@ -142,7 +142,7 @@ export default function FunnelView({
         </div>
       )}
       <p className="text-xs text-muted">
-        단계는 사전 테스트 실행 퍼널과 같아요 · 화면 너비 767px 이하는 모바일로 봐요
+        단계는 사전 테스트 실행 단계별 이동과 같아요 · 화면 너비 767px 이하는 모바일로 봐요
       </p>
     </div>
   );
@@ -204,7 +204,7 @@ function FunnelBars({
                   ? "매핑 안 됨"
                   : compact
                     ? `${formatCount(actual.sessions)} · ${formatPct(reach)}`
-                    : `${formatCount(actual.sessions)} 세션 · ${formatPct(reach)}${
+                    : `${formatCount(actual.sessions)}회 방문 · ${formatPct(reach)}${
                         drop != null && !short ? ` · 이탈 ${formatPct(drop)}` : ""
                       }`}
               </td>

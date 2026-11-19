@@ -9,8 +9,8 @@ export type ProjectTab = "tests" | "analytics" | "calibration";
 const TABS: { key: ProjectTab; label: string; route: "testList" | "analytics" | "calibration" }[] =
   [
     { key: "tests", label: "테스트 목록", route: "testList" },
-    { key: "analytics", label: "실측 분석", route: "analytics" },
-    { key: "calibration", label: "보정", route: "calibration" },
+    { key: "analytics", label: "실제 고객 데이터 분석", route: "analytics" },
+    { key: "calibration", label: "예측 맞추기", route: "calibration" },
   ];
 
 type ProjectPageHeaderProps = {

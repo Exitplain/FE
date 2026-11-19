@@ -63,7 +63,7 @@ export function PreparingChecklist({ run, panelSize }: { run: PersonaRun; panelS
         {
           /* 제품 API 는 시드 수를 주지 않아 있을 때만 붙입니다 */
           label: run.seeds
-            ? `페르소나 ${panelSize}명 · 시드 ${run.seeds.total}개 불러오기`
+            ? `페르소나 ${panelSize}명 · 반복 ${run.seeds.total}개 불러오기`
             : panelSize > 0
               ? `페르소나 ${panelSize}명 불러오기`
               : "페르소나 불러오기",
@@ -75,7 +75,7 @@ export function PreparingChecklist({ run, panelSize }: { run: PersonaRun; panelS
           state: `${ready} / ${total}`,
           status: ready >= total && total > 0 ? "done" : "running",
         },
-        { label: "첫 세션 시작", state: "다음", status: "next" },
+        { label: "첫 방문 시작", state: "다음", status: "next" },
       ]}
     />
   );
@@ -96,8 +96,8 @@ export function AnalyzingChecklist({ run }: { run: PersonaRun }) {
   const steps = [
     /* 제품 API 세션 목록에는 모든 시드의 세션이 들어 있고 원인 분류 값이 없습니다 */
     run.seeds
-      ? `세션 ${run.sessions.length * seeds}개 종료 (시드 ${seeds}회)`
-      : `세션 ${run.sessions.length}개 종료`,
+      ? `방문 ${run.sessions.length * seeds}개 종료 (반복 ${seeds}회)`
+      : `방문 ${run.sessions.length}개 종료`,
     causes > 0 ? `이탈 원인 ${causes}종 분류` : "이탈 원인 분류",
     "리포트 생성 · 범위 계산",
   ].map((text, index) => ({ label: text, state: label(stateOf(index)), status: stateOf(index) }));
@@ -127,10 +127,10 @@ export function RunCompleted({
           실행이 끝났어요
         </h2>
         <p className="text-sm text-subtle">
-          세션 {counts.all}개 · 완료 {counts.success} · 이탈 {counts.dropout} · 오류 {counts.error}
+          방문 {counts.all}개 · 완료 {counts.success} · 이탈 {counts.dropout} · 오류 {counts.error}
           {counts.error > 0 && " (오류는 이탈률에 넣지 않아요)"}
         </p>
-        {partial && <p className="text-caption text-subtle">일부 세션만 끝난 부분 결과예요</p>}
+        {partial && <p className="text-caption text-subtle">일부 방문만 끝난 부분 결과예요</p>}
       </div>
       {run.id && (
         <Link to={buildPath("report", { projectId, runId: run.id })} className={buttonVariants()}>
@@ -163,7 +163,7 @@ export function RunFailed({
         실행을 끝내지 못했어요
       </h2>
       <p className="text-sm text-subtle">
-        {message || summary.reason} · 끝난 세션 {summary.finishedNormally} / {summary.total}
+        {message || summary.reason} · 끝난 방문 {summary.finishedNormally} / {summary.total}
       </p>
       <Link
         to={buildPath("newTest", { projectId })}
@@ -203,7 +203,7 @@ export function RunCancelled({
         <h2 id="run-cancelled-title" className="text-lg font-bold text-ink">
           테스트를 중지했어요
         </h2>
-        <p className="text-sm text-subtle">끝난 세션까지만 기록돼요</p>
+        <p className="text-sm text-subtle">끝난 방문까지만 기록돼요</p>
       </div>
       <div className="flex gap-2">
         {reportRunId && (

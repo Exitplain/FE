@@ -265,7 +265,7 @@ function RunDashboard({
     /* 세션이 시작돼야 과업을 알 수 있어 준비 중에는 뺍니다 */
     ...(tasks.length > 0 ? [`과업 ${tasks.length}개`] : []),
     /* Figma P10 은 기기 조건을 빼고 보여줍니다 */
-    `세션 ${detail.progress.started_sessions} / ${detail.progress.expected_sessions}`,
+    `방문 ${detail.progress.started_sessions} / ${detail.progress.expected_sessions}`,
   ].join(" · ");
   const ended = phase === "failed" || phase === "cancelled";
   const badge = phase === "idle" || phase === "stopped" ? null : PHASE_BADGE[phase];
@@ -275,7 +275,7 @@ function RunDashboard({
   const waiting = Math.max(0, detail.progress.expected_sessions - detail.progress.started_sessions);
 
   const requestCancel = () => {
-    if (!window.confirm("진행 중인 테스트를 중지할까요? 끝난 세션까지만 기록돼요")) return;
+    if (!window.confirm("진행 중인 테스트를 중지할까요? 끝난 방문까지만 기록돼요")) return;
     cancel.mutate(undefined, {
       onError: (error) => {
         /* 이미 끝났으면(409) 상태만 다시 받아 맞춥니다 */
@@ -320,7 +320,7 @@ function RunDashboard({
 
       {missingSession && (
         <p role="status" className="rounded-lg bg-gray-50 p-3 text-caption text-subtle">
-          고른 세션을 이 실행에서 찾지 못해 실행 화면을 보여드려요
+          고른 방문을 이 실행에서 찾지 못해 실행 화면을 보여드려요
         </p>
       )}
 
@@ -339,7 +339,7 @@ function RunDashboard({
           )}
           {totalSessions > run.sessions.length && (
             <p role="status" className="rounded-lg bg-gray-50 p-3 text-caption text-subtle">
-              세션 {totalSessions}개 중 {run.sessions.length}개만 보여드려요
+              방문 {totalSessions}개 중 {run.sessions.length}개만 보여드려요
             </p>
           )}
           <RunProgress
@@ -353,7 +353,7 @@ function RunDashboard({
             elapsedMs={phase === "completed" ? null : elapsedMs}
             nextHint={
               phase === "preparing"
-                ? `다음: 세션 ${detail.progress.expected_sessions}개와 Think-aloud (자동 전환)`
+                ? `다음: 방문 ${detail.progress.expected_sessions}개와 Think-aloud (자동 전환)`
                 : phase === "analyzing"
                   ? "다음: 리포트 (자동 이동)"
                   : phase === "running" && waiting > 0

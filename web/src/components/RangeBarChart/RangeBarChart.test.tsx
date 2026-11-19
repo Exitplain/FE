@@ -11,9 +11,9 @@ const DATA = [
 
 describe("RangeBarChart", () => {
   it("단계 이름과 수치를 표로도 보여준다 (그림은 스크린 리더에서 숨김)", () => {
-    render(<RangeBarChart title="예측 퍼널" data={DATA} max={20} />);
+    render(<RangeBarChart title="예측 단계별 이동" data={DATA} max={20} />);
 
-    const table = screen.getByRole("table", { name: "예측 퍼널" });
+    const table = screen.getByRole("table", { name: "예측 단계별 이동" });
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(3);
     expect(within(rows[1]).getByRole("rowheader")).toHaveTextContent("장바구니");
@@ -22,7 +22,7 @@ describe("RangeBarChart", () => {
 
   it("행 수만큼 높이를 잡는다", () => {
     const { container } = render(
-      <RangeBarChart title="실측 퍼널" data={DATA} max={20} rowHeight={26} />,
+      <RangeBarChart title="실제 고객 데이터 단계별 이동" data={DATA} max={20} rowHeight={26} />,
     );
 
     expect(container.querySelector("[aria-hidden]")).toHaveStyle({ height: "78px" });

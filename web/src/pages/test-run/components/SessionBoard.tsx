@@ -50,12 +50,12 @@ export default function SessionBoard({
   return (
     <section aria-labelledby="session-board-title" className="flex flex-col gap-4">
       <h2 id="session-board-title" className="text-lg font-bold text-ink">
-        세션 {counts.all}
+        방문 {counts.all}
       </h2>
       {filterable && (
         <div
           role="radiogroup"
-          aria-label="세션 상태"
+          aria-label="방문 상태"
           className="flex w-fit flex-wrap gap-1 rounded-lg bg-line p-1"
         >
           {FILTERS.map((key) => (
@@ -75,12 +75,12 @@ export default function SessionBoard({
           ))}
         </div>
       )}
-      <p className="text-xs text-muted">타일을 누르면 세션 상세로 이동해요</p>
+      <p className="text-xs text-muted">타일을 누르면 방문 상세로 이동해요</p>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl bg-gray-50 p-6 text-sm text-muted">이 상태의 세션이 없어요</p>
+        <p className="rounded-xl bg-gray-50 p-6 text-sm text-muted">이 상태의 방문이 없어요</p>
       ) : (
-        <ul aria-label="세션" className="grid grid-cols-3 gap-2 md:grid-cols-5">
+        <ul aria-label="방문" className="grid grid-cols-3 gap-2 md:grid-cols-5">
           {visible.map((session) => (
             <SessionTile key={session.id} session={session} search={sessionSearch(session.id)} />
           ))}
@@ -101,7 +101,7 @@ function SessionTile({ session, search }: { session: PersonaSession; search: str
     <li className="group relative">
       <Link
         to={{ search }}
-        aria-label={`${code} · ${segment} · ${badge.label} — 세션 라이브 보기`}
+        aria-label={`${code} · ${segment} · ${badge.label} — 방문 라이브 보기`}
         className="flex h-full flex-col gap-1 rounded-lg bg-gray-50 p-3 hover:bg-gray-100"
       >
         <span className={cn("text-caption font-bold", queued ? "text-muted" : "text-ink")}>

@@ -47,14 +47,14 @@ function basisText(proposal: CalibrationProposal) {
   if (!basis) return "";
   const run = basis.run_sequence ? `${basis.run_sequence}차` : "사전 테스트";
   if (basis.evidence === "mixed") {
-    return `${run} vs 실측 ${basis.measurement_count ?? 0}세션 + 사람 관측 ${basis.observation_count ?? 0}명 (합 ${basis.count}건)`;
+    return `${run} vs 실제 고객 데이터 ${basis.measurement_count ?? 0}회 방문 + 사람 관측 ${basis.observation_count ?? 0}명 (합 ${basis.count}건)`;
   }
   if (basis.evidence === "observations") {
     const picks = (basis.picks ?? []).map((pick) => pick.stage_name).join(" · ");
     return `${run} vs 사람 관측 ${basis.count}명 · 가장 불편했던 화면 기준${picks ? ` · 많이 고른 화면 ${picks}` : ""}`;
   }
   const gaps = basis.gaps.map((gap) => gap.stage_name).join(" · ");
-  return `${run} vs 실측 ${basis.days}일 (${basis.count}세션) · 오차 ${basis.mean_error ?? "—"}%p${gaps ? ` · 차이 구간 ${gaps}` : ""}`;
+  return `${run} vs 실제 고객 데이터 ${basis.days}일 (${basis.count}회 방문) · 오차 ${basis.mean_error ?? "—"}%p${gaps ? ` · 차이 구간 ${gaps}` : ""}`;
 }
 
 /* K01 보정 조정안 — 바뀌는 행과, 바뀌지 않는 세그먼트("변화 없음")를 함께 보여줍니다 */
@@ -76,7 +76,7 @@ export function ProposalView({ proposal }: { proposal: CalibrationProposal }) {
             note: "평균 · 비교한 단계",
           },
           {
-            label: "보정 후 오차",
+            label: "예측 맞추기 후 오차",
             value: "다음 테스트 후",
             note: "적용한 뒤 새 사전 테스트 결과로 확인해요",
           },
@@ -84,12 +84,12 @@ export function ProposalView({ proposal }: { proposal: CalibrationProposal }) {
             ? {
                 label: "사람이 많이 고른 화면",
                 value: `${proposal.basis.picks?.length ?? 0}곳`,
-                note: "모델 마찰이 낮았던 화면",
+                note: "모델이 본 불편한 점이 낮았던 화면",
               }
             : {
                 label: "차이 구간",
                 value: `${proposal.basis?.gaps.length ?? 0}곳`,
-                note: "실측이 예측 범위 밖",
+                note: "실제 고객 데이터가 예측 범위 밖",
               },
         ]}
       />
@@ -140,7 +140,8 @@ export function ProposalView({ proposal }: { proposal: CalibrationProposal }) {
           </tbody>
         </table>
         <p className="text-xs text-muted">
-          값은 배율이에요 (×1.00 = 기본 모형). 실측 숫자를 넣지 않고 배율만 바꿔요 · 가설값이에요
+          값은 배율이에요 (×1.00 = 기본 모형). 실제 고객 데이터 숫자를 넣지 않고 배율만 바꿔요 ·
+          가설값이에요
         </p>
       </section>
     </div>
@@ -168,7 +169,7 @@ export function ApplyModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="보정을 적용할까요?"
+      title="예측 맞추기를 적용할까요?"
       size="sm"
       footer={
         <>
@@ -176,7 +177,7 @@ export function ApplyModal({
             취소
           </Button>
           <Button disabled={pending} onClick={onApply}>
-            {pending ? "적용하는 중…" : "보정 적용"}
+            {pending ? "적용하는 중…" : "예측 맞추기 적용"}
           </Button>
         </>
       }
@@ -200,7 +201,7 @@ export function ApplyModal({
         <ul className="flex flex-col">
           {[
             [`값 ${items.length}개가 바뀌어요`, `세그먼트 ${segments}개 + 전체 값`],
-            ["다음 사전 테스트부터 자동으로 써요", "실행 화면·리포트에 보정 번호가 남아요"],
+            ["다음 사전 테스트부터 자동으로 써요", "실행 화면·리포트에 예측 맞추기 번호가 남아요"],
             ["이미 끝난 테스트 결과는 바뀌지 않아요", "비교하려면 새 사전 테스트를 돌려요"],
           ].map(([title, note]) => (
             <li key={title} className="flex gap-3 border-b border-line py-2.5 last:border-b-0">
@@ -232,17 +233,17 @@ export function CompareSection({ compare }: { compare: CalibrationCompare }) {
   return (
     <section aria-labelledby="compare-title" className="flex flex-col gap-6">
       <h2 id="compare-title" className="sr-only">
-        보정 전·후 오차
+        예측 맞추기 전·후 오차
       </h2>
       <KpiTrio
         items={[
           {
-            label: "보정 전 오차",
+            label: "예측 맞추기 전 오차",
             value: compare.before?.mean_error == null ? "—" : `${compare.before.mean_error}%p`,
-            note: "평균 · 같은 실측 기간",
+            note: "평균 · 같은 실제 고객 데이터 기간",
           },
           {
-            label: "보정 후 오차",
+            label: "예측 맞추기 후 오차",
             value: ready
               ? compare.after?.mean_error == null
                 ? "—"
@@ -250,7 +251,7 @@ export function CompareSection({ compare }: { compare: CalibrationCompare }) {
               : "다음 테스트 후",
             note: ready
               ? `${compare.after?.run_sequence}차 결과로 다시 계산`
-              : "새 사전 테스트가 끝나면 같은 실측 기간으로 비교해요",
+              : "새 사전 테스트가 끝나면 같은 실제 고객 데이터 기간으로 비교해요",
           },
           {
             label: "차이 구간",
@@ -267,12 +268,15 @@ export function CompareSection({ compare }: { compare: CalibrationCompare }) {
         </p>
       )}
       {compare.stages.length > 0 && (
-        <table aria-label="단계별 오차 · 보정 전 vs 후" className="w-full text-left text-caption">
+        <table
+          aria-label="단계별 오차 · 예측 맞추기 전 vs 후"
+          className="w-full text-left text-caption"
+        >
           <thead>
             <tr className="border-b border-line text-xs text-muted">
               <th className="py-3 font-medium">단계</th>
-              <th className="w-24 py-3 font-medium">보정 전</th>
-              <th className="w-24 py-3 font-medium">보정 후</th>
+              <th className="w-24 py-3 font-medium">예측 맞추기 전</th>
+              <th className="w-24 py-3 font-medium">예측 맞추기 후</th>
               <th className="w-32 py-3 font-medium">변화</th>
             </tr>
           </thead>
@@ -323,7 +327,7 @@ export function HistoryTable({
     <section aria-labelledby="history-title" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <h2 id="history-title" className="text-lg font-bold text-ink">
-          보정 이력
+          예측 맞추기 이력
         </h2>
         {history.length > 0 && history[0].restored_from !== 0 && (
           <Button variant="secondary" disabled={pending} onClick={onReset}>
@@ -374,7 +378,7 @@ export function HistoryTable({
               처음
             </th>
             <td className="py-3 text-gray-800" colSpan={4}>
-              첫 보정 전 (기본 모형)
+              첫 예측 맞추기 전 (기본 모형)
             </td>
           </tr>
         </tbody>
@@ -431,16 +435,17 @@ export function ErrorTrend({ history }: { history: CalibrationRecord[] }) {
         예측 오차 추이
       </h2>
       <TrendLineChart
-        title="보정별 예측 오차 추이"
+        title="예측 맞추기별 예측 오차 추이"
         unit="%p"
         data={points}
         series={[
-          { key: "before", label: "보정 전 오차", color: "#a3a3a3", dashed: true },
-          { key: "after", label: "보정 후 오차", color: "#171717" },
+          { key: "before", label: "예측 맞추기 전 오차", color: "#a3a3a3", dashed: true },
+          { key: "after", label: "예측 맞추기 후 오차", color: "#171717" },
         ]}
       />
       <p className="text-xs text-muted">
-        낮을수록 예측이 실제와 가까워요 · 보정 후 오차는 그 보정으로 돈 첫 테스트가 끝나야 생겨요
+        낮을수록 예측이 실제와 가까워요 · 예측 맞추기 후 오차는 그 예측 맞추기로 돈 첫 테스트가
+        끝나야 생겨요
       </p>
     </section>
   );

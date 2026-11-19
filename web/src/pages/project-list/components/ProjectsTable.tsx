@@ -13,8 +13,8 @@ export default function ProjectsTable({ projects }: { projects: ProjectRecord[] 
           <tr>
             <th>프로젝트</th>
             <th>최근 사전 테스트</th>
-            <th>실측</th>
-            <th>보정</th>
+            <th>실제 고객 데이터</th>
+            <th>예측 맞추기</th>
             <th className="text-right">수정일</th>
           </tr>
         </thead>
@@ -44,7 +44,9 @@ export default function ProjectsTable({ projects }: { projects: ProjectRecord[] 
                   <span className="text-subtle">테스트 전</span>
                 )}
               </td>
-              <td className="whitespace-nowrap">{project.analytics.replace("실측 ", "")}</td>
+              <td className="whitespace-nowrap">
+                {project.analytics.replace("실제 고객 데이터 ", "")}
+              </td>
               <td className="whitespace-nowrap">{project.calibration}</td>
               <td className="text-right whitespace-nowrap">{project.updatedLabel}</td>
             </tr>

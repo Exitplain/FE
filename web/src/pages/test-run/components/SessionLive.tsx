@@ -85,7 +85,7 @@ export default function SessionLive({
           sessionSegment(session),
           `목표: ${session.task_name}`,
           ...(session.seed != null
-            ? [run.seeds ? `시드 ${session.seed} / ${run.seeds.total}` : `시드 ${session.seed}`]
+            ? [run.seeds ? `반복 ${session.seed} / ${run.seeds.total}` : `반복 ${session.seed}`]
             : []),
         ].join(" · ")}
         activeTab="tests"
@@ -120,7 +120,7 @@ export default function SessionLive({
               /* 제품 API 최근 관찰 화면 (같은 출처 쿠키로 받음) */
               <img
                 src={session.screenshot_url}
-                alt={`${code} 세션의 마지막 화면`}
+                alt={`${code}회 방문의 마지막 화면`}
                 className="size-full object-contain"
               />
             ) : (

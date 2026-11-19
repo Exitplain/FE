@@ -99,7 +99,7 @@ describe("페르소나 mock — 확인 검증 (BE preflight.confirm 규칙)", ()
 });
 
 describe("페르소나 mock — 실행", () => {
-  it("확인하면 에이전트 20명 × 과업 세션이 준비 단계·대기 상태로 시작한다", async () => {
+  it("확인하면 AI 고객 20명 × 과업 방문이 준비 단계·대기 상태로 시작한다", async () => {
     const run = await confirmPersonaRun(await confirmBody());
 
     expect(run.status).toBe("running");
@@ -118,7 +118,7 @@ describe("페르소나 mock — 실행", () => {
     expect(run.audience?.ages).toEqual(["30s"]);
   });
 
-  it("준비 → 실행(시드 1~3) → 분석 1~3단계 → 완료 순서로 진행한다", async () => {
+  it("준비 → 실행(반복 1~3) → 분석 1~3단계 → 완료 순서로 진행한다", async () => {
     await confirmPersonaRun(await confirmBody());
 
     const stages: string[] = [];
@@ -138,7 +138,7 @@ describe("페르소나 mock — 실행", () => {
     expect([...steps]).toEqual([1, 2, 3]);
   });
 
-  it("세션은 진행하면서 행동 기록·Think-aloud 발화·토큰·비용이 쌓인다 (임시 필드)", async () => {
+  it("방문은 진행하면서 행동 기록·Think-aloud 발화·토큰·비용이 쌓인다 (임시 필드)", async () => {
     await confirmPersonaRun(await confirmBody());
 
     const run = await runToCompletion();
@@ -150,7 +150,7 @@ describe("페르소나 mock — 실행", () => {
     expect(session.elapsed_ms).toBeGreaterThan(0);
   });
 
-  it("배송 지역 확인은 모든 세션이 접속 실패라 첫 시드에서 끝난다 (E05 예시)", async () => {
+  it("배송 지역 확인은 모든 방문이 접속 실패라 첫 반복에서 끝난다 (E05 예시)", async () => {
     await confirmPersonaRun(
       await confirmBody({ feature_ids: ["delivery"], task_ids: ["delivery"] }),
     );
@@ -161,7 +161,7 @@ describe("페르소나 mock — 실행", () => {
     expect(run.sessions.every((s) => s.status === "agent_failure")).toBe(true);
   });
 
-  it("과업이 5개 이상이면 시드 2 중간에 비용 상한으로 멈추고 부분 결과로 끝난다 (E12 예시)", async () => {
+  it("과업이 5개 이상이면 반복 2 중간에 비용 상한으로 멈추고 부분 결과로 끝난다 (E12 예시)", async () => {
     await confirmPersonaRun(
       await confirmBody({
         feature_ids: ["shopping", "coupon", "subscription"],
@@ -177,7 +177,7 @@ describe("페르소나 mock — 실행", () => {
     expect(report.limitations.join(" ")).toMatch(/비용 상한/);
   });
 
-  it("끝나면 completed 가 되고 모든 세션이 종료 상태다", async () => {
+  it("끝나면 completed 가 되고 모든 방문이 종료 상태다", async () => {
     await confirmPersonaRun(await confirmBody());
 
     const run = await runToCompletion();
@@ -200,8 +200,8 @@ describe("페르소나 mock — 실행", () => {
   });
 });
 
-describe("페르소나 mock — 세션 질문 (BE session_explain 규칙)", () => {
-  it("질문을 다듬어 기록 기반으로 답하고, 세션 answers 에 쌓는다", async () => {
+describe("페르소나 mock — 방문 질문 (BE session_explain 규칙)", () => {
+  it("질문을 다듬어 기록 기반으로 답하고, 방문 answers 에 쌓는다", async () => {
     await confirmPersonaRun(await confirmBody());
     const run = await runToCompletion();
     const sessionId = run.sessions[0].id;
@@ -221,7 +221,7 @@ describe("페르소나 mock — 세션 질문 (BE session_explain 규칙)", () =
     expect(after.sessions.find((s) => s.id === sessionId)?.answers?.at(-1)?.id).toBe(answer.id);
   });
 
-  it("아직 끝나지 않은 세션의 답은 기록 근거가 없다고 표시한다", async () => {
+  it("아직 끝나지 않은 방문의 답은 기록 근거가 없다고 표시한다", async () => {
     const run = await confirmPersonaRun(await confirmBody());
 
     const answer = await explainPersonaSession({
@@ -235,7 +235,7 @@ describe("페르소나 mock — 세션 질문 (BE session_explain 규칙)", () =
 
   it.each([
     ["다른 실행", { run_id: "other" }],
-    ["없는 세션", { session_id: "nobody" }],
+    ["없는 방문", { session_id: "nobody" }],
     ["빈 질문", { question: "   " }],
     ["500자 초과 질문", { question: "가".repeat(501) }],
     ["잘못된 step", { step: 0 }],
@@ -302,7 +302,7 @@ describe("페르소나 mock — 리포트", () => {
     expect(delivery?.funnel?.[0]).toMatchObject({ stage: "landing", reached: [0, 0] });
   });
 
-  it("과업 퍼널은 단계별 도달·이탈 인원을 범위로 주고, 이탈은 문제로 묶는다", async () => {
+  it("과업 단계별 이동은 단계별 도달·이탈 인원을 범위로 주고, 이탈은 문제로 묶는다", async () => {
     await confirmPersonaRun(await confirmBody({ feature_ids: ["shopping"], task_ids: ["order"] }));
     const run = await runToCompletion();
 
@@ -381,7 +381,7 @@ describe("페르소나 mock — 리포트", () => {
     });
   });
 
-  it("세그먼트별 이탈 합계는 퍼널 이탈과 같고, 실측 비교·조건은 과업마다 채운다 (임시 필드)", async () => {
+  it("세그먼트별 이탈 합계는 단계별 이동 이탈과 같고, 실제 고객 데이터 비교·조건은 과업마다 채운다 (임시 필드)", async () => {
     await confirmPersonaRun(await confirmBody());
     const run = await runToCompletion();
 
@@ -477,7 +477,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
     });
   });
 
-  it("기술 실패 세션에 대응한 관측은 예측 비교에서 뺀다 (이탈 일치로 세지 않음)", async () => {
+  it("기술 실패 방문에 대응한 관측은 예측 비교에서 뺀다 (이탈 일치로 세지 않음)", async () => {
     await confirmPersonaRun(
       await confirmBody({ feature_ids: ["delivery"], task_ids: ["delivery"] }),
     );
@@ -499,7 +499,7 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
     });
   });
 
-  it("같은 참여자 × 과업 × 세션은 갱신하고, 다른 세션에 대응하면 400", async () => {
+  it("같은 참여자 × 과업 × 방문은 갱신하고, 다른 방문에 대응하면 400", async () => {
     const run = await completedRun();
     await saveHumanObservation(observation(run.id!));
 
@@ -537,8 +537,8 @@ describe("페르소나 mock — 사람 관측 (명세 5.2)", () => {
   });
 });
 
-describe("페르소나 mock — 세션 상세 (임시 GET /api/personas/session)", () => {
-  it("스텝마다 trace·행동·발화를 남기고, 이탈 세션만 마지막 스텝에서 임계치를 넘는다", async () => {
+describe("페르소나 mock — 방문 상세 (임시 GET /api/personas/session)", () => {
+  it("스텝마다 trace·행동·발화를 남기고, 이탈 방문만 마지막 스텝에서 임계치를 넘는다", async () => {
     await confirmPersonaRun(await confirmBody());
     const run = await runToCompletion();
 
@@ -554,7 +554,7 @@ describe("페르소나 mock — 세션 상세 (임시 GET /api/personas/session)
     }
   });
 
-  it("끝난 실행(history)의 세션만 주고, 진행 중이거나 없으면 404", async () => {
+  it("끝난 실행(history)의 방문만 주고, 진행 중이거나 없으면 404", async () => {
     await confirmPersonaRun(await confirmBody());
     const first = await runToCompletion();
     const second = await confirmPersonaRun(await confirmBody());
@@ -570,7 +570,7 @@ describe("페르소나 mock — 세션 상세 (임시 GET /api/personas/session)
     });
   });
 
-  it("임시: 끝난 실행의 세션에도 질문할 수 있고, 근거는 마지막 두 스텝이다", async () => {
+  it("임시: 끝난 실행의 방문에도 질문할 수 있고, 근거는 마지막 두 스텝이다", async () => {
     await confirmPersonaRun(await confirmBody());
     const first = await runToCompletion();
     await confirmPersonaRun(await confirmBody());
@@ -590,7 +590,7 @@ describe("페르소나 mock — 세션 상세 (임시 GET /api/personas/session)
 });
 
 describe("페르소나 mock — 개선 버전(fixed, 임시: P17 재테스트)", () => {
-  it("같은 패널·시드라도 문제 버전보다 이탈이 적고, 입력 부담 이탈이 줄어든다", async () => {
+  it("같은 패널·반복이라도 문제 버전보다 이탈이 적고, 입력 부담 이탈이 줄어든다", async () => {
     const count = (run: Awaited<ReturnType<typeof runToCompletion>>, cause?: string) =>
       run.sessions.filter(
         (s) => s.status === "simulated_dropout" && (!cause || s.issue?.category === cause),
@@ -638,7 +638,7 @@ describe("페르소나 mock — 제품 API 실행 목록 (runList)", () => {
     }
   });
 
-  it("모든 세션이 기술 실패면 failed, 비용 상한으로 멈추면 partially_completed 다", async () => {
+  it("모든 방문이 기술 실패면 failed, 비용 상한으로 멈추면 partially_completed 다", async () => {
     await confirmPersonaRun(
       await confirmBody({ feature_ids: ["delivery"], task_ids: ["delivery"] }),
     );

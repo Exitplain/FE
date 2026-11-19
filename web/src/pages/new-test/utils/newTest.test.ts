@@ -75,7 +75,7 @@ describe("toggleAge — 전체 연령은 다른 연령과 함께 고를 수 없�
 });
 
 describe("toWizardPlan — 탐색 결과 + 서버 계획", () => {
-  it("id·revision·만료 시각과 과업별 퍼널 단계 수·연령 이름을 모은다", () => {
+  it("id·revision·만료 시각과 과업별 이동 단계 수·연령 이름을 모은다", () => {
     const { discovery, server, plan } = wizardPlan();
 
     expect(plan).toMatchObject({
@@ -127,7 +127,7 @@ describe("계획 저장 본문 (PATCH /api/v1/plans/{id})", () => {
     });
   });
 
-  it("시드는 서버 계획 값과 다를 때만 limits 로 함께 싣는다", () => {
+  it("반복은 서버 계획 값과 다를 때만 limits 로 함께 싣는다", () => {
     const { plan } = wizardPlan();
     expect(segmentsPatch(plan, [3, 3, 2, 2], 1)).not.toHaveProperty("limits");
     expect(segmentsPatch(plan, [3, 3, 2, 2], 2)).toMatchObject({ limits: { seed_count: 2 } });

@@ -29,13 +29,13 @@ export default function DiagnosisLoop({
       route: "newTest",
     },
     {
-      title: "실측 분석",
-      description: "실측 수집 · 예측 vs 실측 · 원인 재현",
-      action: "실측 데이터 연결하기",
+      title: "실제 고객 데이터 분석",
+      description: "실제 고객 데이터 수집 · 예측 vs 실제 고객 데이터 · 원인 재현",
+      action: "실제 고객 데이터 연결하기",
       route: "analytics",
     },
     {
-      title: "보정",
+      title: "예측 맞추기",
       description: "조정안 확인 · 적용 → 다음 사전 테스트",
       action: "조정안 확인",
       route: "calibration",

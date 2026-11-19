@@ -67,7 +67,7 @@ function session(extra: Partial<PersonaSession> = {}): PersonaSession {
   };
 }
 
-describe("세션 상세 표시 도우미", () => {
+describe("방문 상세 표시 도우미", () => {
   it("시간은 초를 두 자리로, 1분 미만은 초만", () => {
     expect(formatDurationPadded(185_000)).toBe("3분 05초");
     expect(formatDurationPadded(260_000)).toBe("4분 20초");
@@ -77,10 +77,10 @@ describe("세션 상세 표시 도우미", () => {
 
   it("제목 아래 설명 — 이탈·완료는 과업과 시간, 오류는 멈춘 스텝", () => {
     expect(describeSession(session())).toBe(
-      "신중한 첫 방문형 · 첫 주문 완료 · 시드 1 · 3스텝 · 3분 05초 · 18.2k 토큰 · $0.04",
+      "신중한 첫 방문형 · 첫 주문 완료 · 반복 1 · 3스텝 · 3분 05초 · 18.2k 토큰 · $0.04",
     );
     expect(describeSession(session({ status: "agent_failure" }))).toBe(
-      "신중한 첫 방문형 · 시드 1 · 3스텝에서 멈춤 · 18.2k 토큰 · $0.04",
+      "신중한 첫 방문형 · 반복 1 · 3스텝에서 멈춤 · 18.2k 토큰 · $0.04",
     );
   });
 

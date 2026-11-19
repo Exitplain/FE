@@ -62,7 +62,7 @@ function statusOf(projectId: number, s: Stored): MeasurementStatus {
       ? {}
       : {
           reason: "NOT_DEPLOYED" as const,
-          message: "실측 분석은 실제 방문자가 오는 배포 주소가 있어야 해요.",
+          message: "실제 고객 데이터 분석은 실제 방문자가 오는 배포 주소가 있어야 해요.",
         }),
     origins: [ORIGIN],
     key: s.key,
@@ -94,7 +94,7 @@ export const measurementHandlers = [
         {
           error: {
             code: "NOT_DEPLOYED",
-            message: "실측 분석은 실제 방문자가 오는 배포 주소가 있어야 해요.",
+            message: "실제 고객 데이터 분석은 실제 방문자가 오는 배포 주소가 있어야 해요.",
             fields: {},
           },
           request_id: "req_mock",
@@ -189,9 +189,9 @@ measurementHandlers.push(
         {
           error: {
             code: "VALIDATION_ERROR",
-            message: "알 수 없는 퍼널 단계가 있습니다.",
+            message: "알 수 없는 이동 단계가 있습니다.",
             fields: Object.fromEntries(
-              bad.map(([k]) => [`mapping.${k}`, ["알 수 없는 퍼널 단계입니다."]]),
+              bad.map(([k]) => [`mapping.${k}`, ["알 수 없는 이동 단계입니다."]]),
             ),
           },
           request_id: "req_mock",
