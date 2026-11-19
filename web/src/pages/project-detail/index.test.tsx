@@ -90,6 +90,62 @@ describe("C05 프로젝트 개요 (GET /api/v1/projects/{id})", () => {
     );
   });
 
+  it("테스트 뒤에 예측 맞추기를 적용하면 한 바퀴 완료, 그 뒤 새 사전 테스트를 시작하면 다시 1단계부터", async () => {
+    const projectId = await createTestProject();
+    setProjectLoopMock(Number(projectId), {
+      measurement: {
+        status: "connected",
+        last_received_at: null,
+        last_imported_at: "2026-11-19T10:00:00+09:00",
+        mapping_saved_at: "2026-11-19T11:00:00+09:00",
+      },
+      calibration: {
+        status: "applied",
+        revision: 1,
+        applied_at: "2026-11-19T12:00:00+09:00",
+        mean_error_pp: 4.5,
+      },
+    });
+    const run = (id: string, kind: string, status: string, createdAt: string) => ({
+      id,
+      sequence_no: 1,
+      name: "1차",
+      kind,
+      status,
+      change_note: "",
+      parent_run_id: null,
+      created_at: createdAt,
+      started_at: null,
+      finished_at: null,
+      report: null,
+    });
+    let items = [run("run-1", "pretest", "completed", "2026-11-19T09:00:00+09:00")];
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", () =>
+        HttpResponse.json({ items, next_cursor: null, total: items.length }),
+      ),
+    );
+    const { unmount } = renderDetail(projectId);
+
+    expect(await screen.findByRole("img", { name: "예측 맞추기 진행 1/1" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "실제 고객 데이터 분석 진행 3/3" })).toBeInTheDocument();
+    expect(screen.getByText(/한 바퀴를 마쳤어요/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "새 사전 테스트로 확인하기" })).toHaveAttribute(
+      "href",
+      `/projects/${projectId}/tests/new`,
+    );
+    unmount();
+
+    /* 보정 뒤 새 사전 테스트 → 다시 1단계 (지금 단계) */
+    items = [run("run-2", "pretest", "running", "2026-11-19T13:00:00+09:00"), ...items];
+    renderDetail(projectId);
+    expect(
+      await screen.findByRole("heading", { name: /사전 테스트\s*지금 단계/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "예측 맞추기 진행 0/1" })).toBeInTheDocument();
+    expect(screen.queryByText(/한 바퀴를 마쳤어요/)).not.toBeInTheDocument();
+  });
+
   it("마지막 사전 테스트가 있으면 차수·상태를 보여준다", async () => {
     const detail = await getProjectDetail(1);
     const last = {
