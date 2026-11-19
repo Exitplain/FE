@@ -4,6 +4,10 @@ export type ProjectInput = { name: string; url: string; journey: string };
 export type ProjectRecord = WorkspaceProject & {
   journey: string;
   lastTestStatus: WorkspaceRunStatus | null;
+  /* 실측 연결 상태 (BE 가 주지 않으면 unconnected) */
+  measurementStatus: "unconnected" | "waiting" | "connected";
+  /* 적용 중인 보정 번호. 보정 전(기본 모형으로 되돌림 포함)이면 null */
+  calibrationRevision: number | null;
   updatedLabel: string;
   isSample: boolean;
 };

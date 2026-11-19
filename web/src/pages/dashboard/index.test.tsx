@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
+import { setProjectLoopMock } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { issueFixture, issueList } from "@/test/issues";
 import { createTestProject } from "@/test/projects";
@@ -96,15 +97,88 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
     expect(screen.getByRole("link", { name: "문제 1개 전체 보기" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /반찬로드 1차/ })).toHaveTextContent("30%");
     expect(screen.getByText("이번 주 완료 테스트").nextElementSibling).toHaveTextContent("1개");
-    /* 보정·실측은 BE 에 아직 없어 실제 값 0 */
-    expect(screen.getByText("보정 조정안 대기").nextElementSibling).toHaveTextContent("0개");
-    expect(screen.getByText("실측 비교 가능").nextElementSibling).toHaveTextContent(/^0 \/ \d+/);
+    /* 조정안 대기는 프로젝트마다 무거운 조정안 계산이 필요해 아직 세지 않고, 샘플만 있으면 실측 비교 대상도 0 */
+    expect(screen.getByText("보정 조정안 대기").nextElementSibling).toHaveTextContent("–");
+    expect(screen.getByText("실측 비교 가능").nextElementSibling).toHaveTextContent(/^0 \/ 0/);
     /* 반찬로드는 2차가 진행 중이라 사전 테스트 1/7, 다음 행동은 그 실행의 실시간 보기 */
     const row = screen.getByRole("row", { name: /^반찬로드/ });
     expect(row).toHaveTextContent("1 / 7 · 테스트 실행 중");
     expect(within(row).getByRole("link", { name: "실시간 보기" })).toHaveAttribute(
       "href",
       "/projects/1/runs/run-2",
+    );
+  });
+});
+
+describe("W01 루프 위치 — 실측·보정 상태", () => {
+  const finished = () => {
+    const done = new Date().toISOString();
+    return http.get("*/api/v1/projects/:projectId/runs", () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: "run-1",
+            sequence_no: 1,
+            name: "1차",
+            kind: "pretest",
+            status: "completed",
+            change_note: "",
+            parent_run_id: null,
+            created_at: done,
+            started_at: null,
+            finished_at: done,
+            report: null,
+          },
+        ],
+        next_cursor: null,
+        total: 1,
+      }),
+    );
+  };
+
+  it("프로젝트 목록의 실측·보정 상태로 단계를 나누고, 실측 비교 가능은 내 프로젝트 중 연결된 수", async () => {
+    const id = await createTestProject();
+    setProjectLoopMock(Number(id), {
+      measurement: { status: "connected", last_received_at: "2026-11-18T00:00:00+00:00" },
+      calibration: {
+        status: "applied",
+        revision: 2,
+        applied_at: "2026-11-18T01:00:00+00:00",
+        mean_error_pp: 6.2,
+      },
+    });
+    await createTestProject("나다움", "https://nadaum.example/");
+    server.use(finished());
+    renderWithProviders(<DashboardPage />);
+
+    const row = await screen.findByRole("row", { name: /^스튜디오 예약/ });
+    expect(row).toHaveTextContent("7 / 7 · 보정 적용됨");
+    expect(row).toHaveTextContent("실측 연결됨");
+    expect(row).toHaveTextContent("보정 · r2 적용");
+    expect(within(row).getByRole("link", { name: "보정 보기" })).toHaveAttribute(
+      "href",
+      `/projects/${id}/calibration`,
+    );
+    const other = screen.getByRole("row", { name: /^나다움/ });
+    expect(other).toHaveTextContent("4 / 7 · 실측 연결 전");
+    expect(other).toHaveTextContent("실측 미연결");
+    expect(other).toHaveTextContent("보정 · 보정 전");
+    /* 샘플은 내 프로젝트가 아니라 분모에서 빼고, 조정안 대기는 아직 세지 않음 */
+    expect(screen.getByText("실측 비교 가능").nextElementSibling).toHaveTextContent(/^1 \/ 2/);
+    expect(screen.getByText("보정 조정안 대기").nextElementSibling).toHaveTextContent("–");
+  });
+
+  it("서버가 실측·보정 상태를 주지 않으면(배포 전) 4단계 · 실측 연결 전으로 둔다", async () => {
+    const id = await createTestProject();
+    setProjectLoopMock(Number(id), { measurement: undefined, calibration: undefined });
+    server.use(finished());
+    renderWithProviders(<DashboardPage />);
+
+    const row = await screen.findByRole("row", { name: /^스튜디오 예약/ });
+    expect(row).toHaveTextContent("4 / 7 · 실측 연결 전");
+    expect(within(row).getByRole("link", { name: "실측 데이터 연결하기" })).toHaveAttribute(
+      "href",
+      `/projects/${id}/analytics`,
     );
   });
 });

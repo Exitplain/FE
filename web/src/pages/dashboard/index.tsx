@@ -31,7 +31,8 @@ import "@/components/Workspace/workspace.css";
 /*
   W01 대시보드 — 내 프로젝트(+샘플)의 실행 목록(리포트 요약 포함)으로 만듭니다.
   프로젝트 단위 GET /projects/{id}/dashboard 와 같은 값(최근 달성률·주요 원인)이 실행 목록에 이미 있어 따로 부르지 않습니다.
-  보정 조정안·실측 비교는 BE 에 없어 0 으로 보여 줍니다 (실제 값도 0).
+  루프 위치의 실측·보정 단계와 "실측 비교 가능"은 프로젝트 목록의 measurement·calibration 으로 만듭니다.
+  "보정 조정안 대기"는 프로젝트마다 조정안을 계산해야 해 아직 세지 않습니다.
 */
 export default function DashboardPage() {
   const query = useProjectRuns();
@@ -40,6 +41,8 @@ export default function DashboardPage() {
   const [asOf] = useState(() => new Date().toISOString());
 
   const projects = query.records;
+  /* 샘플은 내 프로젝트가 아니라 실측 비교 대상에서 뺍니다 */
+  const own = projects.filter((project) => !project.isSample);
   const runs = [...query.runs].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
   const active = activeItemOf(query.items);
   /* 실행이 끝나 진행 중 실행이 바뀌면 새 리포트가 생겼을 수 있어 발견한 문제를 다시 받습니다 */
@@ -113,7 +116,8 @@ export default function DashboardPage() {
           <SummaryCards
             completed={week.completed}
             failed={week.failed}
-            projectCount={projects.length}
+            comparable={own.filter((project) => project.measurementStatus === "connected").length}
+            projectCount={own.length}
           />
           {/*
             Figma W01 비율(왼쪽 704 : 오른쪽 320)대로 나누되 화면 폭에 맞춰 늘고 줄어듭니다. 오른쪽은 최소 300.
