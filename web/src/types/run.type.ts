@@ -88,6 +88,20 @@ export type RunDetail = RunItem & {
       cancelled: number;
     };
   };
+  /*
+    과업 진행 순서 (계획 순서 = 실행 순서, 왼쪽 → 오른쪽). 서버가 이 순서대로 과업마다 시드 1부터 돌립니다.
+    status 는 과업의 모든 시드를 합친 상태. 예전 서버 응답에는 없을 수 있습니다
+  */
+  tasks?: RunTaskProgress[];
+};
+
+export type RunTaskProgress = {
+  task_id: string;
+  name: string;
+  /* 1부터 */
+  position: number;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  seeds: number;
 };
 
 /* GET /api/v1/runs/{id}/sessions 의 세션 — 시작한 세션만 들어 있습니다 (대기 세션 없음) */

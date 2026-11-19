@@ -225,6 +225,7 @@ function RunDashboard({
     expectedSessions: detail.progress.expected_sessions,
     phase,
     truncated: totalSessions > run.sessions.length,
+    serverTasks: detail.tasks,
   });
   const { order, summary, title } = runTitle(run);
   const cancel = useCancelRun(detail.id);

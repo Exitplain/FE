@@ -98,7 +98,8 @@ export default function RunProgress({
         </div>
         {tabs.length > 1 && (
           <p className="text-xs text-muted">
-            과업을 바꾸면 아래 진행·타일·발화가 그 과업 기준으로 바뀌어요
+            왼쪽 과업부터 차례로 실행해요 · 과업을 바꾸면 아래 진행·타일·발화가 그 과업 기준으로
+            바뀌어요
           </p>
         )}
       </div>
