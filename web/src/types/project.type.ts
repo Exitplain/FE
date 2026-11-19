@@ -13,7 +13,8 @@ export type ProjectRecord = WorkspaceProject & {
 };
 
 export type ProjectOverview = {
-  phase: 1 | 2 | 3;
+  /* 지금 단계. 4 = 한 바퀴 완료 (가장 최근 사전 테스트 뒤에 예측 맞추기를 적용함 → 새 사전 테스트로 다음 바퀴) */
+  phase: 1 | 2 | 3 | 4;
   connection: { startPath: string; expiresLabel: string } | null;
   test: {
     status: WorkspaceRunStatus | null;

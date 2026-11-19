@@ -128,6 +128,18 @@ export default function DiagnosisLoop({
           </div>
         ))}
       </div>
+      {overview.phase === 4 && (
+        <p className="flex flex-wrap items-center gap-3 text-caption text-subtle">
+          <Icon name="status-done" />한 바퀴를 마쳤어요 · 맞춘 예측으로 새 사전 테스트를 돌리면 다시
+          처음부터 시작해요
+          <Link
+            className={buttonVariants({ variant: "outline" })}
+            to={buildPath("newTest", { projectId: project.id })}
+          >
+            새 사전 테스트로 확인하기
+          </Link>
+        </p>
+      )}
       {overview.connection && (
         <p className="flex items-center gap-2 text-caption text-subtle">
           <Icon name="key" />

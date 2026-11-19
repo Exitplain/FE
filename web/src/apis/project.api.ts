@@ -150,8 +150,25 @@ export function toProjectOverview(project: V1ProjectDetail, runs?: RunItem[]): P
   const percent = rate == null ? null : Math.round(rate * 100);
   const sequence = latest?.sequence_no ?? last?.sequence_no;
   const createdAt = latest?.created_at ?? last?.created_at;
+  /*
+    진단 루프 한 바퀴 = 가장 최근 사전 테스트 → 실제 고객 데이터 분석 → 예측 맞추기.
+    그 테스트 뒤에 예측 맞추기를 적용했으면 한 바퀴 완료(4), 그 뒤 새 사전 테스트를 시작하면 다시 1단계부터.
+  */
+  const appliedAt =
+    project.calibration?.status === "applied" ? (project.calibration.applied_at ?? null) : null;
+  const cycleDone =
+    !active &&
+    finishedBefore &&
+    !!appliedAt &&
+    (!createdAt || Date.parse(appliedAt) > Date.parse(createdAt));
+  /* 원인 재현 칸은 이번 바퀴(가장 최근 사전 테스트 뒤)에 돌린 재현만 셉니다 */
+  const reproduced = (runs ?? []).some(
+    (item) =>
+      item.kind === "cause_repro" &&
+      (!createdAt || Date.parse(item.created_at) >= Date.parse(createdAt)),
+  );
   return {
-    phase: finishedBefore && !active ? 2 : 1,
+    phase: cycleDone ? 4 : finishedBefore && !active ? 2 : 1,
     connection: null,
     test: {
       status,
@@ -162,10 +179,7 @@ export function toProjectOverview(project: V1ProjectDetail, runs?: RunItem[]): P
       dateLabel: createdAt ? formatRunDate(createdAt) : null,
     },
     analytics: {
-      ...analyticsOf(
-        project.measurement,
-        (runs ?? []).some((item) => item.kind === "cause_repro"),
-      ),
+      ...analyticsOf(project.measurement, reproduced),
       landingSessions: null,
       completedSessions: null,
       completionRate: null,
