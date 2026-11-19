@@ -87,7 +87,7 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("반찬로드 2차")).toBeInTheDocument();
     /* 카드는 목록 값으로 먼저 그리고, 실행 상태를 받으면 세션 수를 채웁니다 */
-    expect(await screen.findByText("세션 5 / 20 종료")).toBeInTheDocument();
+    expect(await screen.findByText("방문 5 / 20 종료")).toBeInTheDocument();
     expect(screen.getByText("대기").parentElement).toHaveTextContent("9");
     /* 최근 발견한 문제는 GET /api/v1/issues 의 앞 3개, 누르면 W03 에서 그 문제를 엽니다 */
     const issue = await screen.findByRole("link", { name: /입력 부담 · 가입 단계/ });
@@ -98,8 +98,10 @@ describe("W01 대시보드 (제품 API 실행 목록)", () => {
     expect(screen.getByRole("link", { name: /반찬로드 1차/ })).toHaveTextContent("30%");
     expect(screen.getByText("이번 주 완료 테스트").nextElementSibling).toHaveTextContent("1개");
     /* 조정안 대기는 프로젝트마다 무거운 조정안 계산이 필요해 아직 세지 않고, 샘플만 있으면 실측 비교 대상도 0 */
-    expect(screen.getByText("보정 조정안 대기").nextElementSibling).toHaveTextContent("–");
-    expect(screen.getByText("실측 비교 가능").nextElementSibling).toHaveTextContent(/^0 \/ 0/);
+    expect(screen.getByText("예측 맞추기 조정안 대기").nextElementSibling).toHaveTextContent("–");
+    expect(screen.getByText("실제 고객 데이터 비교 가능").nextElementSibling).toHaveTextContent(
+      /^0 \/ 0/,
+    );
     /* 반찬로드는 2차가 진행 중이라 사전 테스트 1/7, 다음 행동은 그 실행의 실시간 보기 */
     const row = screen.getByRole("row", { name: /^반찬로드/ });
     expect(row).toHaveTextContent("1 / 7 · 테스트 실행 중");
@@ -152,20 +154,22 @@ describe("W01 루프 위치 — 실측·보정 상태", () => {
     renderWithProviders(<DashboardPage />);
 
     const row = await screen.findByRole("row", { name: /^스튜디오 예약/ });
-    expect(row).toHaveTextContent("7 / 7 · 보정 적용됨");
-    expect(row).toHaveTextContent("실측 연결됨");
-    expect(row).toHaveTextContent("보정 · r2 적용");
-    expect(within(row).getByRole("link", { name: "보정 보기" })).toHaveAttribute(
+    expect(row).toHaveTextContent("7 / 7 · 예측 맞추기 적용됨");
+    expect(row).toHaveTextContent("실제 고객 데이터 연결됨");
+    expect(row).toHaveTextContent("예측 맞추기 · r2 적용");
+    expect(within(row).getByRole("link", { name: "예측 맞추기 보기" })).toHaveAttribute(
       "href",
       `/projects/${id}/calibration`,
     );
     const other = screen.getByRole("row", { name: /^나다움/ });
-    expect(other).toHaveTextContent("4 / 7 · 실측 연결 전");
-    expect(other).toHaveTextContent("실측 미연결");
-    expect(other).toHaveTextContent("보정 · 보정 전");
+    expect(other).toHaveTextContent("4 / 7 · 실제 고객 데이터 연결 전");
+    expect(other).toHaveTextContent("실제 고객 데이터 미연결");
+    expect(other).toHaveTextContent("예측 맞추기 · 예측 맞추기 전");
     /* 샘플은 내 프로젝트가 아니라 분모에서 빼고, 조정안 대기는 아직 세지 않음 */
-    expect(screen.getByText("실측 비교 가능").nextElementSibling).toHaveTextContent(/^1 \/ 2/);
-    expect(screen.getByText("보정 조정안 대기").nextElementSibling).toHaveTextContent("–");
+    expect(screen.getByText("실제 고객 데이터 비교 가능").nextElementSibling).toHaveTextContent(
+      /^1 \/ 2/,
+    );
+    expect(screen.getByText("예측 맞추기 조정안 대기").nextElementSibling).toHaveTextContent("–");
   });
 
   it("서버가 실측·보정 상태를 주지 않으면(배포 전) 4단계 · 실측 연결 전으로 둔다", async () => {
@@ -175,8 +179,8 @@ describe("W01 루프 위치 — 실측·보정 상태", () => {
     renderWithProviders(<DashboardPage />);
 
     const row = await screen.findByRole("row", { name: /^스튜디오 예약/ });
-    expect(row).toHaveTextContent("4 / 7 · 실측 연결 전");
-    expect(within(row).getByRole("link", { name: "실측 데이터 연결하기" })).toHaveAttribute(
+    expect(row).toHaveTextContent("4 / 7 · 실제 고객 데이터 연결 전");
+    expect(within(row).getByRole("link", { name: "실제 고객 데이터 연결하기" })).toHaveAttribute(
       "href",
       `/projects/${id}/analytics`,
     );

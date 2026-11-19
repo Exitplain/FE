@@ -10,7 +10,7 @@ import { create } from "zustand";
 /* 조정안이 있는 프로젝트 (그 밖은 E11 보정할 차이 없음) */
 export const PROPOSAL_PROJECTS = ["1"];
 
-export const PROPOSAL_BASIS = "3차 vs 실측 7일 · 오차 4.5%p · 차이 구간 장바구니";
+export const PROPOSAL_BASIS = "3차 vs 실제 고객 데이터 7일 · 오차 4.5%p · 차이 구간 장바구니";
 
 export const ERROR_SUMMARY = {
   before: 4.5,
@@ -35,32 +35,32 @@ export const ADJUSTMENTS: Adjustment[] = [
     item: "인내심 임계치",
     current: "70",
     proposed: "62",
-    reason: "실측 장바구니 이탈이 예측보다 큼",
+    reason: "실제 고객 데이터 장바구니 이탈이 예측보다 큼",
   },
   {
     segment: "신중한 첫 방문형",
     item: "인내심 임계치",
     current: "72",
     proposed: "66",
-    reason: "실측 장바구니 이탈이 예측보다 큼",
+    reason: "실제 고객 데이터 장바구니 이탈이 예측보다 큼",
   },
   {
     segment: "전체",
-    item: "마찰 가중치 · 긴 탐색",
+    item: "불편한 점 가중치 · 긴 탐색",
     current: "1.0",
     proposed: "1.4",
     reason: "차이 구간 재현에서 탐색 실패가 가장 많음",
   },
   {
     segment: "전체",
-    item: "마찰 가중치 · 비용 변화",
+    item: "불편한 점 가중치 · 비용 변화",
     current: "1.0",
     proposed: "1.1",
     reason: "재현에서 비용 충격 일부 확인",
   },
   {
     segment: "가격 민감형",
-    item: "마찰 가중치 · 비용 변화",
+    item: "불편한 점 가중치 · 비용 변화",
     current: "1.2",
     proposed: "1.3",
     reason: "재현에서 비용 충격 일부 확인",
@@ -70,7 +70,7 @@ export const ADJUSTMENTS: Adjustment[] = [
     item: "—",
     current: "—",
     proposed: "",
-    reason: "실측과 예측이 범위 안",
+    reason: "실제 고객 데이터와 예측이 범위 안",
   },
 ];
 
@@ -90,11 +90,11 @@ export type HistoryRow = { date: string; change: string; basis: string; error: s
 export const HISTORY: HistoryRow[] = [
   {
     date: "11월 5일",
-    change: "빠른 구매형 인내심 75→70 · 입력 부담 마찰 1.0→1.2 · 비용 변화 0.9→1.0 (예시)",
-    basis: "2차 vs 실측 최근 7일",
+    change: "빠른 구매형 인내심 75→70 · 입력 부담 불편한 점 1.0→1.2 · 비용 변화 0.9→1.0 (예시)",
+    basis: "2차 vs 실제 고객 데이터 최근 7일",
     error: "7.8 → 4.5%p",
   },
-  { date: "11월 1일", change: "첫 보정 전 (기본 모델)", basis: "—", error: "—" },
+  { date: "11월 1일", change: "첫 예측 맞추기 전 (기본 모델)", basis: "—", error: "—" },
 ];
 
 /* K04 사람 관측 */
@@ -215,7 +215,7 @@ export const useCalibrationMockStore = create<CalibrationMockState>()((set) => (
             change: ADJUSTMENTS.filter((row) => row.proposed)
               .map((row) => `${row.segment} ${row.item} ${row.current}→${row.proposed}`)
               .join(" · "),
-            basis: "3차 vs 실측 최근 7일",
+            basis: "3차 vs 실제 고객 데이터 최근 7일",
             error: `${ERROR_SUMMARY.before} → ${ERROR_SUMMARY.after}%p`,
           },
           ...historyOf(state, projectId),

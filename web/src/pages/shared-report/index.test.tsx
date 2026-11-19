@@ -60,10 +60,10 @@ describe("P21 공유 리포트 (GET /api/v1/shared/{token}, 로그인 없이)", 
     expect(
       await screen.findByRole("heading", { level: 1, name: "반찬로드 · 첫 주문" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: "예측 퍼널" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "예측 단계별 이동" })).toBeInTheDocument();
   });
 
-  it("한눈에 보기 · 요약 · 퍼널 · 원인 · 히트맵을 앱 링크 없이 보여준다", async () => {
+  it("한눈에 보기 · 요약 · 단계별 이동 · 원인 · 히트맵을 앱 링크 없이 보여준다", async () => {
     serveShared();
     renderShared("token-1");
 
@@ -72,17 +72,17 @@ describe("P21 공유 리포트 (GET /api/v1/shared/{token}, 로그인 없이)", 
     ).toBeInTheDocument();
     expect(screen.getByText("사전 테스트 리포트 · 예측")).toBeInTheDocument();
     expect(
-      screen.getByText("11월 7일 · AI 고객 20명 × 시드 3회 · 과업 2개 (첫 주문 외 1개)"),
+      screen.getByText("11월 7일 · AI 고객 20명 × 반복 3회 · 과업 2개 (첫 주문 외 1개)"),
     ).toBeInTheDocument();
 
     const glance = screen.getByRole("region", { name: "한눈에 보기" });
     expect(within(glance).getAllByRole("listitem")).toHaveLength(3);
     expect(glance).toHaveTextContent("목표 달성률 45~55% (예측)");
-    expect(glance).toHaveTextContent("유효 세션 58개 중 30개가 목표에 도달했어요");
+    expect(glance).toHaveTextContent("유효 방문 58개 중 30개가 목표에 도달했어요");
     expect(glance).toHaveTextContent("가장 많이 떠난 구간 · 장바구니 → 가입");
     expect(glance).toHaveTextContent("가장 많은 이탈 원인 · 입력 부담");
 
-    for (const name of ["1. 예측 퍼널", "2. 이탈 원인 분포", "세그먼트 × 이탈 구간"]) {
+    for (const name of ["1. 예측 단계별 이동", "2. 이탈 원인 분포", "세그먼트 × 이탈 구간"]) {
       expect(screen.getByRole("heading", { name })).toBeInTheDocument();
     }
     /* 히트맵은 펼친 채로, 접기 버튼 없음 */

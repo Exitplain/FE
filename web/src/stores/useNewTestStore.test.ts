@@ -52,7 +52,7 @@ describe("useNewTestStore", () => {
     expect(useNewTestStore.getState().segmentCounts).toEqual([3, 3, 2, 2]);
   });
 
-  it("시드는 계획을 다시 받거나 만료로 지운 뒤 새로 받아도 고른 값을 유지하고, 서버 범위로 맞춘다", () => {
+  it("반복은 계획을 다시 받거나 만료로 지운 뒤 새로 받아도 고른 값을 유지하고, 서버 범위로 맞춘다", () => {
     setPlan();
     useNewTestStore.getState().setSeedCount(3);
     setPlan();

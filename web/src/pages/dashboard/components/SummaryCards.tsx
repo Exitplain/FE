@@ -29,7 +29,7 @@ export default function SummaryCards({
         </h2>
         <div className="grid gap-4 rounded-[10px] bg-surface px-6 py-6 shadow-[0_3px_6px_rgb(10_10_10/0.06)] sm:grid-cols-3 sm:gap-0">
           <div className="flex flex-col gap-2 sm:pr-5">
-            <p className="text-xs leading-4 text-subtle">보정 조정안 대기</p>
+            <p className="text-xs leading-4 text-subtle">예측 맞추기 조정안 대기</p>
             <p className="text-3xl font-bold text-ink">–</p>
           </div>
           <div className="flex flex-col gap-2 sm:border-l sm:border-line sm:px-5">
@@ -41,7 +41,7 @@ export default function SummaryCards({
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:border-l sm:border-line sm:pl-5">
-            <p className="text-xs leading-4 text-subtle">실측 비교 가능</p>
+            <p className="text-xs leading-4 text-subtle">실제 고객 데이터 비교 가능</p>
             <p className="flex items-end gap-1">
               <span className="text-3xl font-bold text-ink">
                 {comparable} / {projectCount}

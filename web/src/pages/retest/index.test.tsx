@@ -60,7 +60,7 @@ describe("P18 재테스트 전후 비교", () => {
     ).toHaveTextContent("100%100%0%p");
     expect(screen.getByRole("table", { name: "원인 분포 변화" })).toBeInTheDocument();
     expect(
-      screen.getByText("같은 패널·시드로 재테스트한 결과만 원인 비교에 써요"),
+      screen.getByText("같은 패널·반복으로 재테스트한 결과만 원인 비교에 써요"),
     ).toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: "리포트 A 열기" })).toHaveAttribute(
@@ -115,7 +115,9 @@ describe("P18 재테스트 전후 비교", () => {
     expect(
       await screen.findByRole("heading", { name: "비교할 테스트가 하나 더 필요해요" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("같은 패널·시드로 재테스트하면 비교할 수 있어요")).toBeInTheDocument();
+    expect(
+      screen.getByText("같은 패널·반복으로 재테스트하면 비교할 수 있어요"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "수정 후 재테스트" })).toHaveAttribute(
       "href",
       `${buildPath("report", { projectId: "1", runId: a })}?retest=1`,

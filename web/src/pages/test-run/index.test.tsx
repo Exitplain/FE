@@ -114,7 +114,7 @@ function session(id: number, overrides: Partial<RunSession> = {}): RunSession {
 }
 
 describe("P08~P11 실행 화면", () => {
-  it("P08 — 준비 중에는 체크리스트와 준비한 브라우저 수(시작한 세션 / 예상 세션)를 보여준다", async () => {
+  it("P08 — 준비 중에는 체크리스트와 준비한 브라우저 수(시작한 방문 / 예상 방문)를 보여준다", async () => {
     const run = await startRun();
     renderRun(run.id!);
 
@@ -125,9 +125,9 @@ describe("P08~P11 실행 화면", () => {
     const checklist = screen.getByRole("list", { name: "실행 준비" });
     expect(checklist).toHaveTextContent("페르소나 불러오기완료");
     expect(checklist).toHaveTextContent("브라우저 40개 준비");
-    expect(screen.getByText("다음: 세션 40개와 Think-aloud (자동 전환)")).toBeInTheDocument();
+    expect(screen.getByText("다음: 방문 40개와 Think-aloud (자동 전환)")).toBeInTheDocument();
     /* 준비 중에는 상태 필터가 없습니다 */
-    expect(screen.queryByRole("radiogroup", { name: "세션 상태" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "방문 상태" })).not.toBeInTheDocument();
   });
   it("탐색이 만든 과업 id 대신 서버 실행 이름의 과업 이름을 제목·과업 탭·목표에 보여준다", async () => {
     const user = userEvent.setup();
@@ -145,7 +145,7 @@ describe("P08~P11 실행 화면", () => {
 
     await user.click((await screen.findAllByRole("link", { name: /빠른 구매형/ }))[0]);
     expect(
-      await screen.findByText("빠른 구매형 · 목표: 첫 주문 쿠폰 받기 · 시드 1"),
+      await screen.findByText("빠른 구매형 · 목표: 첫 주문 쿠폰 받기 · 반복 1"),
     ).toBeInTheDocument();
   });
 
@@ -175,7 +175,7 @@ describe("P08~P11 실행 화면", () => {
     expect(within(tabs).getByRole("radio", { name: "첫 주문" })).toBeChecked();
     expect(screen.getByText("실행 중")).toBeInTheDocument();
 
-    const tiles = await screen.findByRole("list", { name: "세션" });
+    const tiles = await screen.findByRole("list", { name: "방문" });
     /* 에이전트 20명이 과업마다 한 세션씩 */
     expect(within(tiles).getAllByRole("listitem")).toHaveLength(20);
     expect(screen.getByRole("progressbar", { name: "진행률" })).toBeInTheDocument();
@@ -185,14 +185,14 @@ describe("P08~P11 실행 화면", () => {
 
     await user.click(within(tabs).getByRole("radio", { name: "쿠폰으로 주문" }));
     // 과업을 바꾸면 타일이 모두 그 과업 세션으로 바뀝니다
-    const couponTiles = within(screen.getByRole("list", { name: "세션" })).getAllByRole("listitem");
+    const couponTiles = within(screen.getByRole("list", { name: "방문" })).getAllByRole("listitem");
     expect(couponTiles).toHaveLength(20);
 
     await user.click(screen.getByRole("radio", { name: /^대기/ }));
     expect(screen.getByRole("radio", { name: /^대기/ })).toBeChecked();
   });
 
-  it("P11 — 세션 타일을 누르면 P 코드 라이브 화면에서 상태·행동 로그·발화를 보고 돌아온다", async () => {
+  it("P11 — 방문 타일을 누르면 P 코드 라이브 화면에서 상태·행동 로그·발화를 보고 돌아온다", async () => {
     const user = userEvent.setup();
     serveRun({}, [
       session(1),
@@ -207,13 +207,13 @@ describe("P08~P11 실행 화면", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "P-001 · 라이브" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("빠른 구매형 · 목표: 첫 주문 · 시드 1")).toBeInTheDocument();
+    expect(screen.getByText("빠른 구매형 · 목표: 첫 주문 · 반복 1")).toBeInTheDocument();
     /* 토큰·비용은 제품 API 에 없어 보이지 않습니다 */
     expect(screen.queryByText("토큰 · 비용")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "행동 로그" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Think-aloud" })).toBeInTheDocument();
     await user.click(screen.getByRole("link", { name: "실행 화면으로" }));
-    expect(await screen.findByRole("list", { name: "세션" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "방문" })).toBeInTheDocument();
   });
   it("P10 — 분석 단계를 보여주고, 끝나면 리포트로 자동 이동한다", async () => {
     const run = await startRun(["order"]);
@@ -233,7 +233,7 @@ describe("P08~P11 실행 화면", () => {
 
     expect(await screen.findByText("분석 중")).toBeInTheDocument();
     const checklist = screen.getByRole("list", { name: "결과 분석" });
-    expect(checklist).toHaveTextContent(/세션 \d+개 종료/);
+    expect(checklist).toHaveTextContent(/방문 \d+개 종료/);
     expect(checklist).toHaveTextContent("리포트 생성 · 범위 계산");
     expect(screen.getByText("다음: 리포트 (자동 이동)")).toBeInTheDocument();
 
@@ -278,7 +278,7 @@ describe("P08~P11 실행 화면", () => {
     );
   });
 
-  it("E05 — 실행이 실패하면 서버 오류 문구와 끝난 세션 수를 보여준다", async () => {
+  it("E05 — 실행이 실패하면 서버 오류 문구와 끝난 방문 수를 보여준다", async () => {
     serveRun(
       {
         status: "failed",
@@ -292,7 +292,7 @@ describe("P08~P11 실행 화면", () => {
     expect(
       await screen.findByRole("heading", { name: "실행을 끝내지 못했어요" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("모든 과업이 실패했어요 · 끝난 세션 0 / 1")).toBeInTheDocument();
+    expect(screen.getByText("모든 과업이 실패했어요 · 끝난 방문 0 / 1")).toBeInTheDocument();
     expect(screen.getByText("실패")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "다시 시도" })).toHaveAttribute(
       "href",
@@ -322,7 +322,7 @@ describe("P08~P11 실행 화면", () => {
     expect(screen.getByText("중지됨")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "중지" })).not.toBeInTheDocument();
   });
-  it("행동·시간 한도에 닿은 세션은 한도 도달로 표시하고 오류로 센다", async () => {
+  it("행동·시간 한도에 닿은 방문은 한도 도달로 표시하고 오류로 센다", async () => {
     serveRun({}, [
       session(1, { status: "budget_exceeded", steps: 35 }),
       session(2, {
@@ -347,7 +347,7 @@ describe("P08~P11 실행 화면", () => {
   it("받아 둔 실행이 있을 때 다시 받기에 실패하면 화면은 두고 다시 시도를 안내한다", async () => {
     serveRun({}, [session(1)]);
     const { queryClient } = renderRun("fixed-run");
-    await screen.findByRole("list", { name: "세션" });
+    await screen.findByRole("list", { name: "방문" });
 
     server.use(http.get("*/api/v1/runs/:runId/sessions", () => HttpResponse.error()));
     await queryClient
@@ -355,16 +355,16 @@ describe("P08~P11 실행 화면", () => {
       .catch(() => {});
 
     expect(await screen.findByText(/최신 상태를 불러오지 못했어요/)).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "세션" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "방문" })).toBeInTheDocument();
   });
-  it("세션 라이브에서 돌아와도 고른 과업을 유지한다", async () => {
+  it("방문 라이브에서 돌아와도 고른 과업을 유지한다", async () => {
     const user = userEvent.setup();
     serveRun({}, [session(1), session(2, { task_id: "coupon" })]);
     renderRun("fixed-run");
 
     const tabs = await screen.findByRole("radiogroup", { name: "과업" });
     await user.click(within(tabs).getByRole("radio", { name: "쿠폰으로 주문" }));
-    await user.click(within(screen.getByRole("list", { name: "세션" })).getAllByRole("link")[0]);
+    await user.click(within(screen.getByRole("list", { name: "방문" })).getAllByRole("link")[0]);
     await user.click(await screen.findByRole("link", { name: "실행 화면으로" }));
 
     expect(

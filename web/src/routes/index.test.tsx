@@ -33,7 +33,7 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
     ).toBeInTheDocument();
   });
 
-  it("세션 상세(P15·P16)를 /runs/:runId/sessions/:taskId/:seed/:personaId 에서 연다", async () => {
+  it("방문 상세(P15·P16)를 /runs/:runId/sessions/:taskId/:seed/:personaId 에서 연다", async () => {
     renderAt(
       buildPath("sessionDetail", {
         projectId,
@@ -46,7 +46,7 @@ describe("라우트 — 사전 테스트 흐름은 프로젝트 아래", () => {
 
     // 저장된 실행이 아닌 runId 라 세션 없음 안내가 열립니다
     expect(
-      await screen.findByRole("heading", { name: "세션을 찾을 수 없어요" }),
+      await screen.findByRole("heading", { name: "방문을 찾을 수 없어요" }),
     ).toBeInTheDocument();
   });
 

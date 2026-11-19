@@ -27,7 +27,7 @@ export default function ScreenModal({
       onClose={onClose}
       size="xl"
       title={step ? `진단 시점의 화면 · 스텝 ${step.step}` : ""}
-      description="에이전트 실행 중 저장한 실제 브라우저 화면이에요 · 합성 테스트 데이터예요"
+      description="AI 고객 실행 중 저장한 실제 브라우저 화면이에요 · 합성 테스트 데이터예요"
       footer={
         <div className="flex flex-1 items-center gap-4">
           <SegmentedTabs

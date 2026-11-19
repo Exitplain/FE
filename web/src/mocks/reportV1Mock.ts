@@ -65,8 +65,8 @@ const STAGE_KEY: Record<Stage, FunnelKey | null> = {
 
 const NOTES = [
   "목표 도달·가상 이탈은 설정한 성공 경로와 페르소나 수치로 판정한 모의 결과입니다. 실제 사용자 이탈률이 아닙니다.",
-  "기술 실패·한도 초과·결과 없음은 퍼널·달성률·원인 분모에서 뺐습니다.",
-  "퍼널은 세션마다 단계별 최초 도달만 1번 셉니다. 범위는 시드별 결과의 최솟값~최댓값입니다.",
+  "기술 실패·한도 초과·결과 없음은 단계별 이동·달성률·원인 분모에서 뺐습니다.",
+  "단계별 이동은 방문마다 단계별 최초 도달만 1번 셉니다. 범위는 반복별 결과의 최솟값~최댓값입니다.",
 ];
 
 type Kind = ReportSessionRow["kind"];
@@ -362,7 +362,7 @@ export function reportMarkdownV1(runId: string): string {
   return [
     `# 사전 테스트 리포트 (${runId})`,
     "",
-    `- 세션 ${data.summary.recorded_sessions}/${data.summary.expected_sessions}개 · 목표 도달 ${data.summary.success} · 가상 이탈 ${data.summary.dropout} · 기술 실패 ${data.summary.technical}`,
+    `- 방문 ${data.summary.recorded_sessions}/${data.summary.expected_sessions}개 · 목표 도달 ${data.summary.success} · 가상 이탈 ${data.summary.dropout} · 기술 실패 ${data.summary.technical}`,
     "",
     ...data.tasks.flatMap((task) => [
       `## ${task.name}`,
@@ -457,6 +457,6 @@ export function reportScreensV1(reportId: string): ReportScreens {
     reason: null,
     message: null,
     tasks,
-    note: "가상 페르소나의 모의 결과입니다. 감지된 마찰은 목표에 도달한 세션이 겪은 것도 셉니다.",
+    note: "가상 페르소나의 모의 결과입니다. 감지된 불편한 점은 목표에 도달한 방문이 겪은 것도 셉니다.",
   };
 }

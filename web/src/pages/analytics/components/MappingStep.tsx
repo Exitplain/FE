@@ -71,7 +71,7 @@ function Frame({
         projectId={String(projectId)}
         breadcrumb={breadcrumb}
         title="이벤트 단계 매핑"
-        description="실측 이벤트를 퍼널 단계에 연결해요 · 비교 기준이에요"
+        description="실제 고객 데이터 이벤트를 이동 단계에 연결해요 · 비교 기준이에요"
         actions={actions}
         activeTab="analytics"
       />

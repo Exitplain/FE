@@ -43,7 +43,7 @@ function renderSession(search = "") {
   });
 }
 
-describe("P15·P16 세션 상세 (제품 API)", () => {
+describe("P15·P16 방문 상세 (제품 API)", () => {
   it("P15 이탈 — 서버가 준 원인·좌절 점수·스텝으로 요약을 그리고 질문하기는 보여 주지 않는다", async () => {
     const requested = serve(sessionFixture());
     renderSession();
@@ -52,7 +52,7 @@ describe("P15·P16 세션 상세 (제품 API)", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { level: 1, name: "P-007 · 세션 상세" },
+        { level: 1, name: "P-007 · 방문 상세" },
         { timeout: 3000 },
       ),
     ).toBeInTheDocument();
@@ -64,12 +64,12 @@ describe("P15·P16 세션 상세 (제품 API)", () => {
       personaId: "P-007",
     });
     expect(
-      screen.getByText("신중한 첫 방문형 · 첫 주문 · 시드 2 · 3스텝 · 3분 05초"),
+      screen.getByText("신중한 첫 방문형 · 첫 주문 · 반복 2 · 3스텝 · 3분 05초"),
     ).toBeInTheDocument();
     expect(screen.getByText("이탈 원인").nextElementSibling).toHaveTextContent("입력 부담");
     expect(screen.getByText("좌절 점수").nextElementSibling).toHaveTextContent("80 / 임계치 70");
     expect(screen.queryByRole("tab", { name: /질문/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("이 세션에 질문하기")).not.toBeInTheDocument();
+    expect(screen.queryByText("이 방문에 질문하기")).not.toBeInTheDocument();
   });
 
   it("P15c·P15b — 타임라인 썸네일은 제품 API 캡처 주소로 그리고 크게 볼 수 있다", async () => {
@@ -91,21 +91,21 @@ describe("P15·P16 세션 상세 (제품 API)", () => {
     );
   });
 
-  it("E06 — 사이트 접속 실패 세션은 탭 없이 오류 안내를 보여 준다", async () => {
+  it("E06 — 사이트 접속 실패 방문은 탭 없이 오류 안내를 보여 준다", async () => {
     serve(sessionFixture({ status: "site_failure", primary_cause: null }));
     renderSession();
 
-    expect(await screen.findByRole("heading", { name: "세션 오류" })).toBeInTheDocument();
-    expect(screen.getByText("사이트에 접속하지 못해 세션을 끝냈어요")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "방문 오류" })).toBeInTheDocument();
+    expect(screen.getByText("사이트에 접속하지 못해 방문을 끝냈어요")).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
-  it("세션 기록이 지워졌으면(409) 리포트로 안내한다", async () => {
+  it("방문 기록이 지워졌으면(409) 리포트로 안내한다", async () => {
     serve(productError(409, "SESSION_FILES_MISSING"));
     renderSession();
 
     expect(
-      await screen.findByRole("heading", { name: "세션 기록이 남아 있지 않아요" }),
+      await screen.findByRole("heading", { name: "방문 기록이 남아 있지 않아요" }),
     ).toBeInTheDocument();
     /* 머리의 버튼 + 오류 안내의 버튼 */
     expect(screen.getAllByRole("link", { name: "리포트로 돌아가기" })).toHaveLength(2);

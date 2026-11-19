@@ -48,7 +48,9 @@ export function ReproduceSetup({
           <Icon name="status-error" className="size-5 text-danger" />
           {gapText}
         </p>
-        <p className="text-caption text-subtle">실측은 위치를, 재현은 원인 가설을 보여줘요</p>
+        <p className="text-caption text-subtle">
+          실제 고객 데이터는 위치를, 재현은 원인 가설을 보여줘요
+        </p>
         {blocked && (
           <p role="alert" className="text-caption font-bold text-danger">
             {blocked}
@@ -66,7 +68,7 @@ export function ReproduceSetup({
               ["과업", `${taskName} (처음부터)`],
               ["기준 사전 테스트", baseLabel],
               ["패널", `고른 세그먼트 · ${people}명`],
-              ["반복", "시드 1회"],
+              ["반복", "반복 1회"],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -81,7 +83,9 @@ export function ReproduceSetup({
 
         <fieldset className="flex flex-col gap-3 p-4">
           <legend className="font-bold text-ink">세그먼트</legend>
-          <p className="text-xs text-subtle">실측에서 이탈이 많았던 세그먼트만 골라도 돼요</p>
+          <p className="text-xs text-subtle">
+            실제 고객 데이터에서 이탈이 많았던 세그먼트만 골라도 돼요
+          </p>
           {segments.map((segment) => (
             <label
               key={segment.id}
@@ -180,9 +184,9 @@ export function ReproduceRunning({ runId, onDone }: { runId: string; onDone: () 
 
       <section aria-labelledby="reproduce-sessions-title" className="flex flex-col gap-4">
         <h2 id="reproduce-sessions-title" className="text-lg font-bold text-ink">
-          세션 {expected || tiles.length}
+          방문 {expected || tiles.length}
         </h2>
-        <ul aria-label="재현 세션" className="grid grid-cols-3 gap-2 md:grid-cols-5">
+        <ul aria-label="재현 방문" className="grid grid-cols-3 gap-2 md:grid-cols-5">
           {tiles.map(({ code, segment, status }) => {
             const tile = TILE_STATUS[status];
             return (
@@ -262,11 +266,12 @@ export function ReproduceResult({
     <div className="flex flex-col gap-10">
       <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption font-bold text-ink">
         <Icon name="search" className="size-5" />
-        실측은 위치를, 재현은 원인 가설을 보여줘요. 아래는 가상 페르소나로 다시 돌려 본 가설이에요
+        실제 고객 데이터는 위치를, 재현은 원인 가설을 보여줘요. 아래는 가상 페르소나로 다시 돌려 본
+        가설이에요
       </p>
       <dl className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {[
-          ["재현 세션", `${task.valid_sessions}명`],
+          ["재현 방문", `${task.valid_sessions}명`],
           [`${stageName} 도달`, screen ? `${screen.reached}명` : "도달 없음"],
           [`${stageName}에서 이탈`, screen ? `${screen.dropouts_here}명` : "—"],
         ].map(([label, value]) => (
@@ -283,14 +288,14 @@ export function ReproduceResult({
           </h2>
           <span className="text-xs text-muted">
             {screen && screen.frictions.length > 0
-              ? `${stageName} 화면에서 감지된 마찰`
-              : `${stageName} 화면 마찰이 없어 과업 전체 마찰로 보여줘요`}
+              ? `${stageName} 화면에서 감지된 불편한 점`
+              : `${stageName} 화면 불편한 점이 없어 과업 전체 불편한 점으로 보여줘요`}
           </span>
         </div>
         {hypotheses.length === 0 ? (
           <p className="flex items-center gap-2 text-sm text-subtle">
             <Icon name="check" className="size-4" />
-            재현에서 감지된 마찰이 없어요 · 좌절 모델 보정이 필요할 수 있어요
+            재현에서 감지된 불편한 점이 없어요 · 좌절 모델 예측 맞추기가 필요할 수 있어요
           </p>
         ) : (
           <ol aria-label="원인 가설 목록" className="flex flex-col">

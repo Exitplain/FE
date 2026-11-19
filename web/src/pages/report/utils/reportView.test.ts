@@ -55,7 +55,7 @@ describe("reportView", () => {
     expect(completion(TASK)).toEqual({ rate: [22, 33], completed: [4, 6], base: 18 });
   });
 
-  it("퍼널이 없으면 완료 / (전체 - 기술 실패) 로 센다", () => {
+  it("단계별 이동이 없으면 완료 / (전체 - 기술 실패) 로 센다", () => {
     expect(completion({ ...TASK, funnel: undefined })).toEqual({
       rate: [28, 28],
       completed: [5, 5],
@@ -79,7 +79,7 @@ describe("reportView", () => {
     ).toBeNull();
   });
 
-  it("퍼널 막대 문구: 첫 단계는 100%, 나머지는 도달·이탈 범위", () => {
+  it("단계별 이동 막대 문구: 첫 단계는 100%, 나머지는 도달·이탈 범위", () => {
     expect(funnelRows(TASK).map((row) => row.valueLabel)).toEqual([
       "18명 (100%)",
       "11~13명 · 이탈 2~4",
@@ -97,7 +97,7 @@ describe("reportView", () => {
     ]);
   });
 
-  it("원인 분포 분모는 과업의 이탈 세션 수이고, 원인 없음(none)은 세지 않는다", () => {
+  it("원인 분포 분모는 과업의 이탈 방문 수이고, 원인 없음(none)은 세지 않는다", () => {
     expect(causeShares([finding("cost", 2), finding("none", 1)], 4)).toEqual([
       { cause: "cost", sessions: 2, share: 50 },
     ]);

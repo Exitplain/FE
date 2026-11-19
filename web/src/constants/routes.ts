@@ -77,7 +77,7 @@ export const ROUTES = {
   },
   sessionDetail: {
     path: "/projects/:projectId/runs/:runId/sessions/:taskId/:seed/:personaId",
-    title: "세션 상세",
+    title: "방문 상세",
     screens: "P15~P16",
     owner: "팀원",
   },
@@ -104,13 +104,13 @@ export const ROUTES = {
   privacy: { path: "/privacy", title: "개인정보처리방침", screens: "-", owner: "고명준" },
   analytics: {
     path: "/projects/:projectId/analytics",
-    title: "실측 분석",
+    title: "실제 고객 데이터 분석",
     screens: "R01~R11",
     owner: "미정",
   },
   calibration: {
     path: "/projects/:projectId/calibration",
-    title: "보정",
+    title: "예측 맞추기",
     screens: "K01~K04",
     owner: "미정",
   },

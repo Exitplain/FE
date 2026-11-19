@@ -13,7 +13,7 @@ function runOf(name: string | undefined, tasks: [string, string][]): PersonaRun 
 }
 
 describe("runTitle — 실행 화면 제목", () => {
-  it("세션이 있어도 서버 실행 이름의 과업 부분을 쓴다", () => {
+  it("방문이 있어도 서버 실행 이름의 과업 부분을 쓴다", () => {
     const run = runOf("8차·첫 주문 쿠폰 받기", [
       ["get-first-order-coupon", "get-first-order-coupon"],
     ]);
@@ -34,7 +34,7 @@ describe("runTitle — 실행 화면 제목", () => {
     expect(runTitle(run).title).toBe("8차 · 첫 주문 쿠폰 받기 외 1개");
   });
 
-  it("서버 이름에 과업이 없으면 세션의 과업 이름으로 만든다", () => {
+  it("서버 이름에 과업이 없으면 방문의 과업 이름으로 만든다", () => {
     expect(
       runTitle(
         runOf("8차", [

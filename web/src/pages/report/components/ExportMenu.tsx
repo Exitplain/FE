@@ -67,7 +67,7 @@ export default function ExportMenu({ report }: { report: RunReport }) {
         {
           key: "pdf",
           label: "PDF로 내보내기",
-          description: pdfPending ? "만드는 중이에요" : "A4 · 요약부터 세션 근거까지",
+          description: pdfPending ? "만드는 중이에요" : "A4 · 요약부터 방문 근거까지",
           disabled: pdfPending,
           onSelect: () => void exportPdf(),
         },

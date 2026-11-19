@@ -24,7 +24,7 @@ import { KpiTrio } from "./CalibrationViews";
 
 const CODE_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 const PURPOSES = [
-  ["calibration", "보정용"],
+  ["calibration", "예측 맞추기용"],
   ["evaluation", "평가용"],
 ] as const;
 
@@ -306,12 +306,12 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
             {
               label: "불편 화면 일치",
               value: count(data.summary.pain_screen),
-              note: "모델 마찰 상위 2개 화면 안",
+              note: "모델이 본 불편한 점 상위 2개 화면 안",
             },
             {
               label: "불편 이유 일치",
               value: count(data.summary.pain_cause),
-              note: "그 화면에서 모델이 본 마찰",
+              note: "그 화면에서 모델이 본 불편한 점",
             },
           ]}
         />
@@ -351,7 +351,7 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
                   </td>
                   <td className="py-3 text-gray-800">{item.discomfort ?? "—"}</td>
                   <td className="py-3 text-gray-800">
-                    {item.purpose === "evaluation" ? "평가용" : "보정용"}
+                    {item.purpose === "evaluation" ? "평가용" : "예측 맞추기용"}
                   </td>
                   <td className={agrees(item) ? "py-3 font-bold text-ink" : "py-3 text-gray-800"}>
                     {agrees(item) ? "일치" : "다름"}
@@ -371,8 +371,8 @@ function ObservationEditor({ projectId, data }: { projectId: string; data: Human
             </tbody>
           </table>
           <p className="text-xs text-muted">
-            비교: 사람이 고른 불편 화면이 모델이 마찰을 가장 많이 본 화면(상위 2개) 안에 있는지 ·
-            가장 최근 사전 테스트 기준
+            비교: 사람이 고른 불편 화면이 모델이 불편한 점을 가장 많이 본 화면(상위 2개) 안에 있는지
+            · 가장 최근 사전 테스트 기준
           </p>
         </section>
         {agreementTrend(data.items).length > 1 && (

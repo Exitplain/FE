@@ -71,25 +71,25 @@ describe("화면용 프로젝트 (apis/project.api)", () => {
       }),
     ).toMatchObject({
       measurementStatus: "connected",
-      analytics: "실측 연결됨",
+      analytics: "실제 고객 데이터 연결됨",
       calibrationRevision: 3,
       calibration: "r3 적용",
     });
     expect(record({ measurement: { status: "waiting", last_received_at: null } })).toMatchObject({
       measurementStatus: "waiting",
-      analytics: "실측 수집 대기",
+      analytics: "실제 고객 데이터 수집 대기",
     });
     expect(record({ measurement: undefined, calibration: undefined })).toMatchObject({
       measurementStatus: "unconnected",
-      analytics: "실측 미연결",
+      analytics: "실제 고객 데이터 미연결",
       calibrationRevision: null,
-      calibration: "보정 전",
+      calibration: "예측 맞추기 전",
     });
     expect(
       record({ measurement: { status: "toString" as never, last_received_at: null } }),
-    ).toMatchObject({ measurementStatus: "unconnected", analytics: "실측 미연결" });
+    ).toMatchObject({ measurementStatus: "unconnected", analytics: "실제 고객 데이터 미연결" });
     expect(
       record({ measurement: { status: "paused" as never, last_received_at: null } }),
-    ).toMatchObject({ measurementStatus: "unconnected", analytics: "실측 미연결" });
+    ).toMatchObject({ measurementStatus: "unconnected", analytics: "실제 고객 데이터 미연결" });
   });
 });

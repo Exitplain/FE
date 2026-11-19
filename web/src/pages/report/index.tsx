@@ -51,7 +51,7 @@ const SECTIONS = [
   { id: "summary", label: "요약" },
   { id: "screens", label: "화면 둘러보기" },
   { id: "problems", label: "문제 화면" },
-  { id: "funnel", label: "예측 퍼널" },
+  { id: "funnel", label: "예측 단계별 이동" },
   { id: "heatmap", label: "히트맵" },
   { id: "causes", label: "원인 분포" },
 ] as const;
@@ -322,7 +322,7 @@ function ReportNoTasks() {
     <WorkspaceState
       kind="empty"
       title="이 실행에는 과업 결과가 없어요"
-      description="모든 세션이 기술 실패로 끝났을 수 있어요. 아래 기록을 확인해 보세요"
+      description="모든 방문이 기술 실패로 끝났을 수 있어요. 아래 기록을 확인해 보세요"
     />
   );
 }
@@ -397,7 +397,7 @@ function ReportBody({ task, reportId }: { task: ReportTaskV1; reportId: string }
           <ReportSection
             id="screens"
             title="화면 둘러보기"
-            info="에이전트가 실제로 거쳐 간 화면이에요. 화면마다 도달·이탈 세션과 감지된 마찰을 같이 보여 줘요."
+            info="AI 고객이 실제로 거쳐 간 화면이에요. 화면마다 도달·이탈 방문과 감지된 불편한 점을 같이 보여 줘요."
             aside="← → 키로도 넘길 수 있어요"
           >
             <ScreenWalkthrough task={screenTask} selected={screenIndex} onSelect={setScreenIndex} />
@@ -405,7 +405,7 @@ function ReportBody({ task, reportId }: { task: ReportTaskV1; reportId: string }
           <ReportSection
             id="problems"
             title="문제가 있었던 화면"
-            info="마찰이 감지된 세션이 많은 화면 순서예요. 목표에 도달한 세션이 겪은 마찰도 같이 세요."
+            info="불편한 점이 감지된 방문이 많은 화면 순서예요. 목표에 도달한 방문이 겪은 불편한 점도 같이 세요."
           >
             <ProblemScreens task={screenTask} onOpen={openScreen} />
           </ReportSection>
@@ -415,12 +415,17 @@ function ReportBody({ task, reportId }: { task: ReportTaskV1; reportId: string }
       <div className="mt-2 flex max-w-3xl flex-col gap-12">
         <ReportSection
           id="funnel"
-          title="예측 퍼널"
-          info="각 단계에 도달한 AI 고객 수의 시드별 범위예요. 진한 막대는 범위의 최솟값이에요."
-          aside="도달 인원 · 유효 세션 대비"
+          title="예측 단계별 이동"
+          info="각 단계에 도달한 AI 고객 수의 반복별 범위예요. 진한 막대는 범위의 최솟값이에요."
+          aside="도달 인원 · 유효 방문 대비"
         >
           {funnel.length > 0 && funnelMax(task) > 0 ? (
-            <RangeBarChart title="예측 퍼널" data={funnel} max={funnelMax(task)} valueWidth={180} />
+            <RangeBarChart
+              title="예측 단계별 이동"
+              data={funnel}
+              max={funnelMax(task)}
+              valueWidth={180}
+            />
           ) : (
             <p className="text-sm text-subtle">이 과업은 단계별 예측 기록이 없어요.</p>
           )}
@@ -429,14 +434,14 @@ function ReportBody({ task, reportId }: { task: ReportTaskV1; reportId: string }
         <ReportSection
           id="causes"
           title="원인 분포"
-          info="감지된 마찰은 모든 세션이 겪은 마찰, 이탈 원인은 가상 이탈 세션의 주 원인이에요. 기술 실패는 넣지 않아요."
+          info="감지된 불편한 점은 모든 방문이 겪은 불편한 점, 이탈 원인은 가상 이탈 방문의 주 원인이에요. 기술 실패는 넣지 않아요."
         >
           {screenTask && (
             <div role="group" aria-label="원인 보기" className="flex gap-1.5">
               {(
                 [
-                  ["friction", "감지된 마찰 (모든 세션)"],
-                  ["dropout", "이탈 원인 (이탈 세션만)"],
+                  ["friction", "감지된 불편한 점 (모든 방문)"],
+                  ["dropout", "이탈 원인 (이탈 방문만)"],
                 ] as const
               ).map(([value, label]) => (
                 <button

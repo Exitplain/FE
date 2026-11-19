@@ -53,7 +53,7 @@ export default function ProjectLoops({
             <tr>
               <th>프로젝트</th>
               <th>루프 진행</th>
-              <th>실측 · 보정</th>
+              <th>실제 고객 데이터 · 예측 맞추기</th>
               <th className="text-right">다음 행동</th>
             </tr>
           </thead>
@@ -84,10 +84,10 @@ export default function ProjectLoops({
                   <td>
                     <p className="flex items-center gap-1.5 text-caption text-gray-800">
                       <Icon name="activity" className="size-3.5" />
-                      {beforeTest ? "실측 미연결" : project.analytics}
+                      {beforeTest ? "실제 고객 데이터 미연결" : project.analytics}
                     </p>
                     <p className="mt-1.5 text-caption text-subtle">
-                      보정 · {beforeTest ? "보정 전" : project.calibration}
+                      예측 맞추기 · {beforeTest ? "예측 맞추기 전" : project.calibration}
                     </p>
                   </td>
                   <td className="text-right">

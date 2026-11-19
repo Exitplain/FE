@@ -78,7 +78,7 @@ describe("P18 비교 계산", () => {
     ]);
   });
 
-  it("원인 비교는 패널 인원·시드 수가 같을 때만", () => {
+  it("원인 비교는 패널 인원·반복 수가 같을 때만", () => {
     const report = (panel_size: number, seeds: number) =>
       ({ conditions: { panel_size, seeds, calibrated_at: null } }) as PersonaReport;
     expect(canCompareCauses(report(20, 3), report(20, 3))).toBe(true);

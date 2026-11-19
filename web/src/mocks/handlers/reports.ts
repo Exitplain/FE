@@ -45,7 +45,7 @@ export function runDetailOf(item: RunItem): RunDetail {
     cancel_requested: false,
     error:
       item.status === "failed"
-        ? { code: "ALL_TASKS_FAILED", message: "모든 세션이 실패했어요." }
+        ? { code: "ALL_TASKS_FAILED", message: "모든 방문이 실패했어요." }
         : null,
     progress: {
       expected_sessions: 0,

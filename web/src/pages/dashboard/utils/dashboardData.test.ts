@@ -43,7 +43,7 @@ describe("대시보드 값", () => {
     ).toEqual({ completed: 2, failed: 1 });
   });
 
-  it("가장 최근에 시작한 진행 중 실행을 고르고 세션 상태를 카드 값으로 바꾼다", () => {
+  it("가장 최근에 시작한 진행 중 실행을 고르고 방문 상태를 카드 값으로 바꾼다", () => {
     const active = activeItemOf([
       { project: banchan, item: item("old", "2026-11-10T00:00:00Z", { status: "running" }) },
       { project: studio, item: item("new", "2026-11-12T00:00:00Z", { status: "queued" }) },
@@ -76,7 +76,7 @@ describe("대시보드 값", () => {
     });
   });
 
-  it("루프 위치 — 진행 중이면 사전 테스트, 끝낸 테스트가 있으면 실측 분석, 실패만 있으면 다시 테스트", () => {
+  it("루프 위치 — 진행 중이면 사전 테스트, 끝낸 테스트가 있으면 실제 고객 데이터 분석, 실패만 있으면 다시 테스트", () => {
     const project = { id: "1", name: "반찬로드", lastTestStatus: null } as unknown as Parameters<
       typeof projectLoop
     >[0];
@@ -107,8 +107,8 @@ describe("대시보드 값", () => {
       ]),
     ).toMatchObject({
       stage: 4,
-      stageLabel: "실측 분석",
-      stageDetail: "4 / 7 · 실측 연결 전",
+      stageLabel: "실제 고객 데이터 분석",
+      stageDetail: "4 / 7 · 실제 고객 데이터 연결 전",
       actionHref: "/projects/1/analytics",
     });
 
@@ -119,7 +119,7 @@ describe("대시보드 값", () => {
     /* 이 프로젝트의 실행 목록을 못 받았으면 프로젝트 목록의 마지막 사전 테스트로 대신 */
     expect(projectLoop({ ...project, lastTestStatus: "completed" }, [])).toMatchObject({
       stage: 4,
-      action: "실측 데이터 연결하기",
+      action: "실제 고객 데이터 연결하기",
     });
   });
 
@@ -141,9 +141,9 @@ describe("대시보드 값", () => {
     it("수집 키가 없으면 4단계 · 실측 연결 전", () => {
       expect(projectLoop(project("unconnected"), done)).toMatchObject({
         stage: 4,
-        stageLabel: "실측 분석",
-        stageDetail: "4 / 7 · 실측 연결 전",
-        action: "실측 데이터 연결하기",
+        stageLabel: "실제 고객 데이터 분석",
+        stageDetail: "4 / 7 · 실제 고객 데이터 연결 전",
+        action: "실제 고객 데이터 연결하기",
         actionHref: "/projects/7/analytics",
       });
     });
@@ -160,8 +160,8 @@ describe("대시보드 값", () => {
     it("수집을 받았으면 6단계 · 실측 연결됨, 다음은 보정 조정안", () => {
       expect(projectLoop(project("connected"), done)).toMatchObject({
         stage: 6,
-        stageDetail: "6 / 7 · 실측 연결됨",
-        action: "보정 조정안 보기",
+        stageDetail: "6 / 7 · 실제 고객 데이터 연결됨",
+        action: "예측 맞추기 조정안 보기",
         actionHref: "/projects/7/calibration",
       });
     });
@@ -169,9 +169,9 @@ describe("대시보드 값", () => {
     it("보정을 적용했으면 7단계 · 보정 적용됨", () => {
       expect(projectLoop(project("connected", 2), done)).toMatchObject({
         stage: 7,
-        stageLabel: "보정",
-        stageDetail: "7 / 7 · 보정 적용됨",
-        action: "보정 보기",
+        stageLabel: "예측 맞추기",
+        stageDetail: "7 / 7 · 예측 맞추기 적용됨",
+        action: "예측 맞추기 보기",
         actionHref: "/projects/7/calibration",
       });
     });

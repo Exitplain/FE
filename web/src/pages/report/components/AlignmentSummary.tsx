@@ -21,8 +21,18 @@ const WAITING: Record<
   Exclude<ReportActual["status"], "comparable">,
   { icon: IconName; badge: string; quiet: boolean; action: string }
 > = {
-  unconnected: { icon: "unlink", badge: "미연결", quiet: false, action: "실측 데이터 연결하기" },
-  collecting: { icon: "more", badge: "수집 중", quiet: true, action: "실측 퍼널 보기" },
+  unconnected: {
+    icon: "unlink",
+    badge: "미연결",
+    quiet: false,
+    action: "실제 고객 데이터 연결하기",
+  },
+  collecting: {
+    icon: "more",
+    badge: "수집 중",
+    quiet: true,
+    action: "실제 고객 데이터 단계별 이동 보기",
+  },
   stale: { icon: "pause", badge: "수집 중단", quiet: false, action: "설치 다시 확인" },
 };
 
@@ -31,7 +41,7 @@ function waitingText(actual: Exclude<ReportActual, { status: "comparable" }>) {
     case "collecting":
       return {
         title: `표본을 모으는 중이에요 · ${actual.stages_total}개 단계 중 ${actual.stages_ready}개 충족`,
-        body: "단계별 최소 세션 수를 채우면 비교할 수 있어요 (기준값 확인 필요).",
+        body: "단계별 최소 방문 수를 채우면 비교할 수 있어요 (기준값 확인 필요).",
       };
     case "stale":
       return {
@@ -41,7 +51,7 @@ function waitingText(actual: Exclude<ReportActual, { status: "comparable" }>) {
       };
     default:
       return {
-        title: "실측 데이터가 아직 없어요",
+        title: "실제 고객 데이터가 아직 없어요",
         body: "이벤트 스크립트를 설치하면 이 예측이 실제와 맞는지 비교할 수 있어요.",
       };
   }
@@ -61,7 +71,7 @@ function ActualWaiting({
     <section id="alignment" aria-labelledby={headingId} className="flex scroll-mt-8 flex-col gap-4">
       <div className="flex items-center gap-3">
         <h2 id={headingId} className="flex-1 text-lg font-bold text-ink">
-          실측 비교 요약
+          실제 고객 데이터 비교 요약
         </h2>
         <span
           className={cn(
@@ -132,8 +142,8 @@ export default function AlignmentSummary({
   return (
     <ReportSection
       id="alignment"
-      title="실측 비교 요약"
-      info="예측이 실제와 맞는지 실측 퍼널과 사람 관측으로 확인해요."
+      title="실제 고객 데이터 비교 요약"
+      info="예측이 실제와 맞는지 실제 고객 데이터 단계별 이동과 사람 관측으로 확인해요."
       aside={<span className="text-caption text-subtle">비교 가능</span>}
     >
       <div className="flex flex-col gap-2">
@@ -146,7 +156,8 @@ export default function AlignmentSummary({
           ))}
         </dl>
         <p className="text-xs text-muted">
-          예측 {dropText(actual.max_drop.predicted)} · 실측 {dropText(actual.max_drop.actual)}
+          예측 {dropText(actual.max_drop.predicted)} · 실제 고객 데이터{" "}
+          {dropText(actual.max_drop.actual)}
         </p>
       </div>
       {projectId && (
@@ -154,7 +165,7 @@ export default function AlignmentSummary({
           to={buildPath("analytics", { projectId })}
           className={buttonVariants({ variant: "link", className: "-ml-2 self-start" })}
         >
-          실측 분석 보기
+          실제 고객 데이터 분석 보기
         </Link>
       )}
     </ReportSection>

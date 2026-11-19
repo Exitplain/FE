@@ -194,16 +194,16 @@ export function deviceLabel(width: number) {
   return width <= 767 ? `모바일 ${width}` : `데스크톱 ${width}`;
 }
 export function runConditions(seedCount: number, viewportWidth = 1280) {
-  return `${deviceLabel(viewportWidth)} · 동시 5세션 · 시드 ${seedCount}회 · 스텝 40`;
+  return `${deviceLabel(viewportWidth)} · 동시 5회 방문 · 반복 ${seedCount}회 · 스텝 40`;
 }
 /* "항목 6개 더 보기"로 펼치는 실행 조건 */
 export const RUN_CONDITION_DETAILS = [
-  "세션당 시간 상한 5분",
-  "세션당 비용 상한 $0.10",
+  "방문당 시간 상한 5분",
+  "방문당 비용 상한 $0.10",
   "결제·본인인증은 하지 않아요",
   "개인정보는 입력하지 않아요",
   "좌절 점수가 임계치를 넘으면 이탈로 기록해요",
-  "같은 시드는 같은 행동 순서로 다시 실행해요",
+  "같은 반복 번호는 같은 행동 순서로 다시 실행해요",
 ];
 
 /* 계획이 없을 때 짐작하는 에이전트 수 — 로그인 테스트는 계정 1개 = 에이전트 1명(최대 20), 아니면 10명 (P05h) */

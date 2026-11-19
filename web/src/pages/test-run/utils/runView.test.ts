@@ -72,7 +72,7 @@ describe("sessionGroup · countSessions — 필터 묶음", () => {
     });
   });
 
-  it("묶음으로 세션을 고른다", () => {
+  it("묶음으로 방문을 고른다", () => {
     const sessions = [session("a_order", "success"), session("b_order", "agent_failure")];
 
     expect(filterSessions(sessions, "all")).toHaveLength(2);
@@ -81,7 +81,7 @@ describe("sessionGroup · countSessions — 필터 묶음", () => {
 });
 
 describe("taskOptions — 과업 탭", () => {
-  it("세션의 과업을 처음 나온 순서대로 중복 없이", () => {
+  it("방문의 과업을 처음 나온 순서대로 중복 없이", () => {
     expect(
       taskOptions([
         session("a_order", "queued"),
@@ -96,7 +96,7 @@ describe("taskOptions — 과업 탭", () => {
 });
 
 describe("busiestStage — 지금 가장 많은 단계", () => {
-  it("진행 중 세션의 현재 단계 중 가장 많은 것", () => {
+  it("진행 중 방문의 현재 단계 중 가장 많은 것", () => {
     expect(
       busiestStage([
         session("a_order", "running", { terminal_stage: "cart" }),
@@ -140,13 +140,13 @@ describe("safeViewerUrl — 라이브 화면 iframe 주소 검증", () => {
 });
 
 describe("failureSummary — E05 문구", () => {
-  it("한도 도달만 있으면 한도 문구, 정상 종료 세션 수를 센다", () => {
+  it("한도 도달만 있으면 한도 문구, 정상 종료 방문 수를 센다", () => {
     expect(
       failureSummary([
         session("a_order", "budget_exceeded"),
         session("b_order", "budget_exceeded"),
       ]),
-    ).toEqual({ reason: "모든 세션이 행동·시간 한도에 닿았어요", finishedNormally: 0, total: 2 });
+    ).toEqual({ reason: "모든 방문이 행동·시간 한도에 닿았어요", finishedNormally: 0, total: 2 });
     expect(
       failureSummary([session("a_order", "agent_failure", { reason: "브라우저 실행 오류 (X)" })]),
     ).toEqual({ reason: "브라우저 실행 오류 (X)", finishedNormally: 0, total: 1 });

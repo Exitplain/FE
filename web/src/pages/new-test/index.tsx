@@ -318,7 +318,7 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
           projectId={project.id}
           breadcrumb={`${project.name} / 사전 테스트 / 새 테스트 · 테스트`}
           title="페르소나 확인"
-          description={`${taskSummary} · ${deviceLabel(plan?.viewportWidth ?? 1280)} · ${panel}명 × 시드 ${seedCount}회 (1/${seedCount})`}
+          description={`${taskSummary} · ${deviceLabel(plan?.viewportWidth ?? 1280)} · ${panel}명 × 반복 ${seedCount}회 (1/${seedCount})`}
           activeTab="tests"
         />
         <PersonaReviewStep

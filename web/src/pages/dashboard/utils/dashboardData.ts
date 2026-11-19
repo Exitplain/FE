@@ -89,32 +89,32 @@ function analyticsLoop(project: ProjectRecord): ProjectLoop {
   if (project.calibrationRevision != null)
     return loopRow(project, {
       stage: 7,
-      stageLabel: "보정",
-      detail: "보정 적용됨",
-      action: "보정 보기",
+      stageLabel: "예측 맞추기",
+      detail: "예측 맞추기 적용됨",
+      action: "예측 맞추기 보기",
       actionHref: calibration,
     });
   if (project.measurementStatus === "connected")
     return loopRow(project, {
       stage: 6,
-      stageLabel: "실측 분석",
-      detail: "실측 연결됨",
-      action: "보정 조정안 보기",
+      stageLabel: "실제 고객 데이터 분석",
+      detail: "실제 고객 데이터 연결됨",
+      action: "예측 맞추기 조정안 보기",
       actionHref: calibration,
     });
   if (project.measurementStatus === "waiting")
     return loopRow(project, {
       stage: 5,
-      stageLabel: "실측 분석",
+      stageLabel: "실제 고객 데이터 분석",
       detail: "수집 대기",
       action: "설치 확인하기",
       actionHref: analytics,
     });
   return loopRow(project, {
     stage: 4,
-    stageLabel: "실측 분석",
-    detail: "실측 연결 전",
-    action: "실측 데이터 연결하기",
+    stageLabel: "실제 고객 데이터 분석",
+    detail: "실제 고객 데이터 연결 전",
+    action: "실제 고객 데이터 연결하기",
     actionHref: analytics,
   });
 }

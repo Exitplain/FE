@@ -46,10 +46,10 @@ export default function CalibrationPage() {
 }
 
 const NOT_READY_TITLE: Record<string, string> = {
-  NOT_CONNECTED: "실측 데이터를 먼저 연결해요",
+  NOT_CONNECTED: "실제 고객 데이터를 먼저 연결해요",
   NOT_MAPPED: "단계 매핑을 먼저 저장해요",
   NO_PREDICTION: "비교할 사전 테스트가 없어요",
-  INSUFFICIENT_SAMPLE: "실측 표본이 아직 모자라요",
+  INSUFFICIENT_SAMPLE: "실제 고객 데이터 표본이 아직 모자라요",
 };
 
 function Calibration({ project }: { project: CurrentProject }) {
@@ -57,7 +57,7 @@ function Calibration({ project }: { project: CurrentProject }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view");
   const [confirming, setConfirming] = useState(false);
-  const crumb = `${project.name} / 보정 · 테스트`;
+  const crumb = `${project.name} / 예측 맞추기 · 테스트`;
   const history = useCalibrations(project.id);
   const [strength, setStrength] = useState<ProposalStrength>("normal");
   const proposal = useQuery({
@@ -91,7 +91,7 @@ function Calibration({ project }: { project: CurrentProject }) {
       }),
     onSuccess: async () => {
       setConfirming(false);
-      useToastStore.getState().show("보정을 적용했어요. 다음 사전 테스트부터 반영돼요");
+      useToastStore.getState().show("예측 맞추기를 적용했어요. 다음 사전 테스트부터 반영돼요");
       await refresh();
     },
   });
@@ -115,15 +115,15 @@ function Calibration({ project }: { project: CurrentProject }) {
     </Link>
   );
   const badge = calibrated ? (
-    <StatusBadge icon="check" label="보정 적용됨" tone="muted" />
+    <StatusBadge icon="check" label="예측 맞추기 적용됨" tone="muted" />
   ) : (
-    <StatusBadge icon="circle" label="보정 전" tone="muted" />
+    <StatusBadge icon="circle" label="예측 맞추기 전" tone="muted" />
   );
   const header = (actions?: ReactNode, description?: string) => (
     <ProjectPageHeader
       projectId={project.id}
       breadcrumb={crumb}
-      title="보정"
+      title="예측 맞추기"
       description={
         description ??
         (calibrated && latest
@@ -156,8 +156,8 @@ function Calibration({ project }: { project: CurrentProject }) {
       <div className="flex flex-col gap-12">
         {header()}
         <NoProposal
-          title="샘플 프로젝트는 보정할 수 없어요"
-          message="내 프로젝트에서 실측을 연결하면 조정안을 만들어요."
+          title="샘플 프로젝트는 예측을 맞출 수 없어요"
+          message="내 프로젝트에서 실제 고객 데이터를 연결하면 조정안을 만들어요."
         />
       </div>
     );
@@ -214,8 +214,8 @@ function Calibration({ project }: { project: CurrentProject }) {
       data.basis?.evidence === "observations"
         ? "명"
         : data.basis?.evidence === "mixed"
-          ? "건 (실측 세션 + 사람 관측)"
-          : "세션";
+          ? "건 (실제 고객 데이터 방문 + 사람 관측)"
+          : "회 방문";
     return (
       <div className="flex flex-col gap-12">
         {header(
@@ -226,12 +226,12 @@ function Calibration({ project }: { project: CurrentProject }) {
               tone={data.provisional ? "muted" : "strong"}
             />
             <Button disabled={data.provisional} onClick={() => setConfirming(true)}>
-              보정 적용
+              예측 맞추기 적용
             </Button>
           </>,
           data.basis?.evidence === "observations"
             ? "사람 관측(가장 불편했던 화면)으로 값을 제안해요 · 적용해야 반영돼요"
-            : "예측·실측 차이로 값을 제안해요 · 적용해야 반영돼요",
+            : "예측·실제 고객 데이터 차이로 값을 제안해요 · 적용해야 반영돼요",
         )}
         {data.provisional && (
           <p
@@ -244,7 +244,7 @@ function Calibration({ project }: { project: CurrentProject }) {
             </span>
             <span className="text-subtle">
               지금 모인 만큼으로 계산한 미리 보기예요. {data.min_evidence}
-              {unit}부터 실제 값으로 바뀌고 보정을 적용할 수 있어요.
+              {unit}부터 실제 값으로 바뀌고 예측 맞추기를 적용할 수 있어요.
             </span>
           </p>
         )}
@@ -265,7 +265,7 @@ function Calibration({ project }: { project: CurrentProject }) {
         <div className="flex gap-6">
           {observeLink}
           <Link to={{ search: "?view=history" }} className="text-caption font-bold text-ink">
-            보정 이력 {records.length}
+            예측 맞추기 이력 {records.length}
           </Link>
         </div>
         <ApplyModal
@@ -305,12 +305,12 @@ function Calibration({ project }: { project: CurrentProject }) {
       <div className="flex flex-col gap-12">
         {header()}
         <NoProposal
-          title="지금은 보정할 차이가 없어요"
+          title="지금은 예측을 맞출 차이가 없어요"
           aside={compareSection || undefined}
           message={`모든 단계가 예측 범위 안이에요${mean == null ? "" : ` · 평균 오차 ${mean}%p`}`}
           action={
             <Button variant="secondary" onClick={() => setSearchParams({ view: "history" })}>
-              보정 이력 보기
+              예측 맞추기 이력 보기
             </Button>
           }
         />
@@ -330,7 +330,7 @@ function Calibration({ project }: { project: CurrentProject }) {
             to={buildPath("analytics", { projectId: project.id })}
             className={buttonVariants({ variant: "secondary" })}
           >
-            실측 분석으로 가기
+            실제 고객 데이터 분석으로 가기
           </Link>
         }
       />
