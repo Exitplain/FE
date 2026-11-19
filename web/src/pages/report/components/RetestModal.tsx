@@ -10,6 +10,7 @@ import Input from "@/components/Input/Input";
 import Modal from "@/components/Modal/Modal";
 import TextArea from "@/components/TextArea/TextArea";
 import { buildPath } from "@/constants/routes";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import { ApiError } from "@/types/api.type";
 import type { PlanRevisionDetail } from "@/types/plan.type";
 
@@ -109,6 +110,8 @@ export default function RetestModal({
     if (start.isPending) return;
     start.mutate(undefined, {
       onSuccess: (created) => {
+        /* 실행 응답에는 과업 id 만 있어, 실행 화면이 보여 줄 과업 이름을 남겨 둡니다 */
+        useRunTaskNamesStore.getState().register(created.run_id, revision.data?.data.tasks ?? []);
         void client.invalidateQueries({ queryKey: queryKeys.runs.all });
         onClose();
         navigate(buildPath("testRun", { projectId, runId: created.run_id }));

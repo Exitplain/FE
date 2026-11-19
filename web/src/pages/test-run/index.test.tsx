@@ -8,6 +8,7 @@ import { confirmPersonaRun, discoverPersonaPlan, getPersonaRun } from "@/apis/pe
 import { ROUTES } from "@/constants/routes";
 import { server } from "@/mocks/node";
 import { useRetestStore } from "@/stores/useRetestStore";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { RunDetail, RunSession } from "@/types/run.type";
@@ -128,6 +129,42 @@ describe("P08~P11 실행 화면", () => {
     /* 준비 중에는 상태 필터가 없습니다 */
     expect(screen.queryByRole("radiogroup", { name: "세션 상태" })).not.toBeInTheDocument();
   });
+  it("탐색이 만든 과업 id 대신 서버 실행 이름의 과업 이름을 제목·과업 탭·목표에 보여준다", async () => {
+    const user = userEvent.setup();
+    serveRun({ sequence_no: 8, name: "8차·첫 주문 쿠폰 받기" }, [
+      session(1, { task_id: "get-first-order-coupon" }),
+    ]);
+    renderRun("fixed-run");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "8차 · 첫 주문 쿠폰 받기" }),
+    ).toBeInTheDocument();
+    const tabs = await screen.findByRole("radiogroup", { name: "과업" });
+    expect(within(tabs).getByRole("radio", { name: "첫 주문 쿠폰 받기" })).toBeChecked();
+    expect(screen.queryByText(/get-first-order-coupon/)).not.toBeInTheDocument();
+
+    await user.click((await screen.findAllByRole("link", { name: /빠른 구매형/ }))[0]);
+    expect(
+      await screen.findByText("빠른 구매형 · 목표: 첫 주문 쿠폰 받기 · 시드 1"),
+    ).toBeInTheDocument();
+  });
+
+  it("과업이 여럿이면 실행을 시작할 때 남긴 과업 이름을 쓴다", async () => {
+    useRunTaskNamesStore.getState().register("fixed-run", [
+      { id: "get-coupon", name: "첫 주문 쿠폰 받기" },
+      { id: "check-delivery", name: "배송 지역 확인하기" },
+    ]);
+    serveRun({ sequence_no: 8, name: "8차·첫 주문 쿠폰 받기 외 1개" }, [
+      session(1, { task_id: "get-coupon" }),
+      session(2, { task_id: "check-delivery" }),
+    ]);
+    renderRun("fixed-run");
+
+    const tabs = await screen.findByRole("radiogroup", { name: "과업" });
+    expect(within(tabs).getByRole("radio", { name: "첫 주문 쿠폰 받기" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("radio", { name: "배송 지역 확인하기" })).toBeInTheDocument();
+  });
+
   it("P09 — 과업별 진행·필터·타일과 Think-aloud 를 보여준다", async () => {
     const user = userEvent.setup();
     const run = await startRun();

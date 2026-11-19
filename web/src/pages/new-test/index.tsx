@@ -11,6 +11,7 @@ import { buildPath } from "@/constants/routes";
 import { useCalibrations } from "@/hooks/useCalibrations";
 import { useRunList } from "@/hooks/useRunList";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import { RESULT_TTL_MS } from "@/stores/useSiteCheckStore";
 import type { ApiError } from "@/types/api.type";
 import type { PlanPatch } from "@/types/plan.type";
@@ -282,10 +283,14 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
       idempotencyKey = crypto.randomUUID();
       runKeys.current.set(planRevisionId, idempotencyKey);
     }
+    /* 시작에 성공하면 위저드 입력(계획)을 비우므로 과업 이름은 미리 잡아 둡니다 */
+    const tasks = plan?.tasks ?? [];
     startRun.mutate(
       { projectId: project.id, planRevisionId, idempotencyKey },
       {
         onSuccess: (run) => {
+          /* 실행 응답에는 과업 id 만 있어, 실행 화면이 보여 줄 과업 이름을 남겨 둡니다 */
+          useRunTaskNamesStore.getState().register(run.run_id, tasks);
           navigate(buildPath("testRun", { projectId: project.id, runId: run.run_id }));
         },
         /* 다른 탭 등에서 시작된 실행을 링크로 보여주려고 실행 목록을 다시 받습니다 */
