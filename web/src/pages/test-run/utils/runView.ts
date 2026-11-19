@@ -164,7 +164,12 @@ export function taskTabs({
     .sort((a, b) => a.position - b.position)
     .map((task) => task.task_id);
   const ids = [...new Set([...ordered, ...plannedIds, ...seen.map((task) => task.id)])];
-  const planned = plannedIds.length;
+  /*
+    과업별 예상 수 = 전체 예상 방문 ÷ 과업 수.
+    전체 예상 방문(expected_sessions)에는 직접 추가한 과업도 들어 있어, 과업 수도 서버 과업 목록(직접 추가 포함)으로 셉니다.
+    저장한 과업 순서(plannedIds)는 탐색 과업만 있어 서버 목록이 없을 때(예전 응답)만 씁니다.
+  */
+  const planned = serverTasks.length > 0 ? new Set(ordered).size : plannedIds.length;
   const total =
     planned > 0 && expectedSessions > 0 && expectedSessions % planned === 0
       ? expectedSessions / planned
