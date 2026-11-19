@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import RunStatus from "@/components/Workspace/RunStatus";
 import { buildPath } from "@/constants/routes";
 import type { ProjectRecord } from "@/types/project.type";
+import { siteHost } from "@/utils/siteHost";
 
 export default function ProjectsTable({ projects }: { projects: ProjectRecord[] }) {
   const navigate = useNavigate();
@@ -35,7 +36,9 @@ export default function ProjectsTable({ projects }: { projects: ProjectRecord[] 
                 >
                   {project.name}
                 </Link>
-                <p className="mt-1 text-xs text-muted">{new URL(project.url).hostname}</p>
+                {siteHost(project.url) && (
+                  <p className="mt-1 text-xs text-muted">{siteHost(project.url)}</p>
+                )}
               </td>
               <td>
                 {project.lastTestStatus ? (

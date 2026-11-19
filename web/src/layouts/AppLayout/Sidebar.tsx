@@ -302,9 +302,7 @@ function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name
                     "테스트"는 다른 메뉴에 다녀와도 진행 중인 실행 화면을 이어 보여 줍니다.
                     이미 목록·실행·리포트 화면이면 붙이지 않아 목록으로 갈 수 있게 둡니다.
                   */
-                  state={
-                    item.key === "tests" && !inTestFlow ? RESUME_ACTIVE_RUN_STATE : undefined
-                  }
+                  state={item.key === "tests" && !inTestFlow ? RESUME_ACTIVE_RUN_STATE : undefined}
                   data-sidebar-item="sub" /* = ITEM_ATTR, 작은 선택 표시 */
                   aria-current={active ? "page" : undefined}
                   className={cn(

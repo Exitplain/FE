@@ -164,7 +164,6 @@ export class ProjectInputError extends Error {
 
 const SERVER_FIELD: Record<string, keyof ProjectInput> = {
   name: "name",
-  entry_url: "url",
   journey_note: "journey",
 };
 
@@ -181,7 +180,6 @@ export async function createProject(input: ProjectInput): Promise<ProjectRecord>
   try {
     const created = await createProjectV1({
       name: result.value.name,
-      entry_url: result.value.url,
       ...(result.value.journey ? { journey_note: result.value.journey } : {}),
     });
     return toProjectRecord(created);
@@ -189,10 +187,6 @@ export async function createProject(input: ProjectInput): Promise<ProjectRecord>
     if (!(error instanceof ApiError)) throw error;
     if (error.status === 401)
       throw new Error("로그인한 뒤 프로젝트를 만들 수 있어요", { cause: error });
-    if (error.code === "DUPLICATE_PROJECT")
-      throw new ProjectInputError("이미 등록된 사이트예요. 기존 프로젝트를 확인해 주세요", {
-        url: "이미 등록된 사이트예요. 기존 프로젝트를 확인해 주세요",
-      });
     const fields: Partial<Record<keyof ProjectInput, string>> = {};
     for (const [key, value] of Object.entries(error.fields ?? {})) {
       const field = SERVER_FIELD[key];

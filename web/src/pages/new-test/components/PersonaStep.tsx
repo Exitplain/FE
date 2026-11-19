@@ -170,6 +170,13 @@ export default function PersonaStep({
               ) : infer.isError && needsInference ? (
                 <p role="alert" className="text-danger">
                   세그먼트 유형을 정하지 못했어요. 시작 전 확인에서 페르소나를 만들 때 다시 정해요.
+                  {/* 서버가 준 이유 (생성기 실패·타겟 설명 없음 등) — 원인을 화면에서 바로 볼 수 있게 */}
+                  {infer.error?.message && (
+                    <span className="block text-subtle">
+                      {infer.error.message}
+                      {infer.error.code && ` · ${infer.error.code}`}
+                    </span>
+                  )}
                 </p>
               ) : (
                 <p className="text-subtle">

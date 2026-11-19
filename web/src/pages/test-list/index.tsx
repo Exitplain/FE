@@ -46,7 +46,12 @@ function TestList({ project }: { project: CurrentProject }) {
   /* undefined = 아직 못 정함 · null = 목록에 머묾 · 문자열 = 옮겨 갈 실행 화면 */
   const [resumeTarget, setResumeTarget] = useState<string | null | undefined>(undefined);
   /* 다른 화면에서 남은 오류 상태로 정하지 않도록, 이 화면에서 받은 결과(성공·실패)가 나온 뒤에만 정합니다 */
-  if (resumeRequested && resumeTarget === undefined && runs.isFetchedAfterMount && !runs.isFetching) {
+  if (
+    resumeRequested &&
+    resumeTarget === undefined &&
+    runs.isFetchedAfterMount &&
+    !runs.isFetching
+  ) {
     const activeRun = runs.isError
       ? undefined
       : runs.data?.pages[0]?.items.find((item) => ACTIVE_RUN_STATUSES.includes(item.status));

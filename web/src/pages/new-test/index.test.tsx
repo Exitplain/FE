@@ -337,6 +337,8 @@ describe("P02~P07 새 테스트", () => {
     /* 실행 응답에는 과업 id 만 있어, 실행 화면이 쓸 과업 이름을 실행 ID 로 남깁니다 */
     const runId = probe.textContent!.replace("실행 화면 ", "");
     expect(useRunTaskNamesStore.getState().byRunId[runId]).toMatchObject({ order: "첫 주문" });
+    /* 실행 화면 과업 탭은 이 순서를 쓰므로, 고른 과업(2개)만 남기고 고르지 않은 후보는 넣지 않습니다 */
+    expect(useRunTaskNamesStore.getState().orderByRunId[runId]).toHaveLength(2);
   });
 
   it("P06 — 만드는 동안 생성 단계와 자리 표시 카드를 보여주고 실행을 막는다", async () => {
@@ -1499,7 +1501,13 @@ describe("P05b 세그먼트 유형 추론", () => {
         "*/api/v1/plans/:planId/segment-inferences",
         () =>
           HttpResponse.json(
-            { error: { code: "PERSONA_GENERATION_FAILED", message: "실패", fields: {} } },
+            {
+              error: {
+                code: "PERSONA_GENERATION_FAILED",
+                message: "페르소나를 만들지 못했습니다: ANTHROPIC_API_KEY 가 없어요",
+                fields: {},
+              },
+            },
             { status: 503 },
           ),
         { once: true },
@@ -1507,7 +1515,10 @@ describe("P05b 세그먼트 유형 추론", () => {
     );
     await toPersonaStep(user);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("세그먼트 유형을 정하지 못했어요");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("세그먼트 유형을 정하지 못했어요");
+    /* 서버가 준 이유를 함께 보여 줍니다 */
+    expect(alert).toHaveTextContent("ANTHROPIC_API_KEY 가 없어요 · PERSONA_GENERATION_FAILED");
     expect(screen.getByText("세그먼트 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "다시 시도" }));

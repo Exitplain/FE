@@ -1,6 +1,6 @@
 import type { WorkspaceProject, WorkspaceRunStatus } from "./workspace.type";
 
-export type ProjectInput = { name: string; url: string; journey: string };
+export type ProjectInput = { name: string; journey: string };
 export type ProjectRecord = WorkspaceProject & {
   journey: string;
   lastTestStatus: WorkspaceRunStatus | null;

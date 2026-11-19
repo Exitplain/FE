@@ -70,11 +70,9 @@ describe("프로젝트 작업 흐름", () => {
       { route: "/projects?create=1" },
     );
     const dialog = screen.getByRole("dialog");
+    /* 사이트 주소는 만들 때 받지 않습니다 (새 테스트 1단계에서 입력) */
+    expect(within(dialog).queryByRole("textbox", { name: "사이트 URL" })).not.toBeInTheDocument();
     await user.type(within(dialog).getByRole("textbox", { name: "프로젝트 이름" }), "새 쇼핑몰");
-    await user.type(
-      within(dialog).getByRole("textbox", { name: "사이트 URL" }),
-      "https://new-shop.example",
-    );
     await user.type(within(dialog).getByRole("textbox", { name: "점검할 고객 여정" }), "주문 완료");
     await user.click(within(dialog).getByRole("button", { name: "만들기" }));
     /* POST /api/v1/projects 가 준 숫자 id 의 개요로 이동합니다 */
@@ -85,7 +83,7 @@ describe("프로젝트 작업 흐름", () => {
     expect(created).toMatchObject({
       id: 101,
       name: "새 쇼핑몰",
-      entry_url: "https://new-shop.example/",
+      entry_url: "",
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
@@ -95,36 +93,16 @@ describe("프로젝트 작업 흐름", () => {
     ).toBeInTheDocument();
   });
 
-  it("잘못된 URL과 중복 사이트를 막고 입력값을 유지한다", async () => {
+  it("이름이 비면 막고 입력하면 안내를 지운다", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ProjectListPage />, { route: "/projects?create=1" });
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "만들기" }));
     expect(screen.getByText("프로젝트 이름을 입력해주세요")).toBeInTheDocument();
     expect(within(dialog).getByRole("textbox", { name: "프로젝트 이름" })).toHaveFocus();
-    expect(screen.getByText("HTTP 또는 HTTPS로 시작하는 주소를 입력해주세요")).toBeInTheDocument();
-    await user.type(
-      within(dialog).getByRole("textbox", { name: "프로젝트 이름" }),
-      "중복 프로젝트",
-    );
-    expect(screen.queryByText("프로젝트 이름을 입력해주세요")).not.toBeInTheDocument();
-    await user.type(
-      within(dialog).getByRole("textbox", { name: "사이트 URL" }),
-      "https://banchanroad.example",
-    );
-    await user.click(within(dialog).getByRole("button", { name: "만들기" }));
-    /* 서버가 409 DUPLICATE_PROJECT 로 짚은 사이트 URL 칸 아래에 알립니다 */
-    expect(
-      await within(dialog).findByText("이미 등록된 사이트예요. 기존 프로젝트를 확인해 주세요"),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByRole("textbox", { name: "사이트 URL" })).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
-    expect(within(dialog).getByRole("textbox", { name: "프로젝트 이름" })).toHaveValue(
-      "중복 프로젝트",
-    );
     expect((await getMyProjects()).items).toHaveLength(0);
+    await user.type(within(dialog).getByRole("textbox", { name: "프로젝트 이름" }), "새 프로젝트");
+    expect(screen.queryByText("프로젝트 이름을 입력해주세요")).not.toBeInTheDocument();
   });
 
   it("프로젝트 없음 화면에서 생성 폼으로 이동할 수 있다", async () => {

@@ -30,7 +30,7 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
         if (!pending) onClose();
       }}
       title="새 프로젝트"
-      description="진단할 사이트와 점검할 고객 여정을 정해주세요"
+      description="프로젝트 이름과 점검할 고객 여정을 정해주세요"
       footer={
         <>
           <Button variant="link" onClick={onClose} disabled={pending}>
@@ -71,23 +71,6 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
               disabled={pending}
               maxLength={80}
               onChange={(event) => form.change("name", event.target.value)}
-            />
-          )}
-        </Field>
-        <Field
-          label="사이트 URL"
-          hint="필수"
-          error={errors.url}
-          help="진단할 사이트 1개 = 프로젝트 1개"
-        >
-          {(control) => (
-            <Input
-              {...control}
-              type="url"
-              placeholder="https://"
-              value={values.url}
-              disabled={pending}
-              onChange={(event) => form.change("url", event.target.value)}
             />
           )}
         </Field>
