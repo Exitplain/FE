@@ -522,6 +522,13 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
             screenshot_url: "/api/v1/observations/3/screenshot",
             frictions: [friction("input_burden", "입력 부담", 9, 7)],
             friction_sessions: 9,
+            voices: [
+              {
+                text: "회원가입 화면에서 그만뒀어요. 입력할 칸이 8개나 돼서 부담스러웠어요.",
+                sessions: 6,
+                segments: ["빠른 구매형", "신중한 첫 방문형"],
+              },
+            ],
           },
         ],
         problems: [
@@ -604,6 +611,12 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
     ).toBeInTheDocument();
     expect(within(walkthrough).getByText("입력 부담 · 9회 방문")).toBeInTheDocument();
     expect(within(walkthrough).getByText("필수 입력 8칸 (허용 4칸)")).toBeInTheDocument();
+    /* 여기서 이탈한 방문의 말 (같은 문장은 묶어 셉니다) */
+    const voices = within(walkthrough).getByRole("list", { name: "여기서 그만둔 이유" });
+    expect(voices).toHaveTextContent(
+      "회원가입 화면에서 그만뒀어요. 입력할 칸이 8개나 돼서 부담스러웠어요.",
+    );
+    expect(voices).toHaveTextContent("6회 방문 · 빠른 구매형, 신중한 첫 방문형");
     expect(within(walkthrough).getByRole("button", { name: "회원가입 화면 보기" })).toHaveAttribute(
       "aria-pressed",
       "true",

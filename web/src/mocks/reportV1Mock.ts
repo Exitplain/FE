@@ -410,6 +410,16 @@ export function reportScreensV1(reportId: string): ReportScreens {
         screenshot_url: null,
         frictions,
         friction_sessions: Math.max(0, ...frictions.map((f) => f.sessions)),
+        voices:
+          frictions.length > 0 && next && stage.reached > next.reached
+            ? [
+                {
+                  text: `${stage.name} 화면에서 그만뒀어요. ${voiceOf(frictions[0].category)}`,
+                  sessions: stage.reached - next.reached,
+                  segments: [],
+                },
+              ]
+            : [],
       };
     });
     const problems = screens
@@ -459,4 +469,18 @@ export function reportScreensV1(reportId: string): ReportScreens {
     tasks,
     note: "가상 페르소나의 모의 결과입니다. 감지된 불편한 점은 목표에 도달한 방문이 겪은 것도 셉니다.",
   };
+}
+
+/* BE agent/explain.REASONS 와 같은 말투 (mock 화면 둘러보기의 "여기서 그만둔 이유") */
+function voiceOf(category: string) {
+  const reasons: Record<string, string> = {
+    input_burden: "입력할 칸이 너무 많아서 부담스러웠어요.",
+    cost: "장바구니에 담고 나서야 배송비나 수수료가 보여서, 생각보다 비싸다고 느꼈어요.",
+    navigation: "원하는 걸 찾으려고 여기저기 왔다 갔다 했는데, 어디로 가야 할지 잘 모르겠더라고요.",
+    value: "상품 화면에 가격이 안 보여서 살지 말지 판단이 안 됐어요.",
+    trust: "아직 살지도 모르는데 연락처 같은 개인정보부터 물어봐서 꺼려졌어요.",
+    technical: "화면이 늦게 뜨거나 오류가 나서 답답했어요.",
+    accessibility: "뭘 입력하라는 건지 알아보기 어렵거나 버튼이 너무 작아서 누르기 힘들었어요.",
+  };
+  return reasons[category] ?? "";
 }

@@ -116,6 +116,25 @@ export function ScreenWalkthrough({
           >
             도달 {screen.reached}회 방문 · 여기서 이탈 {screen.dropouts_here}회 방문
           </p>
+          {screen.voices && screen.voices.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h4 className="text-caption font-bold text-ink">여기서 그만둔 이유</h4>
+              <ul aria-label="여기서 그만둔 이유" className="flex flex-col gap-2">
+                {screen.voices.map((voice) => (
+                  <li key={voice.text} className="flex flex-col gap-1 rounded-lg bg-gray-50 p-3">
+                    <q className="text-caption text-gray-800">{voice.text}</q>
+                    <span className="text-xs text-muted">
+                      {voice.sessions}회 방문
+                      {voice.segments.length > 0 && ` · ${voice.segments.join(", ")}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted">
+                가상 페르소나의 이탈 판정 근거를 말하듯 옮긴 거예요 (실제 고객의 답이 아니에요)
+              </p>
+            </div>
+          )}
           <h4 className="text-caption font-bold text-ink">감지된 불편한 점</h4>
           {screen.frictions.length > 0 ? (
             <ul className="flex flex-col gap-2">
