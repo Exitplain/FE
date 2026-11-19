@@ -19,7 +19,7 @@ import type { RunPhase } from "./runView";
 */
 
 /*
-  임시: 과업 이름. 실행·세션 응답에는 과업 id 만 있어, 지금 서버 탐색이 돌려주는 반찬로드 과업 이름을 둡니다.
+  임시: 과업 이름. 실행·세션 응답에는 과업 id 만 있어, 반찬로드 샘플 과업 이름을 마지막 폴백으로 둡니다.
   BE 가 실행 응답에 과업 이름(또는 계획 확정본 id)을 넣어 주면 지웁니다. 모르는 id 는 그대로 보여 줍니다.
 */
 const TASK_LABELS: Record<string, string> = {
@@ -33,6 +33,40 @@ const TASK_LABELS: Record<string, string> = {
 
 export function taskLabel(taskId: string) {
   return TASK_LABELS[taskId] ?? taskId;
+}
+
+/*
+  서버 실행 이름(BE runs/naming.py)의 과업 부분. "8차·첫 주문 쿠폰 받기 외 1개" → "첫 주문 쿠폰 받기 외 1개".
+  과업이 없는 이름("8차")이나 다른 규칙의 이름("원인 재현")은 null 입니다.
+*/
+export function taskFromRunName(name: string | null | undefined): string | null {
+  const match = name?.match(/^\s*\d+차\s*[·・]\s*(\S.*?)\s*$/);
+  return match ? match[1] : null;
+}
+
+const MORE_TASKS = /\s외\s\d+개$/;
+
+/*
+  임시: 실행 화면의 과업 id → 이름. BE 가 실행 응답에 과업 이름을 넣어 주면 그 값으로 바꿉니다.
+  1. 리포트 요약의 과업 이름 (끝난 실행)
+  2. 실행을 시작한 브라우저에 남긴 확정 계획의 과업 이름 (useRunTaskNamesStore)
+  3. 과업이 하나면 서버 실행 이름의 과업 부분 ("… 외 N개" 는 어느 과업인지 몰라 쓰지 않음)
+  4. 임시 표, 그다음 id 그대로
+*/
+export function runTaskNames(
+  detail: Pick<RunDetail, "name" | "report">,
+  taskIds: readonly string[],
+  saved: Record<string, string> = {},
+): Record<string, string> {
+  const ids = [...new Set(taskIds)];
+  const fromName = ids.length === 1 ? taskFromRunName(detail.name) : null;
+  const single = fromName && !MORE_TASKS.test(fromName) ? fromName : null;
+  const names: Record<string, string> = {};
+  for (const id of ids) {
+    const reported = detail.report?.goal_rates.find((rate) => rate.task_id === id)?.name;
+    names[id] = reported || saved[id] || single || taskLabel(id);
+  }
+  return names;
 }
 
 const KNOWN_STAGES: readonly string[] = [
@@ -135,6 +169,7 @@ function toSession(
   session: RunSession,
   trail: SessionTrail | undefined,
   now: number,
+  taskName: string,
 ): PersonaSession {
   const observations = trail?.observations ?? [];
   const trace: TracePoint[] = observations
@@ -179,7 +214,7 @@ function toSession(
     cost_sensitivity: 0,
     profile_id: session.persona.segment_id,
     task_id: session.task_id,
-    task_name: taskLabel(session.task_id),
+    task_name: taskName,
     goal: "",
     status: session.status as SessionStatus,
     reason: session.reason ?? "",
@@ -211,9 +246,18 @@ export function toPersonaRun(
   detail: RunDetail,
   sessions: RunSession[],
   trails: RunTrails | undefined,
-  now = Date.now(),
+  /* savedTaskNames: 실행을 시작한 브라우저에 남긴 과업 이름 (useRunTaskNamesStore) */
+  {
+    now = Date.now(),
+    savedTaskNames,
+  }: { now?: number; savedTaskNames?: Record<string, string> } = {},
 ): PersonaRun {
   const phase = v1Phase(detail);
+  const taskNames = runTaskNames(
+    detail,
+    sessions.map((session) => session.task_id),
+    savedTaskNames,
+  );
   const active = phase === "preparing" || phase === "running" || phase === "analyzing";
   return {
     status: active ? "running" : "completed",
@@ -225,7 +269,9 @@ export function toPersonaRun(
     target: "",
     profiles: [],
     tasks: [],
-    sessions: sessions.map((session) => toSession(session, trails?.bySession[session.id], now)),
+    sessions: sessions.map((session) =>
+      toSession(session, trails?.bySession[session.id], now, taskNames[session.task_id]),
+    ),
     created_at: detail.started_at ?? detail.created_at,
     stage: active ? (phase as "preparing" | "running" | "analyzing") : undefined,
     prepare: {

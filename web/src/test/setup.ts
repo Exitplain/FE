@@ -15,6 +15,7 @@ import { resetPersonaMock } from "@/mocks/personaMock";
 import { resetPlanMock } from "@/mocks/planMock";
 import { resetRunV1Mock } from "@/mocks/runV1Mock";
 import { useRetestStore } from "@/stores/useRetestStore";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import { useSiteCheckStore } from "@/stores/useSiteCheckStore";
 
 /*
@@ -75,6 +76,9 @@ afterEach(() => {
   resetRunV1Mock();
   // 재테스트 기록(sessionStorage)도 테스트끼리 섞이지 않게 비웁니다
   useRetestStore.setState({ byRunId: {} });
+  // 실행별로 남긴 과업 이름(localStorage)도 비웁니다
+  useRunTaskNamesStore.setState({ byRunId: {} });
+  localStorage.removeItem("exitplain-run-task-names");
   // 앞 테스트의 사이트 확인 작업이 다음 테스트의 위저드로 이어지지 않게 비웁니다
   useSiteCheckStore.setState({ jobs: {} });
   sessionStorage.clear();

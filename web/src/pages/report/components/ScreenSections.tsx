@@ -68,7 +68,8 @@ export function ScreenWalkthrough({
         if (event.key === "ArrowRight") go(index + 1);
       }}
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-5">
+      {/* 좁은 화면(lg 미만)에서는 화면 정보 카드를 캡처 아래로 내려 캡처가 너무 작아지지 않게 합니다 */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs font-bold text-white tabular-nums">
@@ -89,7 +90,8 @@ export function ScreenWalkthrough({
             <Shot
               url={screen.screenshot_url}
               alt={`${screen.name} 화면 캡처`}
-              className="max-h-[480px]"
+              /* 버튼과 한 줄(flex)이라 min-w-0 이 없으면 원본 너비보다 줄지 않아 옆 카드를 덮습니다 */
+              className="max-h-[480px] min-w-0"
             />
             <button
               type="button"
@@ -137,7 +139,11 @@ export function ScreenWalkthrough({
         </div>
       </div>
 
-      <ol aria-label="화면 순서" className="flex items-start gap-2 overflow-x-auto pb-1">
+      {/*
+        가로 스크롤 영역은 세로로도 잘라내서, 선택한 썸네일의 바깥 테두리(outline 3px)가 잘리지 않게
+        사방에 여유(p-1)를 두고 좌우는 -mx-1 로 되돌려 정렬을 유지합니다
+      */}
+      <ol aria-label="화면 순서" className="-mx-1 flex items-start gap-2 overflow-x-auto p-1">
         {screens.map((item, i) => (
           <li key={item.screen_id} className="flex items-start gap-2">
             {i > 0 && (

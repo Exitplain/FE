@@ -8,6 +8,7 @@ import StatusBadge from "@/components/StatusBadge/StatusBadge";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
 import { buildPath } from "@/constants/routes";
 import { useRetestStore } from "@/stores/useRetestStore";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import { useRunDetail } from "@/pages/report/hooks/useRunReport";
 import { useToastStore } from "@/stores/useToastStore";
 import { ApiError } from "@/types/api.type";
@@ -75,6 +76,8 @@ function RunView({ project, runId }: { project: CurrentProject; runId: string })
   const active = phase === "preparing" || phase === "running" || phase === "analyzing";
   const sessions = useRunSessions(runId, active);
   const events = useRunEvents(runId, active);
+  /* 실행을 시작한 브라우저에 남긴 과업 이름 (실행 응답에는 과업 id 만 있음) */
+  const savedTaskNames = useRunTaskNamesStore((state) => state.byRunId[runId]);
   /*
     이 화면에서 진행 중인 실행을 본 적이 있는지. 끝나면 리포트로 자동 이동하는 조건입니다
     (분석 단계가 polling 간격보다 짧게 지나가도, 세션 라이브를 보던 중이어도 이동하도록 여기서 기억).
@@ -133,7 +136,9 @@ function RunView({ project, runId }: { project: CurrentProject; runId: string })
     );
   }
 
-  const run = toPersonaRun(detail.data!, sessions.data?.items ?? [], events.data);
+  const run = toPersonaRun(detail.data!, sessions.data?.items ?? [], events.data, {
+    savedTaskNames,
+  });
   const session = sessionId ? run.sessions.find((item) => item.id === sessionId) : undefined;
   /* 실행 화면으로 돌아갈 때 과업·필터는 남기고 세션만 뺍니다 */
   const backParams = new URLSearchParams(searchParams);

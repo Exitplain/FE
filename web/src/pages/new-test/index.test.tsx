@@ -11,6 +11,7 @@ import { planErrorHandlers } from "@/mocks/handlers/plans";
 import { server } from "@/mocks/node";
 import { patchPlan, putTestAccounts } from "@/mocks/planMock";
 import { useNewTestStore } from "@/stores/useNewTestStore";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import { useSiteCheckStore } from "@/stores/useSiteCheckStore";
 import ProjectRoute from "@/components/Projects/ProjectRoute";
 import { createTestProject, waitForProject } from "@/test/projects";
@@ -286,7 +287,10 @@ describe("P02~P07 새 테스트", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "실행 시작" }));
 
-    expect(await screen.findByText(/실행 화면 mock-run-\d+/)).toBeInTheDocument();
+    const probe = await screen.findByText(/실행 화면 mock-run-\d+/);
+    /* 실행 응답에는 과업 id 만 있어, 실행 화면이 쓸 과업 이름을 실행 ID 로 남깁니다 */
+    const runId = probe.textContent!.replace("실행 화면 ", "");
+    expect(useRunTaskNamesStore.getState().byRunId[runId]).toMatchObject({ order: "첫 주문" });
   });
 
   it("P06 — 만드는 동안 생성 단계와 자리 표시 카드를 보여주고 실행을 막는다", async () => {

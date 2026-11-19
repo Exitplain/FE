@@ -9,6 +9,7 @@ import { reportErrorHandlers, runDetailOf } from "@/mocks/handlers/reports";
 import { server } from "@/mocks/node";
 import { finishPersonaMock, runList } from "@/mocks/personaMock";
 import { useDemoSessionStore } from "@/stores/useDemoSessionStore";
+import { useRunTaskNamesStore } from "@/stores/useRunTaskNamesStore";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import type { RunReport } from "@/types/report.type";
 
@@ -236,6 +237,8 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
       change_note: "가입 입력 줄임",
     });
     expect(created[0].key).toBeTruthy();
+    /* 새 실행 화면이 쓸 과업 이름을 확정 계획에서 남깁니다 */
+    expect(useRunTaskNamesStore.getState().byRunId["run-new"]).toEqual({ order: "첫 주문" });
   });
 
   it("주소의 ?task= 로 과업을 고르고, 과업 칩으로 바꾼다", async () => {
