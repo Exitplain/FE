@@ -17,10 +17,27 @@ describe("useRunTaskNamesStore — 실행을 만든 브라우저에 남기는 �
     });
   });
 
-  it("이름이 하나도 없으면 아무것도 저장하지 않는다", () => {
+  it("이름이 하나도 없으면 이름은 저장하지 않지만 과업 순서는 남긴다", () => {
     register("run-a", [{ id: "order", name: "  " }]);
 
     expect(useRunTaskNamesStore.getState().byRunId).toEqual({});
+    expect(useRunTaskNamesStore.getState().orderByRunId["run-a"]).toEqual(["order"]);
+  });
+
+  it("과업 전체 id 를 계획 순서대로 남긴다 (이름이 없는 과업도, 중복은 한 번)", () => {
+    register("run-a", [
+      { id: "z-last", name: "마지막" },
+      { id: "a-first", name: null },
+      { id: "z-last", name: "마지막" },
+    ]);
+
+    expect(useRunTaskNamesStore.getState().orderByRunId["run-a"]).toEqual(["z-last", "a-first"]);
+  });
+
+  it("과업이 없으면 아무것도 저장하지 않는다", () => {
+    register("run-a", []);
+
+    expect(useRunTaskNamesStore.getState().orderByRunId).toEqual({});
   });
 
   it("새로 고쳐도 남도록 localStorage 에 둔다", () => {
@@ -38,6 +55,7 @@ describe("useRunTaskNamesStore — 실행을 만든 브라우저에 남기는 �
     expect(runIds).toHaveLength(RUN_TASK_NAMES_LIMIT);
     expect(runIds).not.toContain("run-0");
     expect(runIds).toContain(`run-${RUN_TASK_NAMES_LIMIT}`);
+    expect(Object.keys(useRunTaskNamesStore.getState().orderByRunId)).toEqual(runIds);
   });
 
   it("브라우저 저장소에 쓰지 못해도 예외를 던지지 않는다 (실행 화면 이동을 막지 않게)", () => {

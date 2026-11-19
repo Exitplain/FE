@@ -9,6 +9,8 @@ type NamedTask = { id: string; name?: string | null };
 type RunTaskNamesState = {
   /* 실행 ID → 과업 id → 과업 이름. 넣은 순서(오래된 것 먼저)를 유지합니다 */
   byRunId: Record<string, Record<string, string>>;
+  /* 실행 ID → 확정 계획의 과업 id 전체 (계획 순서). 실행 화면이 방문 전에도 과업 탭을 모두 그립니다 */
+  orderByRunId: Record<string, string[]>;
   register: (runId: string, tasks: readonly NamedTask[]) => void;
 };
 
@@ -23,13 +25,15 @@ export const useRunTaskNamesStore = create<RunTaskNamesState>()(
   persist(
     (set) => ({
       byRunId: {},
+      orderByRunId: {},
       register: (runId, tasks) => {
         const names: Record<string, string> = {};
         for (const task of tasks) {
           const name = task.name?.trim();
           if (name) names[task.id] = name;
         }
-        if (Object.keys(names).length === 0) return;
+        const order = [...new Set(tasks.map((task) => task.id))];
+        if (order.length === 0) return;
         /*
           저장소에 쓰지 못하면(용량 초과·저장 차단) persist 가 예외를 던집니다.
           이름은 보조 정보라 이 탭 메모리에만 두고 넘어가, 실행 화면 이동을 막지 않습니다.
@@ -37,9 +41,16 @@ export const useRunTaskNamesStore = create<RunTaskNamesState>()(
         try {
           set((state) => {
             /* 같은 실행을 다시 넣으면 가장 최근으로 옮깁니다 */
-            const others = Object.entries(state.byRunId).filter(([id]) => id !== runId);
-            const kept = [...others, [runId, names] as const].slice(-RUN_TASK_NAMES_LIMIT);
-            return { byRunId: Object.fromEntries(kept) };
+            const latest = <T>(byRun: Record<string, T>, value: T | null) => {
+              const others = Object.entries(byRun).filter(([id]) => id !== runId);
+              const all = value == null ? others : [...others, [runId, value] as const];
+              return Object.fromEntries(all.slice(-RUN_TASK_NAMES_LIMIT));
+            };
+            return {
+              /* 이름이 하나도 없으면 이름은 남기지 않고 순서만 남깁니다 */
+              byRunId: latest(state.byRunId, Object.keys(names).length > 0 ? names : null),
+              orderByRunId: latest(state.orderByRunId ?? {}, order),
+            };
           });
         } catch {
           /* 무시 */

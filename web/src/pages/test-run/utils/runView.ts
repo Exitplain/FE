@@ -111,6 +111,99 @@ export function taskOptions(sessions: PersonaSession[]) {
   return [...seen].map(([id, name]) => ({ id, name }));
 }
 
+/* 과업 탭 한 칸의 상태 (대기 · 진행 중 · 완료) */
+export type TaskTabState = "queued" | "running" | "done";
+export type TaskTab = {
+  id: string;
+  name: string;
+  state: TaskTabState;
+  started: number;
+  finished: number;
+  /* 이 과업의 예상 방문 수. 모르면 null */
+  total: number | null;
+};
+
+const ENDED_PHASES: readonly RunPhase[] = [
+  "completed",
+  "analyzing",
+  "failed",
+  "cancelled",
+  "stopped",
+];
+
+/*
+  과업 탭 전체와 과업별 진행.
+  - 실행을 시작할 때 남긴 과업 목록(plannedIds)이 있으면 방문 전에도 모든 과업을 계획 순서로 보여 줍니다.
+    없으면(다른 브라우저) 방문에 나온 과업만 나온 순서대로 보여 줍니다.
+  - BE 는 시작한 방문만 주고 과업을 과업 id 순서로 하나씩 돌려서, 상태는 순서를 가정하지 않고 방문으로만 정합니다.
+  - 과업마다 같은 페르소나·시드를 돌려 과업별 예상 수 = 전체 예상 수 / 과업 수 (나누어떨어질 때만)
+  - 방문 목록이 잘렸으면(truncated) 개수만으로 완료라고 하지 않습니다
+*/
+export function taskTabs({
+  sessions,
+  plannedIds = [],
+  names = {},
+  expectedSessions,
+  phase,
+  truncated = false,
+}: {
+  sessions: PersonaSession[];
+  plannedIds?: readonly string[];
+  names?: Record<string, string>;
+  expectedSessions: number;
+  phase: RunPhase;
+  truncated?: boolean;
+}): TaskTab[] {
+  const seen = taskOptions(sessions);
+  const ids = [...new Set([...plannedIds, ...seen.map((task) => task.id)])];
+  const planned = plannedIds.length;
+  const total =
+    planned > 0 && expectedSessions > 0 && expectedSessions % planned === 0
+      ? expectedSessions / planned
+      : null;
+  const ended = ENDED_PHASES.includes(phase);
+  return ids.map((id) => {
+    const counts = countSessions(sessions.filter((session) => session.task_id === id));
+    const started = counts.all;
+    const waitingOnly = counts.running === 0 && counts.queued === started;
+    const state: TaskTabState =
+      started === 0
+        ? ended
+          ? "done"
+          : "queued"
+        : ended
+          ? "done"
+          : counts.running > 0
+            ? "running"
+            : waitingOnly
+              ? "queued"
+              : !truncated && total != null && counts.finished >= total
+                ? "done"
+                : "running";
+    return {
+      id,
+      name: names[id] ?? seen.find((task) => task.id === id)?.name ?? id,
+      state,
+      started,
+      finished: counts.finished,
+      total,
+    };
+  });
+}
+
+/* 과업 탭 상태 문구 */
+export function taskTabLabel(tab: TaskTab): string {
+  switch (tab.state) {
+    case "queued":
+      return "대기";
+    case "done":
+      return "완료";
+    default:
+      /* 탭에는 상태만 둡니다. 몇 회 끝났는지는 아래 진행 n/N 에서 보여 줍니다 */
+      return "진행 중";
+  }
+}
+
 /* 리포트·세션 상세도 쓰게 돼 constants 로 옮겼습니다. 실행 화면 import 는 그대로 둡니다 */
 export { STAGE_LABELS } from "@/constants/persona";
 
