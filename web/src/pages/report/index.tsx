@@ -113,7 +113,7 @@ function Report({ project, runId }: { project: CurrentProject; runId: string }) 
   const task = showAll ? undefined : (tasks.find((item) => item.task_id === taskParam) ?? tasks[0]);
   const order = run.data?.sequence_no;
   const title = showAll
-    ? `전체 과업${order ? ` · ${order}차` : ""}`
+    ? `전체${order ? ` · ${order}차` : ""}`
     : task
       ? `${task.name}${order ? ` · ${order}차` : ""}`
       : order

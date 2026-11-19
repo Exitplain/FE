@@ -260,7 +260,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     renderReport(await completeRun(), "");
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "전체 과업 · 1차" }),
+      await screen.findByRole("heading", { level: 1, name: "전체 · 1차" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "전체" })).toHaveAttribute("aria-checked", "true");
     /* 실행 전체 기준 요약: 이탈이 있었던 과업 수 · 전체 달성률(summary) · 기록 세션 */
@@ -297,7 +297,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
       await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "전체" }));
-    expect(screen.getByRole("heading", { level: 1, name: "전체 과업 · 1차" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "전체 · 1차" })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "과업별 결과" })).toBeInTheDocument();
   });
 
@@ -339,7 +339,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
 
     /* 다른 실행은 과업 선택 없이 열리므로 기본인 과업 전체로 엽니다 */
     expect(
-      await screen.findByRole("heading", { level: 1, name: "전체 과업 · 2차" }),
+      await screen.findByRole("heading", { level: 1, name: "전체 · 2차" }),
     ).toBeInTheDocument();
   });
 
