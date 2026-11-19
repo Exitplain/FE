@@ -77,7 +77,7 @@ export default function ReportToolbar({
 
   /* Figma: "첫 주문 완료 · 3차 · 11월 7일 · 완료" */
   const taskName =
-    taskId === ALL_TASKS ? "전체 과업" : tasks.find((task) => task.task_id === taskId)?.name;
+    taskId === ALL_TASKS ? "전체" : tasks.find((task) => task.task_id === taskId)?.name;
   const runLabel = [
     taskName,
     run ? `${run.sequence_no}차` : null,

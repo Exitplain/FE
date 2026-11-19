@@ -11,6 +11,8 @@ import { useCurrentProject, type CurrentProject } from "@/components/Projects/cu
 import { wantsResumeActiveRun } from "@/constants/navigationState";
 import { buildPath } from "@/constants/routes";
 import { useRunList } from "@/hooks/useRunList";
+import { useNewTestStore } from "@/stores/useNewTestStore";
+import { RESULT_TTL_MS, useSiteCheckStore } from "@/stores/useSiteCheckStore";
 import { ACTIVE_RUN_STATUSES } from "@/types/run.type";
 
 import TestListTable from "./components/TestListTable";
@@ -28,6 +30,23 @@ export default function TestListPage() {
   return <TestList project={project} />;
 }
 
+/*
+  이 프로젝트의 새 테스트를 쓰는 중인지 (이어 보기로 들어왔을 때 진행 중인 실행이 없으면 새 테스트로 보냅니다)
+  - 사이트 확인 중이거나, 확인이 끝나 위저드에 넣을 결과가 남아 있음 (useSiteCheckStore)
+  - 확인을 마치고 받은 계획으로 과업·페르소나 단계를 쓰는 중 (useNewTestStore)
+  서버 계획이 만료(15분)됐으면 다시 확인해야 하므로 목록에 둡니다. 새 테스트 화면도 같은 기준(RESULT_TTL_MS)을 씁니다.
+*/
+function newTestInProgress(projectId: string, now = Date.now()) {
+  const fresh = (at: number | null) => at != null && now - at <= RESULT_TTL_MS;
+  const job = useSiteCheckStore.getState().jobs[projectId];
+  if (job?.status === "pending") return true;
+  const wizard = useNewTestStore.getState();
+  const kept = wizard.projectId === projectId;
+  /* 끝난 결과는 위저드 입력이 없을 때만 넣으므로(restoreSiteCheck), 남아 있으면 위저드 기준으로 봅니다 */
+  if (!kept && job?.status === "success" && job.result && fresh(job.finishedAt)) return true;
+  return kept && wizard.plan != null && fresh(wizard.planAt);
+}
+
 function TestList({ project }: { project: CurrentProject }) {
   const titleId = useId();
   const runs = useRunList(project.v1Id);
@@ -36,6 +55,7 @@ function TestList({ project }: { project: CurrentProject }) {
 
   /*
     사이드바 "테스트"·다른 프로젝트 탭에서 왔으면(이어 보기 state) 진행 중인 실행 화면을 바로 보여 줍니다.
+    진행 중인 실행이 없고 새 테스트를 쓰는 중이면(사이트 확인 중·이후 단계) 새 테스트 화면으로 보냅니다.
     - 예전에 받아 둔 캐시는 이미 끝난 실행일 수 있어, 이 화면에서 새로 받은 목록으로만 정합니다.
     - 첫 페이지가 최신순이라 처음 만나는 진행 중 실행이 가장 최신입니다.
     - 처음 정한 결과는 고정합니다. state 를 지우기 전에 polling 이 다시 받아도 결정이 바뀌지 않습니다.
@@ -56,7 +76,11 @@ function TestList({ project }: { project: CurrentProject }) {
       ? undefined
       : runs.data?.pages[0]?.items.find((item) => ACTIVE_RUN_STATUSES.includes(item.status));
     setResumeTarget(
-      activeRun ? buildPath("testRun", { projectId: project.id, runId: activeRun.id }) : null,
+      activeRun
+        ? buildPath("testRun", { projectId: project.id, runId: activeRun.id })
+        : newTestInProgress(project.id)
+          ? buildPath("newTest", { projectId: project.id })
+          : null,
     );
   }
 

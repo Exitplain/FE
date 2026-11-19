@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
@@ -13,6 +13,9 @@ import { ROUTES } from "@/constants/routes";
 import { projectErrorHandlers } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { finishPersonaMock } from "@/mocks/personaMock";
+import type { WizardPlan } from "@/pages/new-test/utils/newTest";
+import { useNewTestStore } from "@/stores/useNewTestStore";
+import { RESULT_TTL_MS, type SiteCheckJob, useSiteCheckStore } from "@/stores/useSiteCheckStore";
 import { createTestProject } from "@/test/projects";
 import { createTestQueryClient, renderWithProviders } from "@/test/renderWithProviders";
 import type { RunItem } from "@/types/run.type";
@@ -336,10 +339,24 @@ function renderResume({
             }
           />
           <Route path={ROUTES.testRun.path} element={<RunProbe />} />
+          <Route path={ROUTES.newTest.path} element={<p>새 테스트 화면</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function siteCheckJob(job: Partial<SiteCheckJob>): SiteCheckJob {
+  return {
+    request: { siteUrl: "https://example.com", variant: "fixed", loginMode: "none" },
+    status: "pending",
+    phase: "discover",
+    startedAt: Date.now(),
+    finishedAt: null,
+    result: null,
+    error: null,
+    ...job,
+  };
 }
 
 function serveRuns(items: RunItem[]) {
@@ -351,6 +368,9 @@ function serveRuns(items: RunItem[]) {
 }
 
 describe("P01 진행 중인 실행 이어 보기", () => {
+  /* 새 테스트 입력은 테스트 설정(setup)이 비우지 않아, 다음 테스트로 남지 않게 여기서 비웁니다 */
+  afterEach(() => useNewTestStore.getState().reset("", ""));
+
   it.each(["queued", "running", "finalizing"] as const)(
     "이어 보기로 들어왔고 %s 실행이 있으면 그 실행 화면을 바로 보여준다",
     async (status) => {
@@ -384,6 +404,44 @@ describe("P01 진행 중인 실행 이어 보기", () => {
 
     expect(await screen.findByRole("table", { name: "사전 테스트" })).toBeInTheDocument();
     expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
+  });
+
+  it("진행 중인 실행이 없고 사이트 확인 중이면 새 테스트 화면으로 간다", async () => {
+    serveRuns([make(1)]);
+    useSiteCheckStore.setState({ jobs: { "1": siteCheckJob({ status: "pending" }) } });
+    renderResume();
+
+    expect(await screen.findByText("새 테스트 화면")).toBeInTheDocument();
+  });
+
+  it("사이트 확인을 마치고 받은 계획으로 이후 단계를 쓰는 중이면 새 테스트 화면으로 간다", async () => {
+    serveRuns([make(1)]);
+    useNewTestStore.setState({ projectId: "1", plan: {} as WizardPlan, planAt: Date.now() });
+    renderResume();
+
+    expect(await screen.findByText("새 테스트 화면")).toBeInTheDocument();
+  });
+
+  it("쓰던 새 테스트의 계획이 만료됐거나 다른 프로젝트 것이면 목록을 보여준다", async () => {
+    serveRuns([make(1)]);
+    useNewTestStore.setState({
+      projectId: "1",
+      plan: {} as WizardPlan,
+      planAt: Date.now() - RESULT_TTL_MS - 1,
+    });
+    useSiteCheckStore.setState({ jobs: { "2": siteCheckJob({ status: "pending" }) } });
+    renderResume();
+
+    expect(await screen.findByRole("table", { name: "사전 테스트" })).toBeInTheDocument();
+    expect(screen.queryByText("새 테스트 화면")).not.toBeInTheDocument();
+  });
+
+  it("진행 중인 실행이 있으면 새 테스트를 쓰는 중이어도 실행 화면으로 간다", async () => {
+    serveRuns([make(1, { status: "running" })]);
+    useSiteCheckStore.setState({ jobs: { "1": siteCheckJob({ status: "pending" }) } });
+    renderResume();
+
+    expect(await screen.findByText("실행 화면 run-1")).toBeInTheDocument();
   });
 
   it("이어 보기 표시 없이 들어오면 진행 중이어도 목록을 보여준다", async () => {

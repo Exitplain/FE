@@ -52,7 +52,7 @@ async function renderWizard(step?: string) {
 /* 사이트 확인 → 과업·타겟 입력 → 페르소나 → 시작 전 확인 화면까지 */
 async function goToConfirm(user: ReturnType<typeof userEvent.setup>) {
   await checkSite(user);
-  await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+  await goToTasks(user);
   await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
   await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
   /* 3단계에 들어오면 세그먼트 유형을 한 번 추론합니다 (segment-inferences) */
@@ -65,6 +65,18 @@ async function goToConfirm(user: ReturnType<typeof userEvent.setup>) {
 async function goToReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "페르소나 생성" }));
   await screen.findByRole("list", { name: "페르소나 세그먼트" });
+}
+
+/* 과업 · 타겟 단계로 가서 과업을 고릅니다 (과업은 미리 골라 두지 않으므로 mock 의 추천 과업 두 개를 직접 고름) */
+async function goToTasks(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+  await pickTasks(user);
+}
+
+async function pickTasks(user: ReturnType<typeof userEvent.setup>) {
+  for (const name of ["첫 주문", "쿠폰으로 주문"]) {
+    await user.click(await screen.findByRole("button", { name }));
+  }
 }
 
 async function checkSite(user: ReturnType<typeof userEvent.setup>) {
@@ -96,6 +108,7 @@ describe("P02~P07 새 테스트", () => {
     expect(
       await screen.findByRole("heading", { name: "고객이 달성할 목표를 고르세요" }),
     ).toBeInTheDocument();
+    await pickTasks(user);
     await user.type(screen.getByLabelText("타겟 고객 설명"), "처음 방문한 고객");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
     expect(
@@ -158,7 +171,7 @@ describe("P02~P07 새 테스트", () => {
     const user = userEvent.setup();
     await renderWizard();
 
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
 
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
@@ -276,11 +289,14 @@ describe("P02~P07 새 테스트", () => {
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
 
-    // P05: 추천 과업이 미리 골라져 있고, 근거 경로를 보여준다
+    // P05: 과업은 미리 골라 두지 않고(고를 때까지 안내·다음 막음), 근거 경로를 보여준다
     expect(await screen.findByRole("button", { name: "첫 주문" })).toHaveAttribute(
       "aria-pressed",
-      "true",
+      "false",
     );
+    expect(screen.getByText("과업을 1개 이상 골라주세요")).toBeInTheDocument();
+    await pickTasks(user);
+    expect(screen.getByRole("button", { name: "첫 주문" })).toHaveAttribute("aria-pressed", "true");
     expect(
       within(screen.getByRole("complementary", { name: "사이트에서 찾은 기능" })).getByText(
         /\/product/,
@@ -411,7 +427,7 @@ describe("P02~P07 새 테스트", () => {
     await checkSite(user);
     expect(await screen.findByText(/테스트 계정 8개 등록/)).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: /테스트 계정 로그인 상태로 테스트/ }));
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
     expect(await screen.findByText("테스트 계정 8개 → AI 고객 8명")).toBeInTheDocument();
@@ -458,12 +474,14 @@ describe("P02~P07 새 테스트", () => {
     await checkSite(user);
     await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
 
-    /* 추천으로 미리 골라 둔 두 과업을 해제합니다 */
-    for (const name of ["첫 주문", "쿠폰으로 주문"]) {
-      await user.click(await screen.findByRole("button", { name }));
-    }
+    /* 과업은 미리 골라 두지 않아, 들어오자마자 안내하고 다음을 막습니다 */
+    expect(await screen.findByText("과업을 1개 이상 골라주세요")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음: 페르소나" })).toBeDisabled();
 
-    /* 고르는 즉시 안내하고 다음을 막습니다 */
+    /* 골랐다가 모두 풀어도 다시 안내하고 막습니다 */
+    await pickTasks(user);
+    expect(screen.getByRole("button", { name: "다음: 페르소나" })).toBeEnabled();
+    await pickTasks(user);
     expect(screen.getByText("과업을 1개 이상 골라주세요")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다음: 페르소나" })).toBeDisabled();
   });
@@ -472,7 +490,7 @@ describe("P02~P07 새 테스트", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
@@ -509,7 +527,7 @@ describe("P02~P07 새 테스트", () => {
       useNewTestStore.getState().setAccounts(accounts);
     });
     /* 로그인 방식이 바뀌어 다음을 누르면 테스트 계정 모드로 다시 확인합니다 */
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
@@ -521,7 +539,7 @@ describe("P02~P07 새 테스트", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.click(await screen.findByRole("button", { name: "다음: 페르소나" }));
 
     expect(screen.getByText("타겟 고객을 적어 주세요")).toBeInTheDocument();
@@ -531,7 +549,7 @@ describe("P02~P07 새 테스트", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
     await user.click(await screen.findByRole("button", { name: "다음: 시작 전 확인" }));
@@ -638,7 +656,7 @@ describe("P02~P07 새 테스트", () => {
     // 계획이 없을 때 주소가 사이트 단계로 바뀌었으므로, 확인 뒤에도 사이트 단계에 머뭅니다
     expect(screen.queryByRole("list", { name: "입력 요약" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다음: 과업 · 타겟" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 
@@ -784,7 +802,7 @@ describe("P02 · P05b 리뷰 보완", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
 
     const input = await screen.findByLabelText(/과업 직접 추가/);
     await user.type(input, "배송지 바꾸기{Enter}리뷰 쓰기{Enter}");
@@ -807,7 +825,7 @@ describe("P02 · P05b 리뷰 보완", () => {
     await user.click(screen.getByRole("link", { name: "스튜디오 예약 새 테스트" }));
     await waitForProject();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
@@ -888,7 +906,7 @@ describe("P02~P07 제품 API 계약", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
@@ -914,7 +932,7 @@ describe("P02~P07 제품 API 계약", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
 
@@ -934,7 +952,7 @@ describe("P02~P07 제품 API 계약", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     server.use(
       http.patch(
@@ -959,7 +977,7 @@ describe("P02~P07 제품 API 계약", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     server.use(
       http.patch("*/api/v1/plans/:planId", () =>
@@ -1114,7 +1132,7 @@ describe("P02~P07 제품 API 계약", () => {
       await screen.findByText(/테스트 계정을 4개 이상 등록해주세요 · 지금 0개/),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: /로그인 없이 테스트/ }));
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 
@@ -1146,7 +1164,7 @@ describe("P02~P07 제품 API 계약", () => {
     expect(sent.every((account) => account.id && account.password === undefined)).toBe(true);
 
     /* 서버 총원(8명)으로 진행합니다 */
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
     expect(await screen.findByText("테스트 계정 8개 → AI 고객 8명")).toBeInTheDocument();
@@ -1175,7 +1193,7 @@ describe("P02~P07 제품 API 계약", () => {
     expect(
       await screen.findByText("접근 확인 실패 · 주소를 찾을 수 없어요. 도메인을 다시 확인해주세요"),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 
@@ -1203,7 +1221,7 @@ describe("P02~P07 제품 API 계약", () => {
     expect(JSON.parse(put.body).accounts).toHaveLength(4);
     expect(JSON.parse(put.body).accounts[0]).toEqual({ username: "u0@x.example", password: "pw0" });
 
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await screen.findByLabelText("타겟 고객 설명");
     const discoveries = calls(requests, "POST", /discoveries$/);
     expect(JSON.parse(discoveries[discoveries.length - 1].body).login_mode).toBe("test_account");
@@ -1214,7 +1232,7 @@ describe("P02~P07 제품 API 계약", () => {
     const user = userEvent.setup();
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "50대 이상" }));
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
@@ -1295,7 +1313,7 @@ describe("P02b 사이트 확인 — 다른 화면에 갔다 와도 이어진다"
 
     await user.click(screen.getByRole("link", { name: "새 테스트로" }));
     expect(await screen.findByText("접근 가능 · 응답 0.8초 · 기능 4개 찾음")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     expect(await screen.findByLabelText("타겟 고객 설명")).toBeInTheDocument();
   });
 });
@@ -1464,7 +1482,7 @@ describe("P05b 세그먼트 유형 추론", () => {
   async function toPersonaStep(user: ReturnType<typeof userEvent.setup>) {
     await renderWizard();
     await checkSite(user);
-    await user.click(screen.getByRole("button", { name: "다음: 과업 · 타겟" }));
+    await goToTasks(user);
     await user.type(await screen.findByLabelText("타겟 고객 설명"), "첫 방문자");
     await user.click(screen.getByRole("button", { name: "다음: 페르소나" }));
     await screen.findByRole("heading", { name: "세그먼트 비율" });
