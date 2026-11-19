@@ -1,9 +1,10 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { wantsResumeActiveRun } from "@/constants/navigationState";
 import { MOCK_SAMPLE_PROJECTS } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -133,6 +134,60 @@ describe("Sidebar 프로젝트 하위 메뉴 (Figma Sidebar 프로젝트 선택 
         "page",
       );
       expect(container.querySelector('[data-submenu="1"]')).toHaveAttribute("data-open", "true");
+    },
+  );
+
+  it("하위 메뉴 '테스트'는 진행 중인 실행 이어 보기를 요청하고, 다른 메뉴는 요청하지 않는다", async () => {
+    function LocationProbe() {
+      const location = useLocation();
+      return (
+        <p>
+          {location.pathname} 이어 보기 {String(wantsResumeActiveRun(location.state))}
+        </p>
+      );
+    }
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <Sidebar />
+        <LocationProbe />
+      </>,
+      { route: "/projects/1/analytics" },
+    );
+    const nav = screen.getByRole("navigation", { name: "프로젝트" });
+    const submenu = await within(nav).findByRole("list", { name: "반찬로드 메뉴" });
+
+    await user.click(within(submenu).getByRole("link", { name: "테스트" }));
+    expect(screen.getByText("/projects/1/tests 이어 보기 true")).toBeInTheDocument();
+
+    await user.click(within(submenu).getByRole("link", { name: "진단 기록" }));
+    expect(screen.getByText("/projects/1/history 이어 보기 false")).toBeInTheDocument();
+  });
+
+  it.each(["/projects/1/tests", "/projects/1/runs/run-1", "/projects/1/runs/run-1/report"])(
+    "이미 사전 테스트 흐름(%s)이면 '테스트'는 이어 보기 없이 목록으로 간다",
+    async (route) => {
+      function LocationProbe() {
+        const location = useLocation();
+        return (
+          <p>
+            {location.pathname} 이어 보기 {String(wantsResumeActiveRun(location.state))}
+          </p>
+        );
+      }
+      const user = userEvent.setup();
+      renderWithProviders(
+        <>
+          <Sidebar />
+          <LocationProbe />
+        </>,
+        { route },
+      );
+      const nav = screen.getByRole("navigation", { name: "프로젝트" });
+      const submenu = await within(nav).findByRole("list", { name: "반찬로드 메뉴" });
+
+      await user.click(within(submenu).getByRole("link", { name: "테스트" }));
+      expect(screen.getByText("/projects/1/tests 이어 보기 false")).toBeInTheDocument();
     },
   );
 

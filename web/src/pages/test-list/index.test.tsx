@@ -1,17 +1,20 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { screen, within } from "@testing-library/react";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
+import { MemoryRouter, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { confirmPersonaRun, discoverPersonaPlan } from "@/apis/persona.api";
 import { queryKeys } from "@/apis/queryKeys";
+import ProjectRoute from "@/components/Projects/ProjectRoute";
+import { RESUME_ACTIVE_RUN_STATE } from "@/constants/navigationState";
 import { ROUTES } from "@/constants/routes";
 import { projectErrorHandlers } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { finishPersonaMock } from "@/mocks/personaMock";
 import { createTestProject } from "@/test/projects";
-import { renderWithProviders } from "@/test/renderWithProviders";
+import { createTestQueryClient, renderWithProviders } from "@/test/renderWithProviders";
 import type { RunItem } from "@/types/run.type";
 
 import TestListPage from "./index";
@@ -291,5 +294,149 @@ describe("P01 사전 테스트 목록", () => {
     renderPage("unknown");
 
     expect(await screen.findByText("프로젝트를 찾을 수 없어요")).toBeInTheDocument();
+  });
+});
+
+function RunProbe() {
+  const { runId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <>
+      <p>실행 화면 {runId}</p>
+      <button type="button" onClick={() => navigate(-1)}>
+        뒤로
+      </button>
+    </>
+  );
+}
+
+/* 사이드바·프로젝트 탭처럼 이어 보기 state 를 붙여 목록으로 들어옵니다 */
+function renderResume({
+  resume = true,
+  queryClient = createTestQueryClient(),
+}: { resume?: boolean; queryClient?: QueryClient } = {}) {
+  queryClientRef.current = queryClient;
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        initialEntries={[
+          "/projects/1",
+          { pathname: "/projects/1/tests", state: resume ? RESUME_ACTIVE_RUN_STATE : null },
+        ]}
+        initialIndex={1}
+      >
+        <Routes>
+          <Route path="/projects/1" element={<p>이전 화면</p>} />
+          <Route
+            path={ROUTES.testList.path}
+            element={
+              <ProjectRoute>
+                <TestListPage />
+              </ProjectRoute>
+            }
+          />
+          <Route path={ROUTES.testRun.path} element={<RunProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+function serveRuns(items: RunItem[]) {
+  server.use(
+    http.get("*/api/v1/projects/:projectId/runs", () =>
+      HttpResponse.json({ items, next_cursor: null, total: items.length }),
+    ),
+  );
+}
+
+describe("P01 진행 중인 실행 이어 보기", () => {
+  it.each(["queued", "running", "finalizing"] as const)(
+    "이어 보기로 들어왔고 %s 실행이 있으면 그 실행 화면을 바로 보여준다",
+    async (status) => {
+      serveRuns([make(2, { status }), make(1)]);
+      renderResume();
+
+      expect(await screen.findByText("실행 화면 run-2")).toBeInTheDocument();
+    },
+  );
+
+  it("진행 중인 실행이 여러 개면 가장 최신 실행으로 간다", async () => {
+    serveRuns([make(1), make(3, { status: "running" }), make(2, { status: "queued" })]);
+    renderResume();
+
+    expect(await screen.findByText("실행 화면 run-3")).toBeInTheDocument();
+  });
+
+  it("실행 화면으로 옮긴 뒤 뒤로 가면 목록이 아니라 그 전 화면으로 간다", async () => {
+    serveRuns([make(1, { status: "running" })]);
+    renderResume();
+    expect(await screen.findByText("실행 화면 run-1")).toBeInTheDocument();
+
+    /* 목록 항목은 실행 화면으로 바뀌어 남지 않으므로, 뒤로 가도 다시 실행 화면으로 튕기지 않습니다 */
+    await userEvent.setup().click(screen.getByRole("button", { name: "뒤로" }));
+    expect(await screen.findByText("이전 화면")).toBeInTheDocument();
+  });
+
+  it("진행 중인 실행이 없으면 목록을 그대로 보여준다", async () => {
+    serveRuns([make(2, { status: "failed" }), make(1)]);
+    renderResume();
+
+    expect(await screen.findByRole("table", { name: "사전 테스트" })).toBeInTheDocument();
+    expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
+  });
+
+  it("이어 보기 표시 없이 들어오면 진행 중이어도 목록을 보여준다", async () => {
+    serveRuns([make(1, { status: "running" })]);
+    renderResume({ resume: false });
+
+    expect(await screen.findByRole("table", { name: "사전 테스트" })).toBeInTheDocument();
+    expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
+  });
+
+  it("목록을 받는 동안에는 옮기지 않고 불러오는 중을 보여준다", async () => {
+    server.use(
+      http.get("*/api/v1/projects/:projectId/runs", async () => {
+        await delay("infinite");
+        return HttpResponse.json({ items: [], next_cursor: null, total: 0 });
+      }),
+    );
+    renderResume();
+
+    expect(await screen.findByText("사전 테스트를 불러오는 중이에요…")).toBeInTheDocument();
+    expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
+  });
+
+  it("목록을 받지 못하면 옮기지 않고 오류를 보여준다", async () => {
+    server.use(projectErrorHandlers.runsNetworkError);
+    renderResume();
+
+    expect(await screen.findByRole("button", { name: "다시 시도" })).toBeInTheDocument();
+    expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
+  });
+
+  it("예전에 받아 둔 목록이 진행 중이어도 새로 받은 목록이 끝났으면 옮기지 않는다", async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(queryKeys.runs.list(1), {
+      pages: [{ items: [make(1, { status: "running" })], next_cursor: null, total: 1 }],
+      pageParams: [undefined],
+    });
+    serveRuns([make(1)]);
+    renderResume({ queryClient });
+
+    expect(await screen.findByText("완료")).toBeInTheDocument();
+    expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
+  });
+
+  it("목록에 머물기로 정한 뒤(이어 보기 state 를 지운 뒤) 새 실행이 진행 중이 되어도 갑자기 옮기지 않는다", async () => {
+    serveRuns([make(1)]);
+    renderResume();
+    const table = await screen.findByRole("table", { name: "사전 테스트" });
+
+    serveRuns([make(2, { status: "running" }), make(1)]);
+    await queryClientRef.current!.invalidateQueries({ queryKey: queryKeys.runs.all });
+
+    expect(await within(table).findByText("2차")).toBeInTheDocument();
+    expect(screen.queryByText(/^실행 화면/)).not.toBeInTheDocument();
   });
 });
