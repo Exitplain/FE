@@ -172,18 +172,6 @@ describe("K01~K04 예측 맞추기", () => {
     expect(screen.getByRole("row", { name: /H-001/ })).toHaveTextContent("완료");
   });
 
-  it("PART-01 — 응답 링크를 만들면 목록에 나타나고 복사·닫기를 할 수 있다", async () => {
-    const user = userEvent.setup();
-    await renderCalibration(await createTestProject(), "?view=observe");
-
-    await user.click(await screen.findByRole("button", { name: "응답 링크 만들기" }));
-    const list = await screen.findByRole("list", { name: "응답 링크" });
-    expect(list).toHaveTextContent("첫 주문 완료예측 맞추기용 · 받는 중 · 응답 0/50");
-    await user.click(within(list).getByRole("button", { name: "닫기" }));
-    expect(await within(list).findByText(/닫힘/)).toBeInTheDocument();
-    expect(within(list).queryByRole("button", { name: "링크 복사" })).not.toBeInTheDocument();
-  });
-
   it("표본이 10 미만이면 임시 조정안을 보여 주고 예측 맞추기 적용을 막는다", async () => {
     const projectId = await createTestProject();
     setCalibrationMock(projectId, { reason: null, provisional: true });

@@ -31,11 +31,11 @@ import {
   ErrorTrend,
 } from "./components/CalibrationViews";
 import ObservationView from "./components/ObservationView";
-import ParticipantLinks from "./components/ParticipantLinks";
 import { formatApplied } from "./utils/format";
 
 /*
   K01~K04 보정 (/projects/:projectId/calibration?view=history|observe)
+  사람 관측(?view=observe)으로 가는 링크는 화면에서 뺐습니다 (주소로만 열림, BE 는 그대로).
   조정안·적용·이력·되돌리기는 실제 API(BE calibrations)를 씁니다. 사람 관측(K04)은 아직 목데이터입니다.
   - 조정안 있음: K01 → 적용 확인(K02) → 적용됨(K03, 다음 테스트 대기)
   - 그 밖: 차이 없음(E11) · 실측 미연결/매핑 전/표본 부족/사전 테스트 없음 안내
@@ -105,15 +105,6 @@ function Calibration({ project }: { project: CurrentProject }) {
     onError: (error) => useToastStore.getState().show(error.message, "info"),
   });
 
-  const observeLink = (
-    <Link
-      to={{ search: "?view=observe" }}
-      className="flex w-fit items-center gap-1 text-caption font-bold text-ink hover:underline"
-    >
-      사람 관측으로 원인까지 비교하기
-      <Icon name="chevron-right" className="size-4" />
-    </Link>
-  );
   const badge = calibrated ? (
     <StatusBadge icon="check" label="예측 맞추기 적용됨" tone="muted" />
   ) : (
@@ -145,7 +136,6 @@ function Calibration({ project }: { project: CurrentProject }) {
           description="참여자 관찰 결과를 넣으면 원인까지 비교해요 (선택)"
           activeTab="calibration"
         />
-        <ParticipantLinks projectId={project.id} />
         <ObservationView projectId={project.id} />
       </div>
     );
@@ -202,7 +192,6 @@ function Calibration({ project }: { project: CurrentProject }) {
         {header()}
         <ErrorTrend history={records} />
         {historyTable}
-        {observeLink}
       </div>
     );
   }
@@ -263,7 +252,6 @@ function Calibration({ project }: { project: CurrentProject }) {
         {compareSection}
         <ProposalView proposal={data} />
         <div className="flex gap-6">
-          {observeLink}
           <Link to={{ search: "?view=history" }} className="text-caption font-bold text-ink">
             예측 맞추기 이력 {records.length}
           </Link>
@@ -294,7 +282,6 @@ function Calibration({ project }: { project: CurrentProject }) {
         {compareSection}
         <ErrorTrend history={records} />
         {historyTable}
-        {observeLink}
       </div>
     );
   }
@@ -314,7 +301,6 @@ function Calibration({ project }: { project: CurrentProject }) {
             </Button>
           }
         />
-        {observeLink}
       </div>
     );
   }
@@ -335,7 +321,6 @@ function Calibration({ project }: { project: CurrentProject }) {
         }
       />
       {records.length > 0 && historyTable}
-      {observeLink}
     </div>
   );
 }
