@@ -253,6 +253,16 @@ export type ScreenFriction = {
   screenshot_url: string | null;
 };
 
+/*
+  그 화면에서 이탈한 방문이 왜 그만뒀는지를 사람이 말하듯 쓴 문장 (BE agent/explain.describe).
+  같은 문장은 묶어 몇 번 방문이 그랬는지·어느 세그먼트였는지 셉니다. 말투만 사람처럼 바꾼 모델 판정 근거입니다.
+*/
+export type ScreenVoice = {
+  text: string;
+  sessions: number;
+  segments: string[];
+};
+
 export type ReportScreen = {
   screen_id: string;
   name: string;
@@ -264,6 +274,8 @@ export type ReportScreen = {
   frictions: ScreenFriction[];
   /* 이 화면에서 마찰을 하나라도 겪은 세션 수 */
   friction_sessions: number;
+  /* 여기서 이탈한 방문의 말 (최대 3개). 예전 리포트·서버 응답에는 없을 수 있습니다 */
+  voices?: ScreenVoice[];
 };
 
 export type ReportScreenCause = {
