@@ -153,6 +153,9 @@ function TilePreview({ session }: { session: PersonaSession }) {
         ))}
       </dl>
       {said && <p className="text-caption text-gray-800">“{said.text}”</p>}
+      {session.explanation && (
+        <p className="line-clamp-3 text-xs text-subtle">{session.explanation}</p>
+      )}
       <p className="flex items-center gap-1 text-caption font-bold text-ink">
         라이브 보기
         <Icon name="chevron-right" className="size-4" />

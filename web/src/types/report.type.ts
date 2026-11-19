@@ -222,6 +222,8 @@ export type ReportSessionDetail = {
   /* 끝나지 않은 세션은 "incomplete" */
   status: string;
   reason: string | null;
+  /* 왜 끝났는지 한 줄 (BE agent/explain.py). 끝나지 않은 세션은 null, 예전 서버는 없음 */
+  explanation?: string | null;
   steps: number;
   duration_seconds: number | null;
   terminal_stage: string | null;

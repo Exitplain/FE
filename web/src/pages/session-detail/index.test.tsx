@@ -67,6 +67,12 @@ describe("P15·P16 방문 상세 (제품 API)", () => {
       screen.getByText("신중한 첫 방문형 · 첫 주문 · 반복 2 · 3스텝 · 3분 05초"),
     ).toBeInTheDocument();
     expect(screen.getByText("이탈 원인").nextElementSibling).toHaveTextContent("입력 부담");
+    /* 서버가 만든 끝난 이유 한 줄 (BE agent/explain.py) */
+    expect(
+      screen.getByRole("heading", { name: "왜 이탈했나요?" }).nextElementSibling,
+    ).toHaveTextContent(
+      "가입 화면(/signup)에서 이탈 · 주 원인 입력 부담: 필수 입력 7칸 (허용 4칸)",
+    );
     expect(screen.getByText("좌절 점수").nextElementSibling).toHaveTextContent("80 / 임계치 70");
     expect(screen.queryByRole("tab", { name: /질문/ })).not.toBeInTheDocument();
     expect(screen.queryByText("이 방문에 질문하기")).not.toBeInTheDocument();

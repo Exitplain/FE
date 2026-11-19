@@ -218,6 +218,7 @@ function toSession(
     goal: "",
     status: session.status as SessionStatus,
     reason: session.reason ?? "",
+    explanation: session.explanation ?? null,
     steps: session.steps,
     url: session.latest_observation?.url,
     events,

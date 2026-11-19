@@ -147,8 +147,12 @@ export default function SessionLive({
                 </div>
               ))}
             </dl>
-            {!isRunning && session.reason && (
-              <p className="text-xs text-muted">결과 · {session.reason}</p>
+            {/* 끝난 방문: 서버가 만든 끝난 이유(explanation). 예전 서버면 기록된 사유(reason) */}
+            {!isRunning && (session.explanation || session.reason) && (
+              <p className="flex flex-col gap-1 rounded-lg bg-gray-50 p-3 text-caption text-ink">
+                <span className="text-xs text-subtle">끝난 이유</span>
+                {session.explanation || session.reason}
+              </p>
             )}
           </section>
 
