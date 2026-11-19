@@ -18,6 +18,7 @@ import {
   findDuplicateUsernames,
   furthestAllowedStep,
   isDiscoveryExpiredError,
+  customTaskSummary,
   isPlanExpired,
   panelSize,
   parseAccountsText,
@@ -328,5 +329,26 @@ describe("validateLoginUrl", () => {
     expect(validateLoginUrl(" https://lecq.co.kr/login ")).toBeNull();
     expect(loginUrlPlaceholder("https://lecq.co.kr/home?x=1")).toBe("https://lecq.co.kr/login");
     expect(loginUrlPlaceholder("")).toBe("https://example.com/login");
+  });
+});
+
+describe("customTaskSummary — 직접 추가한 과업이 이번 실행에 들어가는지 확인 화면에 적는다", () => {
+  it("서버가 실행에 넣는다고 하면 AI 가 성공 기준을 만든다고 알린다", () => {
+    expect(customTaskSummary(["배송지 바꾸기"], ["배송지 바꾸기"])).toBe(
+      "배송지 바꾸기 (AI가 성공 기준을 만들어 함께 테스트해요)",
+    );
+  });
+
+  it("서버가 알려 주지 않으면(설정 꺼짐·예전 서버) 예전처럼 실행에 포함하지 않는다고 적는다", () => {
+    expect(customTaskSummary(["배송지 바꾸기", "쿠폰 찾기"], undefined)).toBe(
+      "배송지 바꾸기 · 쿠폰 찾기 (실행에 포함 안 됨)",
+    );
+    expect(customTaskSummary(["배송지 바꾸기"], [])).toBe("배송지 바꾸기 (실행에 포함 안 됨)");
+  });
+
+  it("일부만 들어가면 과업마다 따로 적는다", () => {
+    expect(customTaskSummary(["배송지 바꾸기", "쿠폰 찾기"], ["쿠폰 찾기"])).toBe(
+      "쿠폰 찾기 (AI가 성공 기준을 만들어 함께 테스트해요) / 배송지 바꾸기 (실행에 포함 안 됨)",
+    );
   });
 });

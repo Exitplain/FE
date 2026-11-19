@@ -454,3 +454,20 @@ export function toPanelSegments(personas: RevisionPersonas): PanelSegment[] {
     };
   });
 }
+
+/*
+  확인 화면의 "직접 추가한 과업" 줄.
+  서버가 이번 실행에 넣는다고 알려 준 과업(review.tasks.custom_names)이면 AI 가 성공 기준을 만들어 함께 테스트하고,
+  아니면 예전처럼 실행에 넣지 않습니다. 둘이 섞이면 과업마다 따로 적습니다.
+*/
+export function customTaskSummary(customTasks: string[], runningNames: string[] | undefined) {
+  const running = new Set(runningNames ?? []);
+  const inRun = customTasks.filter((task) => running.has(task));
+  const notInRun = customTasks.filter((task) => !running.has(task));
+  return [
+    inRun.length > 0 ? `${inRun.join(" · ")} (AI가 성공 기준을 만들어 함께 테스트해요)` : "",
+    notInRun.length > 0 ? `${notInRun.join(" · ")} (실행에 포함 안 됨)` : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
+}
