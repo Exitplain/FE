@@ -283,8 +283,11 @@ function NewTestWizard({ project }: { project: CurrentProject }) {
       idempotencyKey = crypto.randomUUID();
       runKeys.current.set(planRevisionId, idempotencyKey);
     }
-    /* 시작에 성공하면 위저드 입력(계획)을 비우므로 과업 이름은 미리 잡아 둡니다 */
-    const tasks = plan?.tasks ?? [];
+    /*
+      시작에 성공하면 위저드 입력(계획)을 비우므로 과업 이름은 미리 잡아 둡니다.
+      plan.tasks 는 탐색 후보 전체라, 고르지 않은 과업이 실행 화면 탭에 나오지 않게 고른 과업만 남깁니다.
+    */
+    const tasks = (plan?.tasks ?? []).filter((task) => taskIds.includes(task.id));
     startRun.mutate(
       { projectId: project.id, planRevisionId, idempotencyKey },
       {
