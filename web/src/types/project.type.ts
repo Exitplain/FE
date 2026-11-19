@@ -25,7 +25,12 @@ export type ProjectOverview = {
     dateLabel: string | null;
   };
   analytics: {
-    status: "unconnected" | "collecting" | "comparable";
+    /* waiting: 키만 발급·수집 대기 · connected: 스크립트 수집이나 CSV 기록이 있음 */
+    status: "unconnected" | "waiting" | "connected" | "collecting" | "comparable";
+    /* 마지막으로 받은(스크립트) 또는 올린(CSV) 시각 */
+    lastDataLabel?: string | null;
+    /* 연결 방법 */
+    source?: "script" | "csv" | null;
     landingSessions: number | null;
     completedSessions: number | null;
     completionRate: number | null;

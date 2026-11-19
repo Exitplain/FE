@@ -16,8 +16,11 @@ export type V1LastPretest = {
 
 /* 실측 연결 상태. 수집 키가 없으면 unconnected, 키는 있는데 받은 수집이 없으면 waiting, 받았으면 connected */
 export type V1ProjectMeasurement = {
+  /* CSV 로 올린 기록만 있어도 connected 입니다 */
   status: "unconnected" | "waiting" | "connected";
   last_received_at: string | null;
+  /* 마지막으로 CSV 를 올린 시각 (예전 서버 응답에는 없을 수 있음) */
+  last_imported_at?: string | null;
 };
 
 /* 가장 최근 보정. 없거나 기본 모형으로 되돌렸으면 before (revision 등은 null) */

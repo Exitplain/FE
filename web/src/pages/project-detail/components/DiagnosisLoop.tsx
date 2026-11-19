@@ -95,7 +95,10 @@ export default function DiagnosisLoop({
                 className={buttonVariants({ variant: "outline" })}
                 to={buildPath(stage.route, { projectId: project.id })}
               >
-                {stage.action}
+                {/* 실측이 이미 연결됐으면(스크립트·CSV) 연결하기 대신 분석 보기 */}
+                {index === 1 && overview.analytics.status === "connected"
+                  ? "실제 고객 데이터 분석 보기"
+                  : stage.action}
               </Link>
             ) : (
               <p className="text-xs text-muted">다음</p>

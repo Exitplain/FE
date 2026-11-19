@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { getProjectDetail } from "@/apis/project.v1.api";
+import { setProjectLoopMock } from "@/mocks/handlers/projects";
 import { server } from "@/mocks/node";
 import { createTestProject } from "@/test/projects";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -29,6 +30,23 @@ describe("C05 프로젝트 개요 (GET /api/v1/projects/{id})", () => {
       "href",
       "/projects/1/tests/new",
     );
+  });
+
+  it("CSV 로만 올린 실측도 실제 고객 데이터 연결됨으로 보여 준다", async () => {
+    const projectId = await createTestProject();
+    setProjectLoopMock(Number(projectId), {
+      measurement: {
+        status: "connected",
+        last_received_at: null,
+        last_imported_at: "2026-11-19T10:00:00+09:00",
+      },
+    });
+    renderDetail(projectId);
+
+    expect(await screen.findByText("연결됨")).toBeInTheDocument();
+    expect(screen.getByText("CSV 로 올림")).toBeInTheDocument();
+    expect(screen.getByText("마지막으로 올린 날")).toBeInTheDocument();
+    expect(screen.queryByText("미연결")).not.toBeInTheDocument();
   });
 
   it("마지막 사전 테스트가 있으면 차수·상태를 보여준다", async () => {

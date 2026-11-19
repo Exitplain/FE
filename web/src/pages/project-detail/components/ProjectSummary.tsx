@@ -37,7 +37,11 @@ export default function ProjectSummary({
         ? "비교 가능"
         : overview.analytics.status === "collecting"
           ? "수집 중"
-          : "미연결",
+          : overview.analytics.status === "connected"
+            ? "연결됨"
+            : overview.analytics.status === "waiting"
+              ? "수집 대기"
+              : "미연결",
       rows: comparable
         ? [
             {
@@ -64,9 +68,20 @@ export default function ProjectSummary({
             {
               label: "상태",
               value:
-                overview.analytics.status === "collecting" ? "표본 수집 중" : "스크립트 미설치",
+                overview.analytics.status === "collecting"
+                  ? "표본 수집 중"
+                  : overview.analytics.status === "connected"
+                    ? overview.analytics.source === "csv"
+                      ? "CSV 로 올림"
+                      : "스크립트로 수집 중"
+                    : overview.analytics.status === "waiting"
+                      ? "첫 수집 대기"
+                      : "스크립트 미설치 · CSV 없음",
             },
-            { label: "최근 단계별 이동", value: "—" },
+            {
+              label: overview.analytics.source === "csv" ? "마지막으로 올린 날" : "마지막 수집",
+              value: overview.analytics.lastDataLabel ?? "—",
+            },
           ],
       link: "실제 고객 데이터 분석 보기",
       route: "analytics",

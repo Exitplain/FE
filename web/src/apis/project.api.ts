@@ -110,6 +110,27 @@ export async function getProjects(): Promise<ProjectRecord[]> {
     실측·보정은 BE 에 아직 없어 그 뒤로는 넘어가지 않습니다.
   - 최대 이탈 구간은 리포트 전체를 받아야 해서 비워 둡니다 (BE 요약에 들어오면 채움)
 */
+/* 프로젝트 상세의 실측 상태 → 개요 카드. 스크립트 수집이나 CSV 기록이 있으면 연결됨 */
+function analyticsOf(measurement: V1ProjectDetail["measurement"]) {
+  const status = measurement?.status ?? "unconnected";
+  const received = measurement?.last_received_at ?? null;
+  const imported = measurement?.last_imported_at ?? null;
+  const latest = [received, imported]
+    .filter((value): value is string => !!value)
+    .sort()
+    .pop();
+  return {
+    status:
+      status === "connected"
+        ? ("connected" as const)
+        : status === "waiting"
+          ? ("waiting" as const)
+          : ("unconnected" as const),
+    lastDataLabel: latest ? formatRunDate(latest) : null,
+    source: received ? ("script" as const) : imported ? ("csv" as const) : null,
+  };
+}
+
 export function toProjectOverview(project: V1ProjectDetail, runs?: RunItem[]): ProjectOverview {
   const last = project.runs.last_pretest;
   /* 목록은 차수 최신순입니다. 원인 재현은 사전 테스트가 아니라 뺍니다 */
@@ -136,7 +157,7 @@ export function toProjectOverview(project: V1ProjectDetail, runs?: RunItem[]): P
       dateLabel: createdAt ? formatRunDate(createdAt) : null,
     },
     analytics: {
-      status: "unconnected",
+      ...analyticsOf(project.measurement),
       landingSessions: null,
       completedSessions: null,
       completionRate: null,
