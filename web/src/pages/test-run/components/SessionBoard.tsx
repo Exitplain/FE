@@ -98,7 +98,7 @@ function SessionTile({ session, search }: { session: PersonaSession; search: str
   const segment = sessionSegment(session);
 
   return (
-    <li className="group relative">
+    <li className="group/tile relative">
       <Link
         to={{ search }}
         aria-label={`${code} · ${segment} · ${badge.label} — 방문 라이브 보기`}
@@ -118,13 +118,17 @@ function SessionTile({ session, search }: { session: PersonaSession; search: str
           {badge.label}
         </span>
       </Link>
-      {!queued && <TilePreview session={session} />}
+      {!queued && <TilePreview session={session} search={search} />}
     </li>
   );
 }
 
-/* P09b 타일 미리보기 — 화면 읽기 도구에는 타일 이름과 세션 라이브가 같은 내용을 주므로 숨깁니다 */
-function TilePreview({ session }: { session: PersonaSession }) {
+/*
+  P09b 타일 미리보기 — 화면 읽기 도구에는 타일 이름과 세션 라이브가 같은 내용을 주므로 숨깁니다.
+  타일과 말풍선 사이를 여백(margin) 대신 투명 패딩(pt-2)으로 이어, 마우스를 말풍선으로 옮겨도
+  닫히지 않고 '라이브 보기'를 누를 수 있습니다. 키보드는 타일 링크로 같은 곳에 가므로 탭 순서에서 뺍니다.
+*/
+function TilePreview({ session, search }: { session: PersonaSession; search: string }) {
   const last = session.trace.at(-1);
   const said = lastUtterance(session);
   const rows = [
@@ -138,28 +142,35 @@ function TilePreview({ session }: { session: PersonaSession }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute top-full left-0 z-20 mt-2 hidden w-60 flex-col gap-3 rounded-xl bg-surface p-4 shadow-tooltip group-focus-within:flex group-hover:flex"
+      className="absolute top-full left-0 z-20 hidden w-60 pt-2 group-focus-within/tile:block group-hover/tile:block"
     >
-      <p className="flex items-baseline gap-2">
-        <span className="text-caption font-bold text-ink">{sessionCode(session)}</span>
-        <span className="text-xs text-muted">{sessionSegment(session)}</span>
-      </p>
-      <dl className="flex flex-col gap-2 text-xs">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-4">
-            <dt className="text-subtle">{label}</dt>
-            <dd className="font-bold text-ink">{value}</dd>
-          </div>
-        ))}
-      </dl>
-      {said && <p className="text-caption text-gray-800">“{said.text}”</p>}
-      {session.explanation && (
-        <p className="line-clamp-3 text-xs text-subtle">{session.explanation}</p>
-      )}
-      <p className="flex items-center gap-1 text-caption font-bold text-ink">
-        라이브 보기
-        <Icon name="chevron-right" className="size-4" />
-      </p>
+      <div className="flex flex-col gap-3 rounded-xl bg-surface p-4 shadow-tooltip">
+        <p className="flex items-baseline gap-2">
+          <span className="text-caption font-bold text-ink">{sessionCode(session)}</span>
+          <span className="text-xs text-muted">{sessionSegment(session)}</span>
+        </p>
+        <dl className="flex flex-col gap-2 text-xs">
+          {rows.map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-4">
+              <dt className="text-subtle">{label}</dt>
+              <dd className="font-bold text-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {said && <p className="text-caption text-gray-800">“{said.text}”</p>}
+        {session.explanation && (
+          <p className="line-clamp-3 text-xs text-subtle">{session.explanation}</p>
+        )}
+        <Link
+          to={{ search }}
+          tabIndex={-1}
+          onMouseDown={(event) => event.preventDefault()}
+          className="flex w-fit items-center gap-1 text-caption font-bold text-ink hover:underline"
+        >
+          라이브 보기
+          <Icon name="chevron-right" className="size-4" />
+        </Link>
+      </div>
     </div>
   );
 }
