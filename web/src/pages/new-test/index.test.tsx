@@ -1455,7 +1455,13 @@ describe("P05b 세그먼트 유형 추론", () => {
         "*/api/v1/plans/:planId/segment-inferences",
         () =>
           HttpResponse.json(
-            { error: { code: "PERSONA_GENERATION_FAILED", message: "실패", fields: {} } },
+            {
+              error: {
+                code: "PERSONA_GENERATION_FAILED",
+                message: "페르소나를 만들지 못했습니다: ANTHROPIC_API_KEY 가 없어요",
+                fields: {},
+              },
+            },
             { status: 503 },
           ),
         { once: true },
@@ -1463,7 +1469,10 @@ describe("P05b 세그먼트 유형 추론", () => {
     );
     await toPersonaStep(user);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("세그먼트 유형을 정하지 못했어요");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("세그먼트 유형을 정하지 못했어요");
+    /* 서버가 준 이유를 함께 보여 줍니다 */
+    expect(alert).toHaveTextContent("ANTHROPIC_API_KEY 가 없어요 · PERSONA_GENERATION_FAILED");
     expect(screen.getByText("세그먼트 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다음: 시작 전 확인" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "다시 시도" }));
