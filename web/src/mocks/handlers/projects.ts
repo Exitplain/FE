@@ -103,9 +103,14 @@ export const projectHandlers = [
       total: MOCK_SAMPLE_PROJECTS.length,
     }),
   ),
-  http.get("*/api/v1/projects", ({ request }) =>
-    HttpResponse.json(paginate([...created].reverse().map(toSummary), new URL(request.url))),
-  ),
+  http.get("*/api/v1/projects", ({ request }) => {
+    const url = new URL(request.url);
+    const archived = url.searchParams.get("archived") === "true";
+    const items = [...created]
+      .reverse()
+      .filter((project) => Boolean(project.archived_at) === archived);
+    return HttpResponse.json(paginate(items.map(toSummary), url));
+  }),
   http.post("*/api/v1/projects", async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -119,7 +124,11 @@ export const projectHandlers = [
     } catch {
       return fieldError("entry_url", "HTTP 또는 HTTPS로 시작하는 주소를 입력해주세요");
     }
-    if ([SAMPLE_DETAIL, ...created].some((project) => project.entry_url === entryUrl))
+    if (
+      [SAMPLE_DETAIL, ...created].some(
+        (project) => !project.archived_at && project.entry_url === entryUrl,
+      )
+    )
       return fieldError("entry_url", "이미 등록된 프로젝트입니다.", 409, "DUPLICATE_PROJECT");
     const now = new Date().toISOString();
     const url = new URL(entryUrl);
@@ -140,12 +149,42 @@ export const projectHandlers = [
   }),
   http.get("*/api/v1/projects/:projectId", ({ params }) => {
     const project = findProject(params.projectId);
-    if (!project)
+    if (!project || project.archived_at)
       return HttpResponse.json(
         { error: { code: "NOT_FOUND", message: "프로젝트를 찾을 수 없습니다.", fields: {} } },
         { status: 404 },
       );
     return HttpResponse.json(structuredClone(project));
+  }),
+  http.delete("*/api/v1/projects/:projectId", ({ params }) => {
+    const project = findProject(params.projectId);
+    if (!project)
+      return HttpResponse.json(
+        { error: { code: "NOT_FOUND", message: "프로젝트를 찾을 수 없습니다.", fields: {} } },
+        { status: 404 },
+      );
+    if (project.is_sample)
+      return HttpResponse.json(
+        {
+          error: { code: "FORBIDDEN", message: "샘플 프로젝트는 삭제할 수 없습니다.", fields: {} },
+        },
+        { status: 403 },
+      );
+    if (project.archived_at) return new HttpResponse(null, { status: 204 });
+    if (project.runs.active > 0)
+      return HttpResponse.json(
+        {
+          error: {
+            code: "RUN_IN_PROGRESS",
+            message: "진행 중인 테스트가 있어요. 끝나거나 중지한 뒤에 삭제해 주세요.",
+            fields: {},
+          },
+        },
+        { status: 409 },
+      );
+    project.archived_at = new Date().toISOString();
+    project.updated_at = project.archived_at;
+    return new HttpResponse(null, { status: 204 });
   }),
   http.get("*/api/v1/projects/:projectId/runs", ({ params, request }) => {
     const known = MOCK_SAMPLE_PROJECTS.some((p) => String(p.id) === params.projectId);
