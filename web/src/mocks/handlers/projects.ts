@@ -20,6 +20,8 @@ const SAMPLE_DETAIL: V1ProjectDetail = {
   is_sample: true,
   archived_at: null,
   last_pretest: null,
+  measurement: { status: "unconnected", last_received_at: null },
+  calibration: { status: "before", revision: null, applied_at: null, mean_error_pp: null },
   updated_at: "2026-11-14T14:07:20.325695+00:00",
   allowed_origins: ["https://banchanroad.example"],
   login_mode: "none",
@@ -31,7 +33,28 @@ const SAMPLE_DETAIL: V1ProjectDetail = {
 
 function toSummary(project: V1ProjectDetail): V1ProjectSummary {
   const { id, name, entry_url, domain, is_sample, archived_at, last_pretest, updated_at } = project;
-  return { id, name, entry_url, domain, is_sample, archived_at, last_pretest, updated_at };
+  const { measurement, calibration } = project;
+  return {
+    id,
+    name,
+    entry_url,
+    domain,
+    is_sample,
+    archived_at,
+    last_pretest,
+    measurement,
+    calibration,
+    updated_at,
+  };
+}
+
+/* 테스트에서 만든 내 프로젝트의 실측·보정 상태를 바꿉니다 (목록·상세 모두 반영) */
+export function setProjectLoopMock(
+  projectId: number,
+  patch: Pick<Partial<V1ProjectDetail>, "measurement" | "calibration">,
+) {
+  const project = created.find((item) => item.id === projectId);
+  if (project) Object.assign(project, patch);
 }
 
 export const MOCK_SAMPLE_PROJECTS: V1ProjectSummary[] = [toSummary(SAMPLE_DETAIL)];

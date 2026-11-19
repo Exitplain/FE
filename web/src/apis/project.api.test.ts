@@ -59,4 +59,37 @@ describe("화면용 프로젝트 (apis/project.api)", () => {
     expect(record.lastTestStatus).toBeNull();
     expect(record.stageDetail).toBe("테스트 전");
   });
+
+  it("목록의 실측·보정 상태를 열 문구로 바꾸고, 주지 않거나 모르는 값이면 미연결·보정 전", async () => {
+    const detail = await getProjectDetail(1);
+    const record = (patch: Partial<typeof detail>) => toProjectRecord({ ...detail, ...patch });
+
+    expect(
+      record({
+        measurement: { status: "connected", last_received_at: null },
+        calibration: { status: "applied", revision: 3, applied_at: null, mean_error_pp: null },
+      }),
+    ).toMatchObject({
+      measurementStatus: "connected",
+      analytics: "실제 고객 데이터 연결됨",
+      calibrationRevision: 3,
+      calibration: "r3 적용",
+    });
+    expect(record({ measurement: { status: "waiting", last_received_at: null } })).toMatchObject({
+      measurementStatus: "waiting",
+      analytics: "실제 고객 데이터 수집 대기",
+    });
+    expect(record({ measurement: undefined, calibration: undefined })).toMatchObject({
+      measurementStatus: "unconnected",
+      analytics: "실제 고객 데이터 미연결",
+      calibrationRevision: null,
+      calibration: "예측 맞추기 전",
+    });
+    expect(
+      record({ measurement: { status: "toString" as never, last_received_at: null } }),
+    ).toMatchObject({ measurementStatus: "unconnected", analytics: "실제 고객 데이터 미연결" });
+    expect(
+      record({ measurement: { status: "paused" as never, last_received_at: null } }),
+    ).toMatchObject({ measurementStatus: "unconnected", analytics: "실제 고객 데이터 미연결" });
+  });
 });

@@ -14,6 +14,21 @@ export type V1LastPretest = {
   finished_at: string | null;
 };
 
+/* 실측 연결 상태. 수집 키가 없으면 unconnected, 키는 있는데 받은 수집이 없으면 waiting, 받았으면 connected */
+export type V1ProjectMeasurement = {
+  status: "unconnected" | "waiting" | "connected";
+  last_received_at: string | null;
+};
+
+/* 가장 최근 보정. 없거나 기본 모형으로 되돌렸으면 before (revision 등은 null) */
+export type V1ProjectCalibration = {
+  status: "before" | "applied";
+  revision: number | null;
+  applied_at: string | null;
+  /* 보정 기준 실측 대비 평균 오차(%p). 사람 관측만이거나 되돌린 리비전은 null */
+  mean_error_pp: number | null;
+};
+
 /* GET /api/v1/projects, GET /api/v1/sample/projects 의 항목 */
 export type V1ProjectSummary = {
   id: number;
@@ -23,6 +38,9 @@ export type V1ProjectSummary = {
   is_sample: boolean;
   archived_at: string | null;
   last_pretest: V1LastPretest | null;
+  /* 대시보드 실측·보정 열 (BE #44). 배포 전 서버는 주지 않을 수 있어 선택값으로 둡니다 */
+  measurement?: V1ProjectMeasurement;
+  calibration?: V1ProjectCalibration;
   updated_at: string;
 };
 

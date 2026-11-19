@@ -11,7 +11,7 @@ import { createProjectV1, getMyProjects, getSampleProjects } from "./project.v1.
 /*
   화면용 프로젝트 (C02~C05, 사이드바). 제품 API 응답을 화면 타입(ProjectRecord)으로 바꿉니다.
   - 목록: 내 프로젝트(로그인했을 때) + 샘플 프로젝트
-  - 실측(R)·보정(K)은 서버에 아직 없어 "실측 미연결"·"보정 전"으로 둡니다
+  - 실측·보정 열은 목록 항목의 measurement·calibration 으로 만듭니다 (주지 않으면 "실제 고객 데이터 미연결"·"예측 맞추기 전")
 */
 
 const RUN_STATUS: Record<RunStatus, WorkspaceRunStatus> = {
@@ -41,8 +41,22 @@ export function displayUrl(entryUrl: string): string {
   return entryUrl.replace(/^(https?:\/\/[^/?#]+)\/$/, "$1");
 }
 
+const ANALYTICS_LABEL: Record<ProjectRecord["measurementStatus"], string> = {
+  unconnected: "실제 고객 데이터 미연결",
+  waiting: "실제 고객 데이터 수집 대기",
+  connected: "실제 고객 데이터 연결됨",
+};
+
 export function toProjectRecord(project: V1ProjectSummary | V1ProjectDetail): ProjectRecord {
   const status = runStatusOf(project.last_pretest?.status);
+  /* 모르는 상태가 와도 화면이 비지 않게 미연결로 둡니다 */
+  const reported = project.measurement?.status;
+  const measurementStatus =
+    reported && Object.prototype.hasOwnProperty.call(ANALYTICS_LABEL, reported)
+      ? reported
+      : "unconnected";
+  const calibrationRevision =
+    project.calibration?.status === "applied" ? (project.calibration.revision ?? null) : null;
   return {
     id: String(project.id),
     name: project.name,
@@ -51,11 +65,13 @@ export function toProjectRecord(project: V1ProjectSummary | V1ProjectDetail): Pr
     stage: status ? 1 : 0,
     stageLabel: "사전 테스트",
     stageDetail: status ? STAGE_DETAIL[status] : "테스트 전",
-    analytics: "실제 고객 데이터 미연결",
-    calibration: "예측 맞추기 전",
+    analytics: ANALYTICS_LABEL[measurementStatus],
+    calibration: calibrationRevision == null ? "예측 맞추기 전" : `r${calibrationRevision} 적용`,
     action: status ? "테스트 기록 보기" : "첫 테스트 시작",
     actionTarget: "testList",
     lastTestStatus: status,
+    measurementStatus,
+    calibrationRevision,
     updatedLabel: formatRunDate(project.updated_at),
     isSample: project.is_sample,
   };

@@ -122,4 +122,82 @@ describe("대시보드 값", () => {
       action: "실제 고객 데이터 연결하기",
     });
   });
+
+  describe("루프 위치 — 실측·보정 상태 (끝낸 사전 테스트가 있을 때, 프로젝트 목록 값)", () => {
+    const nadaum = { id: "7", name: "나다움" };
+    const done = [{ project: nadaum, item: item("a", "2026-11-01T00:00:00Z") }];
+    const project = (
+      measurementStatus: "unconnected" | "waiting" | "connected",
+      calibrationRevision: number | null = null,
+    ) =>
+      ({
+        id: "7",
+        name: "나다움",
+        lastTestStatus: null,
+        measurementStatus,
+        calibrationRevision,
+      }) as unknown as Parameters<typeof projectLoop>[0];
+
+    it("수집 키가 없으면 4단계 · 실측 연결 전", () => {
+      expect(projectLoop(project("unconnected"), done)).toMatchObject({
+        stage: 4,
+        stageLabel: "실제 고객 데이터 분석",
+        stageDetail: "4 / 7 · 실제 고객 데이터 연결 전",
+        action: "실제 고객 데이터 연결하기",
+        actionHref: "/projects/7/analytics",
+      });
+    });
+
+    it("키는 있는데 수집이 아직 안 왔으면 5단계 · 수집 대기", () => {
+      expect(projectLoop(project("waiting"), done)).toMatchObject({
+        stage: 5,
+        stageDetail: "5 / 7 · 수집 대기",
+        action: "설치 확인하기",
+        actionHref: "/projects/7/analytics",
+      });
+    });
+
+    it("수집을 받았으면 6단계 · 실측 연결됨, 다음은 보정 조정안", () => {
+      expect(projectLoop(project("connected"), done)).toMatchObject({
+        stage: 6,
+        stageDetail: "6 / 7 · 실제 고객 데이터 연결됨",
+        action: "예측 맞추기 조정안 보기",
+        actionHref: "/projects/7/calibration",
+      });
+    });
+
+    it("보정을 적용했으면 7단계 · 보정 적용됨", () => {
+      expect(projectLoop(project("connected", 2), done)).toMatchObject({
+        stage: 7,
+        stageLabel: "예측 맞추기",
+        stageDetail: "7 / 7 · 예측 맞추기 적용됨",
+        action: "예측 맞추기 보기",
+        actionHref: "/projects/7/calibration",
+      });
+    });
+
+    it("진행 중인 사전 테스트가 있으면 실측·보정 상태와 관계없이 사전 테스트 단계", () => {
+      const running = [
+        ...done,
+        {
+          project: nadaum,
+          item: item("b", "2026-11-02T00:00:00Z", { status: "running", sequence_no: 2 }),
+        },
+      ];
+      expect(projectLoop(project("connected", 2), running)).toMatchObject({ stage: 1 });
+    });
+
+    it("실행 목록을 못 받아 프로젝트 목록의 마지막 사전 테스트로 대신할 때도 실측·보정 상태를 쓴다", () => {
+      expect(
+        projectLoop({ ...project("connected"), lastTestStatus: "completed" }, []),
+      ).toMatchObject({ stage: 6, actionHref: "/projects/7/calibration" });
+      expect(
+        projectLoop({ ...project("unconnected", 1), lastTestStatus: "completed" }, []),
+      ).toMatchObject({ stage: 7 });
+    });
+
+    it("끝낸 사전 테스트가 없으면 실측·보정 상태가 있어도 실측 단계로 넘기지 않는다", () => {
+      expect(projectLoop(project("connected", 2), [])).toMatchObject({ stage: 0 });
+    });
+  });
 });
