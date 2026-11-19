@@ -119,7 +119,7 @@ function AccountDialog({
       open
       onClose={onClose}
       title="테스트 계정 등록"
-      description={`계정 1개로 에이전트 1명이 로그인해요 · 최대 ${ACCOUNT_MAX}개`}
+      description={`계정 1개로 AI 고객 1명이 로그인해요 · 최대 ${ACCOUNT_MAX}개`}
       footer={
         <Button
           disabled={!canSave || saving}
@@ -132,7 +132,7 @@ function AccountDialog({
       <Field
         label="로그인 화면 주소"
         hint="필수"
-        help="에이전트가 이 화면에서 아래 계정으로 로그인한 뒤 테스트해요"
+        help="AI 고객이 이 화면에서 아래 계정으로 로그인한 뒤 테스트해요"
         error={(loginUrlTouched && loginUrlError) || undefined}
       >
         {(control) => (
@@ -274,8 +274,8 @@ function AccountDialog({
       <div className="flex flex-col gap-3">
         <p className="text-base font-medium text-ink">
           {filledCount > 0
-            ? `에이전트 ${filledCount}명으로 실행해요`
-            : "계정을 넣으면 에이전트 수가 정해져요"}
+            ? `AI 고객 ${filledCount}명으로 실행해요`
+            : "계정을 넣으면 AI 고객 수가 정해져요"}
         </p>
         <div className="h-2 overflow-hidden rounded bg-line">
           {/* 진행 막대 길이는 입력 값이라 style 로 둡니다 */}

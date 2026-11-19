@@ -13,13 +13,13 @@ const steps = [
   },
   { title: "리포트 확인", description: "어디서·왜 이탈하는지 범위로 보여줘요", done: true },
   {
-    title: "실측 스크립트 설치",
-    description: "실제 사용자의 퍼널 단계만 익명으로 모아요",
+    title: "실제 고객 데이터 스크립트 설치",
+    description: "실제 사용자의 이동 단계만 익명으로 모아요",
     done: false,
   },
   {
-    title: "예측 vs 실측 비교 → 보정",
-    description: "차이를 확인하고 이 사이트에 맞게 예측을 보정해요",
+    title: "예측 vs 실제 고객 데이터 비교 → 예측 맞추기",
+    description: "차이를 확인하고 이 사이트에 맞게 예측을 맞춰요",
     done: false,
   },
 ];
@@ -52,7 +52,7 @@ export default function GuideChecklist() {
                 className={buttonVariants({ variant: "outline" })}
                 to={buildPath("analytics", { projectId: "1" })}
               >
-                실측 데이터 연결하기
+                실제 고객 데이터 연결하기
               </Link>
             ) : (
               <span className="text-sm text-muted">다음 단계</span>

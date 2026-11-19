@@ -45,7 +45,7 @@ export default function IssuesPage({
       {header ?? (
         <WorkspacePageHeader
           title="발견한 문제"
-          description="같은 과업·단계·원인으로 멈춘 가상 세션을 하나로 묶었어요"
+          description="같은 과업·단계·원인으로 멈춘 가상 방문을 하나로 묶었어요"
         />
       )}
       {all.length > 0 && (

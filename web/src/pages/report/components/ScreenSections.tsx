@@ -38,7 +38,7 @@ function Shot({ url, alt, className }: { url: string | null; alt: string; classN
 function FrictionChip({ friction }: { friction: ScreenFriction }) {
   return (
     <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-danger">
-      {friction.name} · {friction.sessions}세션
+      {friction.name} · {friction.sessions}회 방문
     </span>
   );
 }
@@ -114,9 +114,9 @@ export function ScreenWalkthrough({
               screen.dropouts_here > 0 ? "text-danger" : "text-subtle",
             )}
           >
-            도달 {screen.reached}세션 · 여기서 이탈 {screen.dropouts_here}세션
+            도달 {screen.reached}회 방문 · 여기서 이탈 {screen.dropouts_here}회 방문
           </p>
-          <h4 className="text-caption font-bold text-ink">감지된 마찰</h4>
+          <h4 className="text-caption font-bold text-ink">감지된 불편한 점</h4>
           {screen.frictions.length > 0 ? (
             <ul className="flex flex-col gap-2">
               {screen.frictions.map((friction) => (
@@ -127,14 +127,14 @@ export function ScreenWalkthrough({
                   )}
                   {friction.dropouts > 0 && (
                     <span className="text-xs text-muted">
-                      이 원인으로 이탈 {friction.dropouts}세션
+                      이 원인으로 이탈 {friction.dropouts}회 방문
                     </span>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-caption text-subtle">이 화면에서 감지된 마찰이 없어요</p>
+            <p className="text-caption text-subtle">이 화면에서 감지된 불편한 점이 없어요</p>
           )}
         </div>
       </div>
@@ -198,7 +198,7 @@ export function ProblemScreens({
     return (
       <p className="flex items-center gap-2 text-sm text-subtle">
         <Icon name="check" className="size-4" />
-        마찰이 감지된 화면이 없어요
+        불편한 점이 감지된 화면이 없어요
       </p>
     );
   }
@@ -244,11 +244,11 @@ export function FrictionCauses({
   onOpen: (screenId: string) => void;
 }) {
   if (task.causes.length === 0) {
-    return <p className="text-sm text-subtle">감지된 마찰이 없어요.</p>;
+    return <p className="text-sm text-subtle">감지된 불편한 점이 없어요.</p>;
   }
   const max = Math.max(task.valid_sessions, ...task.causes.map((c) => c.sessions), 1);
   return (
-    <ul aria-label="감지된 마찰 분포" className="flex flex-col gap-3">
+    <ul aria-label="감지된 불편한 점 분포" className="flex flex-col gap-3">
       {task.causes.map((cause) => {
         const where = cause.screens[0];
         return (
@@ -264,7 +264,7 @@ export function FrictionCauses({
               />
             </span>
             <span className="text-caption text-ink tabular-nums">
-              <b>{cause.sessions}세션</b>
+              <b>{cause.sessions}회 방문</b>
               {cause.dropouts > 0 && (
                 <span className="text-xs text-muted"> · 이탈 {cause.dropouts}</span>
               )}

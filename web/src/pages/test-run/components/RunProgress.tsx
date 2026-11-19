@@ -100,7 +100,7 @@ export default function RunProgress({
           aria-valuemin={0}
           aria-valuemax={Math.max(counts.all, 1)}
           aria-valuenow={counts.finished}
-          aria-valuetext={`${counts.finished} / ${counts.all} 세션 끝남`}
+          aria-valuetext={`${counts.finished} / ${counts.all}회 방문 끝남`}
           className="h-2 overflow-hidden rounded-full bg-line"
         >
           {/* 막대 길이는 진행 값이라 style 로 둡니다 */}
@@ -111,7 +111,7 @@ export default function RunProgress({
       {phase === "running" ? (
         <>
           {recentFinished.length > 0 && (
-            <p className="text-caption font-medium text-gray-800">최근 끝난 세션</p>
+            <p className="text-caption font-medium text-gray-800">최근 끝난 방문</p>
           )}
           <div className="flex flex-wrap items-center gap-6 pt-4 text-sm font-bold text-ink">
             {elapsedMs != null && (
@@ -123,12 +123,12 @@ export default function RunProgress({
             {busiest && (
               <p className="flex items-center gap-2">
                 <Icon name="play" className="size-5" />
-                지금 가장 많은 단계: {STAGE_LABELS[busiest.stage]} · {busiest.count}세션
+                지금 가장 많은 단계: {STAGE_LABELS[busiest.stage]} · {busiest.count}회 방문
               </p>
             )}
           </div>
           {recentFinished.length > 0 && (
-            <ul aria-label="최근 끝난 세션" className="flex flex-wrap gap-6">
+            <ul aria-label="최근 끝난 방문" className="flex flex-wrap gap-6">
               {recentFinished.map((session) => {
                 const badge = sessionBadge(session.status);
                 const alert = badge.tone === "danger" || badge.tone === "alert";

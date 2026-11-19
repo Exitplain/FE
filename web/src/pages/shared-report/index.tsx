@@ -96,7 +96,7 @@ function SharedReport({ shareId }: { shareId: string }) {
         <WorkspaceState
           kind="empty"
           title="이 리포트에는 과업 결과가 없어요"
-          description="모든 세션이 기술 실패로 끝났을 수 있어요. 공유한 사람에게 확인해 주세요."
+          description="모든 방문이 기술 실패로 끝났을 수 있어요. 공유한 사람에게 확인해 주세요."
         />
       </Column>
     );
@@ -127,7 +127,7 @@ function SharedBody({ shared, task }: { shared: SharedReportData; task: ReportTa
   const glance = [
     task.valid_sessions > 0 && {
       title: `목표 달성률 ${formatMinMax(rate, "%")} (예측)`,
-      note: `유효 세션 ${task.valid_sessions}개 중 ${task.success}개가 목표에 도달했어요`,
+      note: `유효 방문 ${task.valid_sessions}개 중 ${task.success}개가 목표에 도달했어요`,
     },
     drop && {
       title: `가장 많이 떠난 구간 · ${drop.label}`,
@@ -178,9 +178,9 @@ function SharedBody({ shared, task }: { shared: SharedReportData; task: ReportTa
         <KpiRow task={task} />
       </section>
 
-      <ReportSection id="funnel" title="1. 예측 퍼널" aside="도달 인원 · 범위 = 시드 반복">
+      <ReportSection id="funnel" title="1. 예측 단계별 이동" aside="도달 인원 · 범위 = 반복">
         {funnel.length > 0 && max > 0 ? (
-          <RangeBarChart title="예측 퍼널" data={funnel} max={max} valueWidth={180} />
+          <RangeBarChart title="예측 단계별 이동" data={funnel} max={max} valueWidth={180} />
         ) : (
           <p className="text-sm text-subtle">이 과업은 단계별 예측 기록이 없어요.</p>
         )}

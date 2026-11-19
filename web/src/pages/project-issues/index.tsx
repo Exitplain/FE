@@ -13,7 +13,7 @@ export default function ProjectIssuesPage() {
         <ProjectContextHeader
           project={project}
           title="발견한 문제"
-          description={`${project.name}에서 같은 과업·단계·원인으로 멈춘 가상 세션을 묶었어요`}
+          description={`${project.name}에서 같은 과업·단계·원인으로 멈춘 가상 방문을 묶었어요`}
         />
       }
     />

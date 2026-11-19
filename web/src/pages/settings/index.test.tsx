@@ -57,7 +57,7 @@ describe("W04 워크스페이스 설정 (GET·PATCH /api/v1/workspace)", () => {
     const name = await screen.findByRole("textbox", { name: "워크스페이스 이름" });
     expect(name).toHaveValue("My workspace");
     expect(screen.getByRole("textbox", { name: "이메일" })).toHaveValue("maker@example.com");
-    expect(screen.getByText("동시 세션").nextElementSibling).toHaveTextContent("최대 5");
+    expect(screen.getByText("동시 방문").nextElementSibling).toHaveTextContent("최대 5");
     expect(screen.getByText("LLM 비용 상한").nextElementSibling).toHaveTextContent(
       "실행당 상한 (값 확인 필요)",
     );

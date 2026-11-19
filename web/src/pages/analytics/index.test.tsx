@@ -33,22 +33,26 @@ async function connectedProject(patch = {}) {
   return projectId;
 }
 
-describe("R01~R11 실측 분석", () => {
-  it("R06 — 연결된 프로젝트는 과업별 실측 퍼널을 보여주고, 기기별로 나눠 볼 수 있다(R07)", async () => {
+describe("R01~R11 실제 고객 데이터 분석", () => {
+  it("R06 — 연결된 프로젝트는 과업별 실제 고객 데이터 단계별 이동을 보여주고, 기기별로 나눠 볼 수 있다(R07)", async () => {
     const user = userEvent.setup();
     await renderAnalytics(await connectedProject());
 
-    expect(await screen.findByRole("heading", { level: 1, name: "실측 퍼널" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "실제 고객 데이터 단계별 이동" }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("비교 가능")).toBeInTheDocument();
-    const funnel = screen.getByRole("table", { name: "실측 퍼널" });
+    const funnel = screen.getByRole("table", { name: "실제 고객 데이터 단계별 이동" });
     expect(within(funnel).getAllByRole("row")).toHaveLength(6);
     expect(within(funnel).getByRole("row", { name: /장바구니/ })).toHaveTextContent(
-      "546 세션 · 44.0% · 이탈 41.3%",
+      "546회 방문 · 44.0% · 이탈 41.3%",
     );
 
     await user.click(screen.getByRole("radio", { name: "모바일" }));
-    expect(await screen.findByRole("heading", { name: "모바일 · 856 세션" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "데스크톱 · 384 세션" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "모바일 · 856회 방문" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "데스크톱 · 384회 방문" }),
+    ).toBeInTheDocument();
   });
 
   it("E09 — 표본이 모자라면 수집 중으로 알리고 단계마다 표본 부족을 표시한다", async () => {
@@ -64,8 +68,10 @@ describe("R01~R11 실측 분석", () => {
     const projectId = await createTestProject();
     await renderAnalytics(projectId);
 
-    await user.click(await screen.findByRole("button", { name: "실측 데이터 연결하기" }));
-    expect(screen.getByRole("heading", { level: 1, name: "실측 데이터 연결" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "실제 고객 데이터 연결하기" }));
+    expect(
+      screen.getByRole("heading", { level: 1, name: "실제 고객 데이터 연결" }),
+    ).toBeInTheDocument();
     /* 화면을 열면 키를 발급해 스니펫을 보여줍니다 */
     const key = `ep_${Number(projectId).toString(16).padStart(12, "0")}`;
     expect(await screen.findByText(new RegExp(`data-project="${key}"`))).toBeInTheDocument();
@@ -105,7 +111,9 @@ describe("R01~R11 실측 분석", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "매핑 저장" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "실측 퍼널" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "실제 고객 데이터 단계별 이동" }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("비교 가능")).toBeInTheDocument();
   }, 15000);
 
@@ -117,7 +125,7 @@ describe("R01~R11 실측 분석", () => {
     await user.click(await screen.findByRole("button", { name: "/faq 단계: 매핑 안 함" }));
     await user.click(screen.getByRole("menuitemradio", { name: "1. 첫 화면" }));
     await user.click(screen.getByRole("button", { name: "매핑 저장" }));
-    await screen.findByRole("heading", { level: 1, name: "실측 퍼널" });
+    await screen.findByRole("heading", { level: 1, name: "실제 고객 데이터 단계별 이동" });
     first.unmount();
 
     await renderAnalytics(projectId, "?view=mapping");
@@ -156,18 +164,22 @@ describe("R01~R11 실측 분석", () => {
     }
   });
 
-  it("배포 주소가 없는 프로젝트는 실측을 시작하지 않고 이유를 알려준다", async () => {
+  it("배포 주소가 없는 프로젝트는 실제 고객 데이터를 시작하지 않고 이유를 알려준다", async () => {
     const projectId = await createTestProject();
     setMeasurementMock(Number(projectId), { deployed: false });
     await renderAnalytics(projectId);
 
     expect(
-      await screen.findByRole("heading", { name: "배포된 사이트가 있어야 실측할 수 있어요" }),
+      await screen.findByRole("heading", {
+        name: "배포된 사이트가 있어야 실제 고객 데이터를 모을 수 있어요",
+      }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "실측 데이터 연결하기" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "실제 고객 데이터 연결하기" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("R08 → R09~R11 — 차이 구간에서 고른 세그먼트로 실제 재현을 돌리고, 재현 리포트의 마찰을 원인 가설로 본다", async () => {
+  it("R08 → R09~R11 — 차이 구간에서 고른 세그먼트로 실제 재현을 돌리고, 재현 리포트의 불편한 점을 원인 가설로 본다", async () => {
     let created: Record<string, unknown> | null = null;
     let polls = 0;
     let sessionsServed = false;
@@ -301,7 +313,7 @@ describe("R01~R11 실측 분석", () => {
 
     expect(await screen.findByText("불일치")).toBeInTheDocument();
     expect(
-      screen.getByText("예측 장바구니→회원가입 / 실측 상품 상세→장바구니"),
+      screen.getByText("예측 장바구니→회원가입 / 실제 고객 데이터 상품 상세→장바구니"),
     ).toBeInTheDocument();
     expect(screen.getByText("5.2%p")).toBeInTheDocument();
     expect(screen.getByText("5개 단계 절댓값 평균")).toBeInTheDocument();
@@ -319,7 +331,9 @@ describe("R01~R11 실측 분석", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "원인 재현 · 장바구니" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("장바구니 · 실측 44.0% · 예측 55~65% (−16.0%p)")).toBeInTheDocument();
+    expect(
+      screen.getByText("장바구니 · 실제 고객 데이터 44.0% · 예측 55~65% (−16.0%p)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("고른 세그먼트 · 20명")).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "가격 민감형 · 5명" }));
@@ -328,7 +342,7 @@ describe("R01~R11 실측 분석", () => {
     await user.click(screen.getByRole("button", { name: "재현 시작" }));
 
     /* 비교한 사전 테스트 실행을 기준으로, 그 과업 × 고른 세그먼트만 돌립니다 */
-    expect(await screen.findByRole("list", { name: "재현 세션" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "재현 방문" })).toBeInTheDocument();
     expect(created).toEqual({
       plan_revision_id: "plan-rev-mock",
       base_run_id: "run-mock-base",
@@ -373,7 +387,7 @@ describe("R01~R11 실측 분석", () => {
     expect(screen.getByText("모두 범위 안")).toBeInTheDocument();
   });
 
-  it("매핑하지 않은 단계는 실측 없이 비워 두고 오차에서 뺀다", async () => {
+  it("매핑하지 않은 단계는 실제 고객 데이터 없이 비워 두고 오차에서 뺀다", async () => {
     await renderAnalytics(
       await connectedProject({ mapping: { "/signup": null } }),
       "?view=compare",
@@ -387,13 +401,15 @@ describe("R01~R11 실측 분석", () => {
     await renderAnalytics(await createTestProject(), "?view=compare");
 
     expect(
-      await screen.findByRole("heading", { name: "실측 데이터가 아직 없어요" }),
+      await screen.findByRole("heading", { name: "실제 고객 데이터가 아직 없어요" }),
     ).toBeInTheDocument();
   });
 
-  it("샘플 프로젝트는 실측을 연결할 수 없다고 알려준다", async () => {
+  it("샘플 프로젝트는 실제 고객 데이터를 연결할 수 없다고 알려준다", async () => {
     await renderAnalytics("1");
 
-    expect(await screen.findByText(/샘플 프로젝트는 실측을 연결할 수 없어요/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/샘플 프로젝트는 실제 고객 데이터를 연결할 수 없어요/),
+    ).toBeInTheDocument();
   });
 });

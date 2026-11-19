@@ -71,45 +71,45 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "첫 주문 · 1차" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/AI 고객 \d+명 × 시드 \d+회/)).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: "예측 퍼널" })).toBeInTheDocument();
+    expect(screen.getByText(/AI 고객 \d+명 × 반복 \d+회/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "예측 단계별 이동" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "과업" })).toHaveTextContent("쿠폰");
   });
 
-  it("요약 4칸: 시드별 달성률 범위·최대 이탈 구간·중앙 소요 시간·기록 세션", async () => {
+  it("요약 4칸: 반복별 달성률 범위·최대 이탈 구간·중앙 소요 시간·기록 방문", async () => {
     serveReport();
     renderReport(await completeRun());
 
     expect(await screen.findByText("45~55%")).toBeInTheDocument();
-    expect(screen.getByText("완료 30명 / 58명 · 시드 합계")).toBeInTheDocument();
+    expect(screen.getByText("완료 30명 / 58명 · 반복 합계")).toBeInTheDocument();
     /* 가입 단계에서 14명이 떠남 (장바구니 44명 대비 32%) */
     expect(screen.getByText("장바구니 → 가입")).toBeInTheDocument();
     expect(screen.getByText("이 구간 이탈 14명 · 32%")).toBeInTheDocument();
     expect(screen.getByText("중앙 소요 시간").nextElementSibling).toHaveTextContent("1분 26초");
-    expect(screen.getByText("기록 세션").nextElementSibling).toHaveTextContent("60/60개");
+    expect(screen.getByText("기록 방문").nextElementSibling).toHaveTextContent("60/60개");
     expect(screen.getByText("기술 실패 2 · 결과 없음 0")).toBeInTheDocument();
     /* 머리말 설명: 세션 목록의 페르소나 20명 × 시드 3회 */
-    expect(screen.getByText("11월 7일 · AI 고객 20명 × 시드 3회")).toBeInTheDocument();
+    expect(screen.getByText("11월 7일 · AI 고객 20명 × 반복 3회")).toBeInTheDocument();
   });
 
-  it("예측 퍼널은 시드별 도달 범위와 유효 세션 대비 비율을 보여준다", async () => {
+  it("예측 단계별 이동은 반복별 도달 범위와 유효 방문 대비 비율을 보여준다", async () => {
     serveReport();
     renderReport(await completeRun());
 
-    const funnel = await screen.findByRole("table", { name: "예측 퍼널" });
+    const funnel = await screen.findByRole("table", { name: "예측 단계별 이동" });
     expect(within(funnel).getAllByRole("row")).toHaveLength(7);
     expect(within(funnel).getByRole("row", { name: /랜딩/ })).toHaveTextContent("19~20명");
     expect(within(funnel).getByRole("row", { name: /가입/ })).toHaveTextContent("9~11명 · 52%");
   });
 
-  it("지나가지 않는 단계(가입 0명 뒤에 결제)는 퍼널·최대 이탈 구간에서 뺀다", async () => {
+  it("지나가지 않는 단계(가입 0명 뒤에 결제)는 단계별 이동·최대 이탈 구간에서 뺀다", async () => {
     serveReport();
     const user = userEvent.setup();
     renderReport(await completeRun());
 
     await user.click(await screen.findByRole("radio", { name: "쿠폰으로 주문" }));
 
-    const funnel = screen.getByRole("table", { name: "예측 퍼널" });
+    const funnel = screen.getByRole("table", { name: "예측 단계별 이동" });
     expect(within(funnel).getAllByRole("row")).toHaveLength(6);
     expect(within(funnel).queryByRole("row", { name: /가입/ })).not.toBeInTheDocument();
     expect(screen.getByText("상세 → 장바구니")).toBeInTheDocument();
@@ -122,7 +122,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("원인은 주 원인으로 떠난 세션이 있는 것만, 3종 먼저 보여주고 더 보기로 펼친다", async () => {
+  it("원인은 주 원인으로 떠난 방문이 있는 것만, 3종 먼저 보여주고 더 보기로 펼친다", async () => {
     serveReport();
     const user = userEvent.setup();
     renderReport(await completeRun());
@@ -154,16 +154,16 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     expect(within(table).getByRole("row", { name: /바쁜 직장인/ })).toHaveTextContent("2355000");
   });
 
-  it("기술 실패 세션과 결과 해석의 한계를 실행 전체 기준으로 아래에 보여준다", async () => {
+  it("기술 실패 방문과 결과 해석의 한계를 실행 전체 기준으로 아래에 보여준다", async () => {
     serveReport();
     renderReport(await completeRun());
 
     const failures = await screen.findByRole("region", { name: "기술 실패 · 한도 초과" });
-    expect(failures).toHaveTextContent("P-007 · 시드 2");
+    expect(failures).toHaveTextContent("P-007 · 반복 2");
     expect(failures).toHaveTextContent("첫 주문");
     expect(failures).toHaveTextContent("화면을 읽지 못했어요");
     /* 행을 누르면 그 세션 상세(E06)로 갑니다 */
-    expect(within(failures).getByRole("link", { name: /P-007 · 시드 2/ })).toHaveAttribute(
+    expect(within(failures).getByRole("link", { name: /P-007 · 반복 2/ })).toHaveAttribute(
       "href",
       expect.stringMatching(/\/runs\/[^/]+\/sessions\/order\/2\/P-007$/),
     );
@@ -172,13 +172,13 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     );
   });
 
-  it("v1 리포트에 없는 개선 Top 3·실측 비교는 보여주지 않는다", async () => {
+  it("v1 리포트에 없는 개선 Top 3·실제 고객 데이터 비교는 보여주지 않는다", async () => {
     serveReport();
     renderReport(await completeRun());
 
-    await screen.findByRole("table", { name: "예측 퍼널" });
+    await screen.findByRole("table", { name: "예측 단계별 이동" });
     expect(screen.queryByRole("heading", { name: /개선 Top 3/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/실측 비교/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/실제 고객 데이터 비교/)).not.toBeInTheDocument();
   });
 
   it("P17 — 같은 확정 계획으로 재테스트를 시작하고 새 실행 화면으로 간다", async () => {
@@ -420,7 +420,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     expect(screen.getByRole("region", { name: "기술 실패 · 한도 초과" })).toBeInTheDocument();
   });
 
-  it("유효 세션이 없으면 달성률을 지어내지 않는다", async () => {
+  it("유효 방문이 없으면 달성률을 지어내지 않는다", async () => {
     serveReport(
       cannedReport([
         orderTask({
@@ -437,7 +437,7 @@ describe("P12 리포트 (GET /api/v1/runs/{id}/reports)", () => {
     );
     renderReport(await completeRun());
 
-    expect(await screen.findByText("완료 0명 / 0명 · 시드 합계")).toBeInTheDocument();
+    expect(await screen.findByText("완료 0명 / 0명 · 반복 합계")).toBeInTheDocument();
     expect(screen.getByText("목표 달성률").nextElementSibling).toHaveTextContent("—");
   });
 });
@@ -551,7 +551,7 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
     ],
   });
 
-  it("실제 화면 캡처를 넘겨 보고, 화면마다 도달·이탈과 감지된 마찰을 보여 준다", async () => {
+  it("실제 화면 캡처를 넘겨 보고, 화면마다 도달·이탈과 감지된 불편한 점을 보여 준다", async () => {
     server.use(
       http.get("*/api/v1/reports/:reportId/screens", ({ params }) =>
         HttpResponse.json(screens(String(params.reportId))),
@@ -566,12 +566,16 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
       "src",
       expect.stringContaining("/api/v1/observations/1/screenshot"),
     );
-    expect(within(walkthrough).getByText("이 화면에서 감지된 마찰이 없어요")).toBeInTheDocument();
+    expect(
+      within(walkthrough).getByText("이 화면에서 감지된 불편한 점이 없어요"),
+    ).toBeInTheDocument();
 
     await user.click(within(walkthrough).getByRole("button", { name: "다음 화면" }));
     await user.click(within(walkthrough).getByRole("button", { name: "다음 화면" }));
-    expect(within(walkthrough).getByText("도달 10세션 · 여기서 이탈 7세션")).toBeInTheDocument();
-    expect(within(walkthrough).getByText("입력 부담 · 9세션")).toBeInTheDocument();
+    expect(
+      within(walkthrough).getByText("도달 10회 방문 · 여기서 이탈 7회 방문"),
+    ).toBeInTheDocument();
+    expect(within(walkthrough).getByText("입력 부담 · 9회 방문")).toBeInTheDocument();
     expect(within(walkthrough).getByText("필수 입력 8칸 (허용 4칸)")).toBeInTheDocument();
     expect(within(walkthrough).getByRole("button", { name: "회원가입 화면 보기" })).toHaveAttribute(
       "aria-pressed",
@@ -584,8 +588,8 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
       .getAllByRole("listitem")
       .map((item) => within(item).getByRole("button"));
     expect(cards).toHaveLength(2);
-    expect(cards[0]).toHaveTextContent("회원가입/signup입력 부담 · 9세션이탈 7");
-    expect(cards[1]).toHaveTextContent("장바구니/cart비용 충격 · 5세션이탈 1");
+    expect(cards[0]).toHaveTextContent("회원가입/signup입력 부담 · 9회 방문이탈 7");
+    expect(cards[1]).toHaveTextContent("장바구니/cart비용 충격 · 5회 방문이탈 1");
     await user.click(cards[1]);
     expect(within(walkthrough).getByRole("button", { name: "장바구니 화면 보기" })).toHaveAttribute(
       "aria-pressed",
@@ -593,7 +597,7 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
     );
   });
 
-  it("원인 분포는 감지된 마찰(모든 세션)이 기본이고 이탈 원인으로 바꿀 수 있다", async () => {
+  it("원인 분포는 감지된 불편한 점(모든 방문)이 기본이고 이탈 원인으로 바꿀 수 있다", async () => {
     server.use(
       http.get("*/api/v1/reports/:reportId/screens", ({ params }) =>
         HttpResponse.json(screens(String(params.reportId))),
@@ -603,10 +607,12 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
     serveReport();
     renderReport(await completeRun());
 
-    const list = await screen.findByRole("list", { name: "감지된 마찰 분포" });
-    expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("입력 부담9세션 · 이탈 7");
-    await user.click(screen.getByRole("button", { name: "이탈 원인 (이탈 세션만)" }));
-    expect(screen.queryByRole("list", { name: "감지된 마찰 분포" })).not.toBeInTheDocument();
+    const list = await screen.findByRole("list", { name: "감지된 불편한 점 분포" });
+    expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent(
+      "입력 부담9회 방문 · 이탈 7",
+    );
+    await user.click(screen.getByRole("button", { name: "이탈 원인 (이탈 방문만)" }));
+    expect(screen.queryByRole("list", { name: "감지된 불편한 점 분포" })).not.toBeInTheDocument();
     expect(screen.getByRole("table", { name: "이탈 원인 분포" })).toBeInTheDocument();
   });
 
@@ -628,7 +634,7 @@ describe("P12 리포트 · 화면 둘러보기 (GET /api/v1/reports/{id}/screens
     expect(await screen.findByRole("table", { name: "이탈 원인 분포" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "화면 둘러보기" })).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "이탈 원인 (이탈 세션만)" }),
+      screen.queryByRole("button", { name: "이탈 원인 (이탈 방문만)" }),
     ).not.toBeInTheDocument();
   });
 });

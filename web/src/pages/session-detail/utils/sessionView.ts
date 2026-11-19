@@ -43,7 +43,7 @@ export function describeSession(session: PersonaSession) {
   const parts = [sessionSegment(session)];
   const technical = isTechnical(session.status);
   if (!technical) parts.push(session.task_name);
-  if (session.seed != null) parts.push(`시드 ${session.seed}`);
+  if (session.seed != null) parts.push(`반복 ${session.seed}`);
   parts.push(technical ? `${session.steps}스텝에서 멈춤` : `${session.steps}스텝`);
   if (!technical && session.elapsed_ms != null) {
     parts.push(formatDurationPadded(session.elapsed_ms));

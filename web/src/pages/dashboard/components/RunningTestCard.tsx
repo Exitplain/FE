@@ -63,7 +63,7 @@ export default function RunningTestCard({
           <p className="text-sm leading-5 text-gray-800">
             {partial
               ? "일부 프로젝트의 기록을 불러오지 못했어요. 진행 중인 테스트가 있을 수 있어요"
-              : "테스트를 시작하면 세션 진행 상황을 여기서 볼 수 있어요"}
+              : "테스트를 시작하면 방문 진행 상황을 여기서 볼 수 있어요"}
           </p>
           <button
             type="button"
@@ -101,12 +101,12 @@ function RunningBody({ run }: { run: ActiveRun }) {
       <div className="flex flex-col gap-3">
         <p className="text-caption font-medium text-gray-800">
           {run.total
-            ? `세션 ${run.completed + run.exited + run.errors} / ${run.total} 종료`
-            : "세션 진행 상황을 불러오는 중이에요"}
+            ? `방문 ${run.completed + run.exited + run.errors} / ${run.total} 종료`
+            : "방문 진행 상황을 불러오는 중이에요"}
         </p>
         <div
           className="flex h-[7px] overflow-hidden rounded-[4px] bg-gray-200"
-          aria-label="세션 결과 분포"
+          aria-label="방문 결과 분포"
         >
           {segments.map((segment, index) => (
             <span

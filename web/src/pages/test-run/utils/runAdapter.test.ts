@@ -36,8 +36,8 @@ function event(
   };
 }
 
-describe("reduceEvents — 이벤트를 세션별 관찰·행동으로", () => {
-  it("관찰·행동을 세션별로 쌓고 커서(id) 이하의 이벤트는 다시 넣지 않는다", () => {
+describe("reduceEvents — 이벤트를 방문별 관찰·행동으로", () => {
+  it("관찰·행동을 방문별로 쌓고 커서(id) 이하의 이벤트는 다시 넣지 않는다", () => {
     const first = reduceEvents(
       { after: 0, bySession: {} },
       [

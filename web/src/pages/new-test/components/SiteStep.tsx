@@ -388,7 +388,7 @@ export default function SiteStep({
                   <span className="text-xs text-muted">
                     {accountCount > 0
                       ? `테스트 계정 ${accountCount}개 등록${savedAccounts.data?.login_url ? "" : " · 로그인 화면 주소를 등록해주세요"}`
-                      : "테스트 계정 1개 = 에이전트 1명 · 최대 20개"}
+                      : "테스트 계정 1개 = AI 고객 1명 · 최대 20개"}
                   </span>
                 </span>
               </label>

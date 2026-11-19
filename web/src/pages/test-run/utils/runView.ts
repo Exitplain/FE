@@ -216,7 +216,7 @@ export function failureSummary(sessions: PersonaSession[]) {
     sessions.length > 0 && sessions.every((session) => session.status === "budget_exceeded");
   return {
     reason: allBudget
-      ? "모든 세션이 행동·시간 한도에 닿았어요"
+      ? "모든 방문이 행동·시간 한도에 닿았어요"
       : reasons.slice(0, 2).join(" · ") || "브라우저를 실행하지 못했어요",
     /* Figma E05 "끝난 세션 0 / 20" — 정상 종료(완료·이탈)한 세션 */
     finishedNormally: counts.success + counts.dropout,

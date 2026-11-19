@@ -92,7 +92,7 @@ export default function ConfirmStep({
       label: "로그인",
       value:
         store.loginMode === "account" && store.accounts.length > 0
-          ? `테스트 계정 ${store.accounts.length}개 · 에이전트 ${panel}명`
+          ? `테스트 계정 ${store.accounts.length}개 · AI 고객 ${panel}명`
           : "로그인 없이 테스트",
       step: "site",
     },
@@ -121,13 +121,13 @@ export default function ConfirmStep({
         ]
       : []),
     {
-      label: "퍼널 단계",
+      label: "이동 단계",
       /* 사이트 분석으로 정해져 사용자가 바꾸는 값이 아니라 변경 링크가 없습니다 */
       value: `사이트 분석으로 자동 결정${stages > 0 ? ` · 과업별 ${stages}단계` : ""}`,
     },
     {
       label: "페르소나",
-      value: `에이전트 ${panel}명 · 과업 ${tasks.length}개 · ${calibratedLabel ? `보정 ${calibratedLabel}` : calibratedLabel === null ? "보정 전" : "보정 확인 중"}`,
+      value: `AI 고객 ${panel}명 · 과업 ${tasks.length}개 · ${calibratedLabel ? `예측 맞추기 ${calibratedLabel}` : calibratedLabel === null ? "예측 맞추기 전" : "예측 맞추기 확인 중"}`,
       step: "persona",
     },
     {

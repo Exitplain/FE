@@ -55,8 +55,8 @@ export default function CompareView({
           className="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-caption font-bold text-ink"
         >
           <Icon name="more" className="size-5" />
-          실측 세션이 {task.base_sessions}개라 아직 표본이 적어요 · {funnel.min_sample}세션부터
-          비교가 안정돼요
+          실제 고객 데이터 방문이 {task.base_sessions}개라 아직 표본이 적어요 · {funnel.min_sample}
+          회 방문부터 비교가 안정돼요
         </p>
       )}
 
@@ -67,7 +67,7 @@ export default function CompareView({
             {drop.predicted && drop.actual ? (drop.matched ? "일치" : "불일치") : "—"}
           </dd>
           <dd className="text-xs text-muted">
-            예측 {drop.predicted?.label ?? "—"} / 실측 {drop.actual?.label ?? "—"}
+            예측 {drop.predicted?.label ?? "—"} / 실제 고객 데이터 {drop.actual?.label ?? "—"}
           </dd>
         </div>
         <div className="flex flex-col gap-1 border-l border-line p-4">
@@ -103,7 +103,7 @@ export default function CompareView({
             </span>
             <span className="flex items-center gap-1">
               <span aria-hidden className="h-2.5 w-5 rounded-xs bg-subtle" />
-              실측(실제 사용자)
+              실제 고객 데이터
             </span>
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function CompareView({
               <th className="w-28 py-2 font-medium">단계</th>
               <th className="py-2 font-medium">도달률</th>
               <th className="w-24 py-2 font-medium">예측</th>
-              <th className="w-16 py-2 font-medium">실측</th>
+              <th className="w-16 py-2 font-medium">실제 고객 데이터</th>
               <th className="w-20 py-2 font-medium">오차</th>
               <th className="w-56 py-2" aria-label="차이 구간" />
             </tr>
@@ -174,7 +174,7 @@ export default function CompareView({
           </tbody>
         </table>
         <p className="text-xs text-muted">
-          {periodText(funnel)} · 예측은 범위(95%), 실측은 단일값 · 범위 밖이면 차이 구간
+          {periodText(funnel)} · 예측은 범위(95%), 실제 고객 데이터는 단일값 · 범위 밖이면 차이 구간
         </p>
       </section>
     </div>

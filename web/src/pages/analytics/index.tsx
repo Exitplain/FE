@@ -139,12 +139,12 @@ function Analytics({ project }: { project: CurrentProject }) {
 
   const gapText =
     gap?.actual?.rate != null && gap.predicted.low != null && gap.predicted.high != null
-      ? `${gap.name} · 실측 ${gap.actual.rate.toFixed(1)}% · 예측 ${Math.round(gap.predicted.low)}~${Math.round(gap.predicted.high)}%${gap.error == null ? "" : ` (${formatError(gap.error)})`}`
+      ? `${gap.name} · 실제 고객 데이터 ${gap.actual.rate.toFixed(1)}% · 예측 ${Math.round(gap.predicted.low)}~${Math.round(gap.predicted.high)}%${gap.error == null ? "" : ` (${formatError(gap.error)})`}`
       : gapStage;
 
   const unlinkBadge = <StatusBadge icon="unlink" label="미연결" tone="strong" />;
-  const crumb = `${project.name} / 실측 분석 · 테스트`;
-  const reproduceCrumb = `${project.name} / 실측 분석 / 예측 vs 실측 · 테스트`;
+  const crumb = `${project.name} / 실제 고객 데이터 분석 · 테스트`;
+  const reproduceCrumb = `${project.name} / 실제 고객 데이터 분석 / 예측 vs 실제 고객 데이터 · 테스트`;
 
   if (project.isSample) {
     return (
@@ -156,7 +156,7 @@ function Analytics({ project }: { project: CurrentProject }) {
           description={project.url}
           activeTab="analytics"
         />
-        <NotDeployed message="샘플 프로젝트는 실측을 연결할 수 없어요. 내 프로젝트에서 배포 주소로 연결해 주세요." />
+        <NotDeployed message="샘플 프로젝트는 실제 고객 데이터를 연결할 수 없어요. 내 프로젝트에서 배포 주소로 연결해 주세요." />
       </div>
     );
   }
@@ -215,8 +215,8 @@ function Analytics({ project }: { project: CurrentProject }) {
         <ProjectPageHeader
           projectId={project.id}
           breadcrumb={crumb}
-          title="실측 데이터 연결"
-          description="실제 사용자 퍼널로 예측이 맞았는지 확인해요"
+          title="실제 고객 데이터 연결"
+          description="실제 사용자 단계별 이동으로 예측이 맞았는지 확인해요"
           actions={unlinkBadge}
           activeTab="analytics"
         />
@@ -250,11 +250,11 @@ function Analytics({ project }: { project: CurrentProject }) {
         <ProjectPageHeader
           projectId={project.id}
           breadcrumb={crumb}
-          title={view === "funnel" ? "실측 퍼널" : "예측 vs 실측"}
+          title={view === "funnel" ? "실제 고객 데이터 단계별 이동" : "예측 vs 실제 고객 데이터"}
           description={
             view === "compare"
-              ? "오차 = 실측 − 예측 범위 중앙값"
-              : `실제 사용자 · 에이전트 제외${lastReceived ? ` · 마지막 수신 ${timeFormat.format(new Date(lastReceived))}` : ""}`
+              ? "오차 = 실제 고객 데이터 − 예측 범위 중앙값"
+              : `실제 사용자 · AI 고객 제외${lastReceived ? ` · 마지막 수신 ${timeFormat.format(new Date(lastReceived))}` : ""}`
           }
           actions={
             view === "funnel" ? (
@@ -273,7 +273,7 @@ function Analytics({ project }: { project: CurrentProject }) {
               </>
             ) : (
               <Button variant="secondary" onClick={() => goTo("funnel")}>
-                실측 퍼널
+                실제 고객 데이터 단계별 이동
               </Button>
             )
           }
@@ -378,7 +378,7 @@ function Analytics({ project }: { project: CurrentProject }) {
           projectId={project.id}
           breadcrumb={reproduceCrumb}
           title={`원인 재현 · ${gapStage}`}
-          description="그 과업을 고른 세그먼트로 처음부터 실제로 다시 돌려요 · 시드 1회"
+          description="그 과업을 고른 세그먼트로 처음부터 실제로 다시 돌려요 · 반복 1회"
           actions={<StatusBadge icon="play" label="실행 중" tone="strong" />}
           activeTab="analytics"
         />
@@ -390,7 +390,7 @@ function Analytics({ project }: { project: CurrentProject }) {
               재현 실행을 찾을 수 없어요. 설정에서 다시 시작해 주세요.
             </p>
             <Button variant="secondary" onClick={() => goTo("compare")}>
-              예측 vs 실측
+              예측 vs 실제 고객 데이터
             </Button>
           </div>
         )}

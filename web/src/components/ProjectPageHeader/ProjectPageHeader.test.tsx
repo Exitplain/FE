@@ -27,10 +27,10 @@ describe("ProjectPageHeader", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "실측 분석" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "실제 고객 데이터 분석" })).toHaveAttribute(
       "href",
       "/projects/banchan/analytics",
     );
-    expect(screen.getByRole("link", { name: "보정" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "예측 맞추기" })).not.toHaveAttribute("aria-current");
   });
 });

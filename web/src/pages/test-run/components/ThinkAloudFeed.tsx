@@ -49,7 +49,7 @@ export default function ThinkAloudFeed({ sessions }: { sessions: PersonaSession[
           <span aria-hidden className="font-bold text-ink">
             ···
           </span>
-          세션이 시작되면 페르소나의 발화가 여기에 나타나요
+          방문이 시작되면 페르소나의 발화가 여기에 나타나요
         </p>
       ) : (
         <ul aria-label="발화" className="flex flex-col">

@@ -23,7 +23,7 @@ export default function IssueTable({
             <th>{hideProject ? "과업" : "프로젝트 · 과업"}</th>
             <th aria-sort={ascending ? "ascending" : "descending"}>
               <button type="button" className="whitespace-nowrap text-ink" onClick={onSort}>
-                영향 (가상 세션) {ascending ? "↑" : "↓"}
+                영향 (가상 방문) {ascending ? "↑" : "↓"}
               </button>
             </th>
             <th>처음 발견</th>
@@ -46,7 +46,7 @@ export default function IssueTable({
                 {hideProject ? issue.task : `${issue.projectName} · ${issue.task}`}
               </td>
               <td className="whitespace-nowrap">
-                가상 세션{" "}
+                가상 방문{" "}
                 {issue.impact[0] === issue.impact[1] ? issue.impact[0] : issue.impact.join("~")}개
               </td>
               <td className="whitespace-nowrap">{issue.firstSeen}</td>

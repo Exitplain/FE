@@ -14,7 +14,7 @@ export const CALIBRATIONS: Record<string, CalibrationRecord[]> = {
       params: { segments: { segment_1: { threshold_scale: 0.9 } } },
       changes: [],
       changes_summary: "빠른 구매형 인내심 임계치 1.00→0.90",
-      base_comparison: "2차 vs 실측 최근 7일",
+      base_comparison: "2차 vs 실제 고객 데이터 최근 7일",
       error_before_pp: 7.8,
       error_after_pp: null,
       restored_from: null,
@@ -40,7 +40,7 @@ export function sampleProposal(
     provisional: Boolean(options.provisional),
     ...(options.provisional
       ? {
-          message: `지금은 ${count}세션이라 임시값이에요. 10세션부터 실제 값으로 바뀌고 적용할 수 있어요.`,
+          message: `지금은 ${count}회 방문이라 임시값이에요. 10회 방문부터 실제 값으로 바뀌고 적용할 수 있어요.`,
         }
       : {}),
     basis: {
@@ -71,10 +71,10 @@ export function sampleProposal(
         segment_name: "전체",
         kind: "weight",
         cause: "navigation",
-        label: "마찰 가중치 · 탐색 실패",
+        label: "불편한 점 가중치 · 탐색 실패",
         current: 1,
         proposed: gentle ? 1.05 : 1.15,
-        reason: "첫 주문 완료 · 장바구니 화면에서 가장 많이 겪은 마찰이 탐색 실패이에요",
+        reason: "첫 주문 완료 · 장바구니 화면에서 가장 많이 겪은 불편한 점이 탐색 실패이에요",
       },
       {
         key: "segment_1.threshold",
@@ -85,11 +85,11 @@ export function sampleProposal(
         label: "인내심 임계치",
         current: 1,
         proposed: gentle ? 0.95 : 0.85,
-        reason: "첫 주문 완료 · 장바구니: 실측 이탈이 예측보다 커요 (-16.0%p)",
+        reason: "첫 주문 완료 · 장바구니: 실제 고객 데이터 이탈이 예측보다 커요 (-16.0%p)",
       },
     ],
     after_error: null,
-    after_note: "보정 후 오차는 다음 사전 테스트가 끝난 뒤 실제 결과로 보여 줘요.",
+    after_note: "예측 맞추기 후 오차는 다음 사전 테스트가 끝난 뒤 실제 결과로 보여 줘요.",
     unchanged_segments: [{ segment_id: "segment_2", segment_name: "꼼꼼한 비교형" }],
   };
 }

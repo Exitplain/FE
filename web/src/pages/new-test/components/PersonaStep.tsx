@@ -133,16 +133,16 @@ export default function PersonaStep({
           <div className="flex flex-col gap-5">
             <p className="text-caption text-subtle">
               {fromAccounts
-                ? `테스트 계정 ${accountCount}개 → 에이전트 ${range.total}명`
-                : `에이전트 ${range.min === range.max ? range.min : `${range.min}~${range.max}`}명 · 로그인 테스트는 계정 수만큼 (최대 ${ACCOUNT_MAX})`}
+                ? `테스트 계정 ${accountCount}개 → AI 고객 ${range.total}명`
+                : `AI 고객 ${range.min === range.max ? range.min : `${range.min}~${range.max}`}명 · 로그인 테스트는 계정 수만큼 (최대 ${ACCOUNT_MAX})`}
             </p>
             {/* 불러오는 중에는 "보정 전"으로 잘못 보이지 않게 비워 둡니다 */}
             {calibratedLabel !== undefined && (
               <p className="flex items-center gap-2 text-xs text-gray-800">
                 <Icon name="status-done" />
                 {calibratedLabel
-                  ? `이 프로젝트 보정값으로 예측해요 · ${calibratedLabel} 적용`
-                  : "아직 보정 전이라 기본 모형으로 예측해요"}
+                  ? `이 프로젝트에 맞춘 값으로 예측해요 · ${calibratedLabel} 적용`
+                  : "아직 예측 맞추기 전이라 기본 모형으로 예측해요"}
               </p>
             )}
           </div>
@@ -204,9 +204,9 @@ export default function PersonaStep({
           </p>
           {/* 임시 라벨: Figma 에 시드 선택이 없어 BE 범위(1~3회)만 고르게 둡니다 */}
           <div className="flex items-center justify-between border-b border-line pb-1 pl-2">
-            <span className="text-sm text-gray-800">시드</span>
+            <span className="text-sm text-gray-800">반복</span>
             <SegmentStepper
-              label="시드"
+              label="반복"
               value={seedCount}
               min={seedRange.min}
               max={seedRange.max}

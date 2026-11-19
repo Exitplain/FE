@@ -32,7 +32,7 @@ export default function TechnicalFailures({
         <h2 id={headingId} className="text-base font-medium text-ink">
           기술 실패 · 한도 초과
         </h2>
-        <InfoTip text="브라우저 오류나 행동·시간 한도로 끝난 세션이에요. 가상 이탈로 세지 않아요." />
+        <InfoTip text="브라우저 오류나 행동·시간 한도로 끝난 방문이에요. 가상 이탈로 세지 않아요." />
         <span className="ml-1 text-xs text-muted">이탈률·원인 계산에서 제외</span>
       </div>
       <ul className="flex flex-col gap-4">
@@ -50,7 +50,7 @@ export default function TechnicalFailures({
             >
               <Icon name="status-error" className="text-danger" />
               <span className="w-32 font-medium text-ink underline-offset-4 hover:underline">
-                {failure.persona_id} · 시드 {failure.seed}
+                {failure.persona_id} · 반복 {failure.seed}
               </span>
               <span className="w-24 text-subtle">{taskName(failure.task_id)}</span>
               <span className="text-gray-800">{failure.reason ?? failure.status}</span>

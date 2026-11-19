@@ -6,7 +6,7 @@ import type { RunDefaults } from "@/apis/workspace.api";
 */
 function executionDefaults(defaults: RunDefaults) {
   return [
-    { label: "동시 세션", value: `최대 ${defaults.concurrency}` },
+    { label: "동시 방문", value: `최대 ${defaults.concurrency}` },
     { label: "요청 간격", value: `${defaults.request_interval_seconds}초 이상` },
     {
       label: "LLM 비용 상한",

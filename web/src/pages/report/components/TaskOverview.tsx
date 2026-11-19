@@ -49,7 +49,7 @@ export default function TaskOverview({
           전체 달성률 <b className="text-ink">{overall == null ? "—" : `${overall}%`}</b>
         </p>
         <p>
-          기록 세션{" "}
+          기록 방문{" "}
           <b className="text-ink">
             {summary.recorded_sessions}/{summary.expected_sessions}
           </b>
@@ -157,13 +157,13 @@ function TaskCard({
                 <span className="truncate text-caption font-bold text-ink">{problem.name}</span>
                 {problem.top[0] && (
                   <span className="text-xs text-danger">
-                    {problem.top[0].name} · {problem.top[0].sessions}세션
+                    {problem.top[0].name} · {problem.top[0].sessions}회 방문
                   </span>
                 )}
               </span>
             </>
           ) : (
-            <span className="text-xs text-subtle">마찰이 감지된 화면이 없어요</span>
+            <span className="text-xs text-subtle">불편한 점이 감지된 화면이 없어요</span>
           )}
         </span>
       )}

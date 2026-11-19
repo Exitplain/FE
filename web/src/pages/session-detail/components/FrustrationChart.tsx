@@ -85,7 +85,9 @@ export default function FrustrationChart({ steps }: { steps: StepRow[] }) {
           ))}
           <div className="col-span-4 flex gap-2">
             <dt className="font-bold text-ink">임계치</dt>
-            <dd className="text-subtle">허용 필수 입력 칸 × 16 (초기 가설 · 보정하면 바뀌어요)</dd>
+            <dd className="text-subtle">
+              허용 필수 입력 칸 × 16 (초기 가설 · 예측을 맞추면 바뀌어요)
+            </dd>
           </div>
         </dl>
       )}

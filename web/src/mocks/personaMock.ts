@@ -267,7 +267,7 @@ export function generatePanel(body: unknown): PersonaPanel {
     throw new MockApiError(400, "세그먼트 인원을 확인해주세요.");
   }
   const total = (counts as number[]).reduce((sum, count) => sum + count, 0);
-  if (total < 1 || total > 20) throw new MockApiError(400, "에이전트는 1~20명이어야 합니다.");
+  if (total < 1 || total > 20) throw new MockApiError(400, "AI 고객은 1~20명이어야 합니다.");
 
   state.panel = buildPanel(counts as number[]);
   return { segments: structuredClone(state.panel) };
@@ -761,7 +761,7 @@ export function explain(body: unknown): ExplainAnswer {
     !run ||
     !session
   ) {
-    throw new MockApiError(400, "질문할 세션과 내용을 확인해주세요.");
+    throw new MockApiError(400, "질문할 방문과 내용을 확인해주세요.");
   }
 
   const finished = session.status !== "queued" && session.status !== "running";
@@ -813,7 +813,7 @@ function answerText(session: PersonaSession) {
 export function session(runId: string | null, sessionId: string | null): PersonaSession {
   const run = state.history.find((item) => item.id === runId);
   const found = run?.sessions.find((item) => item.id === sessionId);
-  if (!found) throw new MockApiError(404, "세션을 찾을 수 없습니다.");
+  if (!found) throw new MockApiError(404, "방문을 찾을 수 없습니다.");
   return structuredClone(found);
 }
 
@@ -1052,7 +1052,7 @@ function buildFindings(run: PersonaRun): ReportFinding[] {
         interpretation: issue
           ? `입력 칸 ${issue.observed_fields}개가 허용치 ${issue.configured_limit}개를 넘어 좌절 점수가 임계치를 넘었습니다.`
           : sessions[0].reason,
-        recommendation: text?.recommendation ?? "세션 기록을 직접 확인해 보세요.",
+        recommendation: text?.recommendation ?? "방문 기록을 직접 확인해 보세요.",
         mockup: null,
       };
     })
@@ -1105,9 +1105,9 @@ export function report(runId: string | null): PersonaReport {
     alignment: buildAlignment(found, found.human_observations ?? []),
     limitations: [
       "모의 실행(mock) 결과입니다. 실제 사용자 이탈률이 아닙니다.",
-      "연령은 설명 문맥으로만 쓰고 행동 보정은 검증 전입니다.",
+      "연령은 설명 문맥으로만 쓰고 행동 예측을 맞추는 것은 검증 전입니다.",
       ...(found.stopped
-        ? [`비용 상한으로 시드 ${found.stopped.seed} / ${SEEDS}에서 멈춘 부분 결과예요.`]
+        ? [`비용 상한으로 반복 ${found.stopped.seed} / ${SEEDS}에서 멈춘 부분 결과예요.`]
         : []),
     ],
     /* 보정은 프로젝트 보정 이력 mock 의 최근 적용일 (개발 API 에는 프로젝트가 없어 반찬로드 기준) */
@@ -1126,7 +1126,7 @@ export function reportMarkdown(runId: string | null): string {
   const lines = [
     `# 사전 테스트 리포트 (${data.run_id})`,
     "",
-    `- 세션 ${data.summary.sessions}개 · 완료 ${data.summary.success} · 가상 이탈 ${data.summary.simulated_dropout} · 기술 실패 ${data.summary.technical}`,
+    `- 방문 ${data.summary.sessions}개 · 완료 ${data.summary.success} · 가상 이탈 ${data.summary.simulated_dropout} · 기술 실패 ${data.summary.technical}`,
     "",
     "## 발견한 문제",
     ...data.findings.map(
@@ -1240,7 +1240,7 @@ export function human(body: unknown): PersonaRun {
   if (run.status !== "completed" || record.run_id !== run.id) {
     throw new MockApiError(400, "완료된 현재 실행에만 관측을 저장할 수 있습니다.");
   }
-  if (!session) throw new MockApiError(400, "비교할 세션을 찾을 수 없습니다.");
+  if (!session) throw new MockApiError(400, "비교할 방문을 찾을 수 없습니다.");
   if (
     typeof record.participant_id !== "string" ||
     !/^[A-Za-z0-9_-]{1,40}$/.test(record.participant_id)
@@ -1274,7 +1274,7 @@ export function human(body: unknown): PersonaRun {
     (o) => o.participant_id === observation.participant_id && taskOf(o) === session.task_id,
   );
   if (sameTask.some((o) => o.persona_id !== session.id)) {
-    throw new MockApiError(400, "이 참여자의 같은 과업 관측이 다른 세션에 이미 있습니다.");
+    throw new MockApiError(400, "이 참여자의 같은 과업 관측이 다른 방문에 이미 있습니다.");
   }
 
   const observations = [...existing.filter((o) => !sameTask.includes(o)), observation];

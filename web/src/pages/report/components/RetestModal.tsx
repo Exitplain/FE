@@ -139,7 +139,7 @@ export default function RetestModal({
         : `${withBase} 동일${conditions.panel ? ` · ${conditions.panel}` : ""}`,
     ],
     [
-      "시드",
+      "반복",
       loading
         ? "불러오는 중…"
         : `${withBase} 동일${conditions.seeds ? ` · ${conditions.seeds}회` : ""}`,
@@ -154,8 +154,8 @@ export default function RetestModal({
       title="수정 후 재테스트"
       description={
         conditions.personas && conditions.seeds
-          ? `사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나 ${conditions.personas}명과 같은 시드 ${conditions.seeds}개로 다시 실행해요.`
-          : "사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나와 시드로 다시 실행해요."
+          ? `사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나 ${conditions.personas}명과 같은 반복 ${conditions.seeds}개로 다시 실행해요.`
+          : "사이트를 고치고 배포한 뒤 실행하세요. 같은 페르소나와 반복으로 다시 실행해요."
       }
       footer={
         <>

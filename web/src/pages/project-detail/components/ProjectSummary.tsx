@@ -32,7 +32,7 @@ export default function ProjectSummary({
       route: "testList",
     },
     {
-      title: "실측 데이터",
+      title: "실제 고객 데이터",
       status: comparable
         ? "비교 가능"
         : overview.analytics.status === "collecting"
@@ -45,17 +45,20 @@ export default function ProjectSummary({
               value:
                 overview.analytics.landingSessions === null
                   ? "—"
-                  : `${format(overview.analytics.landingSessions)} 세션`,
+                  : `${format(overview.analytics.landingSessions)}회 방문`,
             },
             {
-              label: "완료 (실측)",
+              label: "완료 (실제 고객 데이터)",
               value:
                 overview.analytics.completedSessions === null ||
                 overview.analytics.completionRate === null
                   ? "—"
-                  : `${format(overview.analytics.completedSessions)} 세션 · ${overview.analytics.completionRate.toFixed(1)}%`,
+                  : `${format(overview.analytics.completedSessions)}회 방문 · ${overview.analytics.completionRate.toFixed(1)}%`,
             },
-            { label: "최대 이탈 구간 (실측)", value: overview.analytics.maxDropOff ?? "—" },
+            {
+              label: "최대 이탈 구간 (실제 고객 데이터)",
+              value: overview.analytics.maxDropOff ?? "—",
+            },
           ]
         : [
             {
@@ -63,14 +66,14 @@ export default function ProjectSummary({
               value:
                 overview.analytics.status === "collecting" ? "표본 수집 중" : "스크립트 미설치",
             },
-            { label: "최근 퍼널", value: "—" },
+            { label: "최근 단계별 이동", value: "—" },
           ],
-      link: "실측 분석 보기",
+      link: "실제 고객 데이터 분석 보기",
       route: "analytics",
     },
     {
-      title: "보정",
-      status: proposal ? "조정안 있음" : "보정 전",
+      title: "예측 맞추기",
+      status: proposal ? "조정안 있음" : "예측 맞추기 전",
       rows: proposal
         ? [
             {
@@ -89,10 +92,10 @@ export default function ProjectSummary({
             },
           ]
         : [
-            { label: "현재 예측 오차", value: "실측 연결 후 계산" },
+            { label: "현재 예측 오차", value: "실제 고객 데이터 연결 후 계산" },
             { label: "적용일", value: overview.calibration.appliedLabel ?? "—" },
           ],
-      link: "보정 보기",
+      link: "예측 맞추기 보기",
       route: "calibration",
     },
   ] as const;
@@ -100,7 +103,9 @@ export default function ProjectSummary({
     <section className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-bold">요약</h2>
-        <p className="text-xs text-muted">예측 = 시뮬레이션 · 실측 = 실제 사용자 · 샘플 데이터</p>
+        <p className="text-xs text-muted">
+          예측 = 시뮬레이션 · 실제 고객 데이터 = 실제 사용자 · 샘플 데이터
+        </p>
       </header>
       <div className="grid gap-6 lg:grid-cols-3">
         {groups.map((group) => (

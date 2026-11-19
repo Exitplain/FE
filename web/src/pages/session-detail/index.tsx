@@ -42,8 +42,8 @@ export default function SessionDetailPage() {
   if (!runId || !taskId || !personaId || !Number.isInteger(seedNo)) {
     return (
       <section className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-ink">세션을 찾을 수 없어요</h1>
-        <p className="text-sm text-subtle">주소를 확인하거나 리포트에서 세션을 다시 골라 주세요.</p>
+        <h1 className="text-2xl font-bold text-ink">방문을 찾을 수 없어요</h1>
+        <p className="text-sm text-subtle">주소를 확인하거나 리포트에서 방문을 다시 골라 주세요.</p>
       </section>
     );
   }
@@ -115,7 +115,7 @@ function SessionDetail({
           "사전 테스트",
           [session?.task_name, order ? `${order}차` : null, "테스트"].filter(Boolean).join(" · "),
         ].join(" / ")}
-        title={session ? `${sessionCode(session)} · 세션 상세` : "세션 상세"}
+        title={session ? `${sessionCode(session)} · 방문 상세` : "방문 상세"}
         description={session && describeSession(session)}
         actions={
           <>
@@ -128,20 +128,20 @@ function SessionDetail({
         activeTab="tests"
       />
 
-      {detail.isPending && <WorkspaceState kind="loading" title="세션 기록을 불러오고 있어요" />}
+      {detail.isPending && <WorkspaceState kind="loading" title="방문 기록을 불러오고 있어요" />}
       {detail.error && !session && (
         <WorkspaceState
           kind="error"
           title={
             status === 404
-              ? "세션을 찾을 수 없어요"
+              ? "방문을 찾을 수 없어요"
               : status === 409
-                ? "세션 기록이 남아 있지 않아요"
-                : "세션 기록을 불러오지 못했어요"
+                ? "방문 기록이 남아 있지 않아요"
+                : "방문 기록을 불러오지 못했어요"
           }
           description={
             status === 404
-              ? "끝난 실행의 세션만 볼 수 있어요. 리포트에서 다시 골라 주세요."
+              ? "끝난 실행의 방문만 볼 수 있어요. 리포트에서 다시 골라 주세요."
               : status === 409
                 ? "보관 기간이 지나 기록이 지워졌을 수 있어요."
                 : "잠시 뒤 다시 시도해 주세요."
@@ -225,7 +225,7 @@ function SessionTabs({
   return (
     <div
       role="tablist"
-      aria-label="세션 상세"
+      aria-label="방문 상세"
       onKeyDown={onKeyDown}
       className="flex gap-6 border-b border-line"
     >

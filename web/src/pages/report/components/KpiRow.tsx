@@ -59,11 +59,11 @@ export default function KpiRow({ task }: { task: ReportTaskV1 }) {
             <span className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-ink">
               예측
             </span>
-            <InfoTip text="시드를 바꿔 반복한 결과의 범위예요. 실제 사용자 비율이 아니에요." />
+            <InfoTip text="여러 번 반복한 결과의 범위예요. 실제 사용자 비율이 아니에요." />
           </>
         }
         value={task.valid_sessions > 0 ? formatMinMax(rate, "%") : "—"}
-        note={`완료 ${task.success}명 / ${task.valid_sessions}명 · 시드 합계`}
+        note={`완료 ${task.success}명 / ${task.valid_sessions}명 · 반복 합계`}
       />
       <Kpi
         className="col-span-3"
@@ -72,18 +72,18 @@ export default function KpiRow({ task }: { task: ReportTaskV1 }) {
         note={
           drop
             ? `이 구간 이탈 ${drop.dropouts}명${drop.percent == null ? "" : ` · ${drop.percent}%`}`
-            : "모든 세션이 끝까지 갔어요"
+            : "모든 방문이 끝까지 갔어요"
         }
       />
       <Kpi
         className="col-span-3"
         label="중앙 소요 시간"
         value={formatSeconds(task.kpis.median_duration_seconds)}
-        note="목표 도달·가상 이탈 세션 기준"
+        note="목표 도달·가상 이탈 방문 기준"
       />
       <Kpi
         className="col-span-3"
-        label="기록 세션"
+        label="기록 방문"
         value={`${task.recorded_sessions}/${task.expected_sessions}개`}
         note={`기술 실패 ${task.technical} · 결과 없음 ${task.incomplete}`}
       />
