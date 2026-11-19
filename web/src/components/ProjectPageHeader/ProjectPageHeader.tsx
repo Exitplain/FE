@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { RESUME_ACTIVE_RUN_STATE } from "@/constants/navigationState";
 import { buildPath } from "@/constants/routes";
 import { cn } from "@/utils/cn";
 
@@ -56,6 +57,13 @@ export default function ProjectPageHeader({
             <Link
               key={tab.key}
               to={buildPath(tab.route, { projectId })}
+              /*
+                다른 탭(실제 고객 데이터 분석 · 예측 맞추기)에서 돌아올 때만 진행 중인 실행을 이어 보여 줍니다.
+                실행·리포트 화면은 이미 "테스트 목록" 탭 안이라 붙이지 않아, 진행 중에도 목록을 볼 수 있습니다.
+              */
+              state={
+                tab.key === "tests" && activeTab !== "tests" ? RESUME_ACTIVE_RUN_STATE : undefined
+              }
               aria-current={active ? "page" : undefined}
               className={cn(
                 "-mb-px flex min-h-12 items-center border-b-2 text-sm",

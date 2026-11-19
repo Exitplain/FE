@@ -5,6 +5,7 @@ import logoMark from "@/assets/brand/logo-mark.svg";
 import Icon from "@/components/Icon/Icon";
 import type { IconName } from "@/components/Icon/iconNames";
 import { iconButtonVariants } from "@/components/IconButton/iconButtonVariants";
+import { RESUME_ACTIVE_RUN_STATE } from "@/constants/navigationState";
 import { buildPath, ROUTES } from "@/constants/routes";
 import { useProjects } from "@/hooks/useProjects";
 import type { ProjectRecord } from "@/types/project.type";
@@ -258,6 +259,8 @@ function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name
   const base = buildPath("projectDetail", { projectId: project.id });
   const inProject = pathname === base || pathname.startsWith(`${base}/`);
   const activeKey = inProject ? activeSubMenu(pathname.slice(base.length)) : null;
+  /* 사전 테스트 흐름(목록·새 테스트·실행·리포트) 안. 실제 고객 데이터 분석·예측 맞추기는 빼요 */
+  const inTestFlow = inProject && /^\/(tests|runs)(\/|$)/.test(pathname.slice(base.length));
 
   return (
     <div className="flex flex-col">
@@ -295,6 +298,13 @@ function ProjectNavItem({ project }: { project: Pick<ProjectRecord, "id" | "name
               <li key={item.key} className={index === 0 ? "pt-1" : undefined}>
                 <Link
                   to={buildPath(item.route, { projectId: project.id })}
+                  /*
+                    "테스트"는 다른 메뉴에 다녀와도 진행 중인 실행 화면을 이어 보여 줍니다.
+                    이미 목록·실행·리포트 화면이면 붙이지 않아 목록으로 갈 수 있게 둡니다.
+                  */
+                  state={
+                    item.key === "tests" && !inTestFlow ? RESUME_ACTIVE_RUN_STATE : undefined
+                  }
                   data-sidebar-item="sub" /* = ITEM_ATTR, 작은 선택 표시 */
                   aria-current={active ? "page" : undefined}
                   className={cn(

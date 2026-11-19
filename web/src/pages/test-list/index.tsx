@@ -1,5 +1,5 @@
-import { useId } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useId, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import Button from "@/components/Button/Button";
 import { buttonVariants } from "@/components/Button/buttonVariants";
@@ -7,8 +7,10 @@ import smile from "@/assets/characters/character-smile.svg";
 import Icon from "@/components/Icon/Icon";
 import ProjectPageHeader from "@/components/ProjectPageHeader/ProjectPageHeader";
 import { useCurrentProject, type CurrentProject } from "@/components/Projects/currentProject";
+import { wantsResumeActiveRun } from "@/constants/navigationState";
 import { buildPath } from "@/constants/routes";
 import { useRunList } from "@/hooks/useRunList";
+import { ACTIVE_RUN_STATUSES } from "@/types/run.type";
 
 import TestListTable from "./components/TestListTable";
 import { toTestRows } from "./utils/testRows";
@@ -28,9 +30,43 @@ export default function TestListPage() {
 function TestList({ project }: { project: CurrentProject }) {
   const titleId = useId();
   const runs = useRunList(project.v1Id);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  /*
+    사이드바 "테스트"·다른 프로젝트 탭에서 왔으면(이어 보기 state) 진행 중인 실행 화면을 바로 보여 줍니다.
+    - 예전에 받아 둔 캐시는 이미 끝난 실행일 수 있어, 이 화면에서 새로 받은 목록으로만 정합니다.
+    - 첫 페이지가 최신순이라 처음 만나는 진행 중 실행이 가장 최신입니다.
+    - 처음 정한 결과는 고정합니다. state 를 지우기 전에 polling 이 다시 받아도 결정이 바뀌지 않습니다.
+    - 정한 뒤에는 state 를 지워(replace) 목록에 머무는 동안 갑자기 옮기지 않고,
+      실행 화면으로 옮길 때도 목록 항목이 history 에 남지 않아 뒤로 가기가 다시 튕기지 않습니다.
+  */
+  const resumeRequested = wantsResumeActiveRun(location.state);
+  /* undefined = 아직 못 정함 · null = 목록에 머묾 · 문자열 = 옮겨 갈 실행 화면 */
+  const [resumeTarget, setResumeTarget] = useState<string | null | undefined>(undefined);
+  /* 다른 화면에서 남은 오류 상태로 정하지 않도록, 이 화면에서 받은 결과(성공·실패)가 나온 뒤에만 정합니다 */
+  if (resumeRequested && resumeTarget === undefined && runs.isFetchedAfterMount && !runs.isFetching) {
+    const activeRun = runs.isError
+      ? undefined
+      : runs.data?.pages[0]?.items.find((item) => ACTIVE_RUN_STATUSES.includes(item.status));
+    setResumeTarget(
+      activeRun ? buildPath("testRun", { projectId: project.id, runId: activeRun.id }) : null,
+    );
+  }
+
+  useEffect(() => {
+    if (!resumeRequested || resumeTarget === undefined) return;
+    if (resumeTarget) navigate(resumeTarget, { replace: true });
+    else
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: location.hash },
+        { replace: true, state: null },
+      );
+  }, [resumeRequested, resumeTarget, navigate, location]);
 
   const newTestPath = buildPath("newTest", { projectId: project.id });
-  const isLoading = runs.isPending;
+  /* 이어 보기를 정하는 동안·옮기기 직전에는 캐시 목록을 잠깐 보여 주지 않습니다 */
+  const isLoading = runs.isPending || (resumeRequested && resumeTarget !== null);
   /* 받아 둔 데이터가 있으면 polling 이 한 번 실패해도 목록을 그대로 둡니다 */
   const isError = runs.isError && runs.data === undefined;
   const isRetrying = runs.isFetching;
