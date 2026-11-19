@@ -91,9 +91,8 @@ export const useOnboardingStore = create<OnboardingState>()(
     {
       name: ONBOARDING_STORAGE_KEY,
       storage: createJSONStorage(() => storage),
-      partialize: ({ accounts, tour, reportTips }) => ({
+      partialize: ({ accounts, reportTips }) => ({
         accounts,
-        tour: tour?.accountKey ? tour : null,
         reportTips,
       }),
       merge: (saved, current) => {
@@ -107,15 +106,14 @@ export const useOnboardingStore = create<OnboardingState>()(
               ) as Record<string, Status>)
             : {};
         const record = saved as { tour?: Tour | null; reportTips?: Record<string, unknown> } | null;
-        const accountKey = record?.tour?.accountKey;
-        const tour = typeof accountKey === "string" && accounts[accountKey] ? { accountKey } : null;
         const reportTips =
           record?.reportTips && typeof record.reportTips === "object"
             ? (Object.fromEntries(
                 Object.entries(record.reportTips).filter(([, value]) => typeof value === "string"),
               ) as Record<string, string>)
             : {};
-        return { ...current, accounts, tour, reportTips };
+        // A saved tour from an older version must not reopen after login or reload.
+        return { ...current, accounts, tour: null, reportTips };
       },
     },
   ),

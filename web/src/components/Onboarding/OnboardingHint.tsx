@@ -100,7 +100,6 @@ export default function OnboardingHint({
               )}
               <div className="flex items-center justify-between text-xs text-muted">
                 <span>{report ? "결과 확인" : `${info.number} / 7`}</span>
-                <span>실제 화면에서 진행하세요</span>
               </div>
             </div>
           )}

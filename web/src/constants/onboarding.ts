@@ -7,9 +7,9 @@ export const ONBOARDING_STEPS = {
   },
   create: {
     number: 1,
-    title: "진단할 사이트를 등록하세요",
+    title: "프로젝트 이름을 정하세요",
     description:
-      "이름과 사이트 URL을 입력하고 ‘만들기’를 누르세요. 내 계정에 실제 프로젝트가 등록돼요.",
+      "이름을 입력하고 ‘만들기’를 누르세요. 사이트 URL은 프로젝트를 만든 뒤 첫 테스트에서 입력해요.",
   },
   test: {
     number: 2,
