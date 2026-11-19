@@ -11,6 +11,7 @@ import {
   getPlan,
   getRevisionPersonas,
   getTestAccounts,
+  inferSegments,
   patchPlan,
   putTestAccounts,
 } from "@/apis/plan.api";
@@ -308,6 +309,33 @@ export function useSavePlan() {
     },
   });
   return mutation;
+}
+
+/*
+  P05b 세그먼트 유형 추론 (POST segment-inferences). 3단계에 들어오면 한 번, "다시 정하기"로 다시 부릅니다.
+  저장(PATCH)이 먼저 끝나 revision 이 바뀌었으면 409 → 최신 revision 으로 한 번 더 보냅니다.
+*/
+export function useInferSegments() {
+  return useMutation<WizardPlan, ApiError, void>({
+    mutationFn: async () => {
+      const plan = useNewTestStore.getState().plan;
+      if (!plan) throw new ApiError({ status: 0, message: "사이트를 다시 확인해 주세요" });
+      let server: Plan;
+      try {
+        server = await inferSegments(plan.planId, plan.revision);
+      } catch (error) {
+        if (!isRevisionConflict(error)) throw error;
+        const latest = await getPlan(plan.planId);
+        server = await inferSegments(plan.planId, latest.revision);
+      }
+      useNewTestStore
+        .getState()
+        .updatePlan((current) =>
+          current.planId === server.id ? withServerPlan(current, server) : current,
+        );
+      return withServerPlan(plan, server);
+    },
+  });
 }
 
 export type ConfirmedPlan = { planRevisionId: string; personas: RevisionPersonas };

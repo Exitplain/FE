@@ -6,6 +6,7 @@ import type {
   Plan,
   PlanReview,
   RevisionPersonas,
+  SegmentProfile,
   SiteCheck,
 } from "@/types/plan.type";
 
@@ -114,6 +115,8 @@ export type WizardPlan = {
   seedRange: { min: number; max: number };
   review: PlanReview;
   check: SiteCheck | null;
+  /* 3단계에서 추론한 세그먼트 유형 (추론 전이면 name 이 null) */
+  segmentProfiles: SegmentProfile[];
 };
 
 export function toWizardPlan(
@@ -138,6 +141,7 @@ export function toWizardPlan(
     seedRange: plan.options.capabilities.limits.seed_count ?? { min: SEED_DEFAULT, max: SEED_MAX },
     review: plan.review,
     check,
+    segmentProfiles: plan.segment_profiles ?? [],
   };
 }
 
@@ -160,7 +164,13 @@ export function withServerPlan(current: WizardPlan, plan: Plan): WizardPlan {
     ...personaRange(plan),
     seedCount: plan.limits.seed_count,
     viewportWidth: plan.limits.viewport_width,
+    segmentProfiles: plan.segment_profiles ?? [],
   };
+}
+
+/* 세그먼트 유형을 아직 추론하지 않았는지 (이름이 하나라도 없으면 추론 전) */
+export function needsSegmentInference(plan: WizardPlan | null) {
+  return !!plan && (plan.segmentProfiles.length === 0 || plan.segmentProfiles.some((p) => !p.name));
 }
 
 /* BE context·additional_request 최대 길이 */

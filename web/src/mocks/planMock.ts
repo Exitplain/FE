@@ -4,6 +4,7 @@ import type {
   DiscoveryProgressEvent,
   Plan,
   PlanBlocking,
+  SegmentProfile,
   PlanSnapshot,
   RevisionPersonas,
   SnapshotPersona,
@@ -366,6 +367,8 @@ export function createPlan(projectId: number, body: Record<string, unknown>): Pl
     audience: { context: "", ages: [] },
     task_funnels: discovery.tasks.map((task) => ({ task_id: task.id, auto: true, stages: FUNNEL })),
     segments: evenSplit(discovery.personaTotal),
+    segment_profiles: emptyProfiles(evenSplit(discovery.personaTotal)),
+    segment_generator: null,
     limits: {
       viewport_width: 1280,
       concurrency: 5,
@@ -383,6 +386,51 @@ export function createPlan(projectId: number, body: Record<string, unknown>): Pl
   plan.review = review(plan, discovery);
   state.plans.set(plan.id, plan);
   return structuredClone(plan);
+}
+
+function emptyProfiles(segments: Plan["segments"]): SegmentProfile[] {
+  return segments.map((segment) => ({
+    ...segment,
+    name: null,
+    situation: null,
+    age_group: null,
+    variables: null,
+    basis: null,
+    avatar: null,
+  }));
+}
+
+/* 서버 segment-inferences 와 같은 모양: fixture 세그먼트 이름·상황·능력치를 붙입니다 */
+export function inferSegments(planId: string, body: Record<string, unknown>): Plan {
+  const plan = state.plans.get(planId);
+  if (!plan) throw new MockPlanError(404, "NOT_FOUND", "계획을 찾을 수 없습니다.");
+  if (body.revision !== plan.revision) throw conflict();
+  if (!plan.audience.context.trim()) {
+    throw invalid("audience.context", "타겟 고객 설명을 먼저 적어 주세요.");
+  }
+  const next = structuredClone(plan);
+  next.segment_profiles = plan.segments.map((segment, index) => {
+    const fixture = SEGMENTS[index];
+    return {
+      ...segment,
+      name: fixture.name,
+      situation: fixture.context,
+      age_group: null,
+      variables: {
+        patience: fixture.traits.patience,
+        digital_literacy: fixture.traits.digital,
+        price_sensitivity: fixture.traits.price,
+        trust_need: fixture.traits.trust,
+      },
+      basis: [],
+      avatar: null,
+    };
+  });
+  next.segment_generator = "fixture-figma-p07";
+  next.revision = plan.revision + 1;
+  next.updated_at = new Date().toISOString();
+  state.plans.set(planId, next);
+  return structuredClone(next);
 }
 
 export function getPlan(planId: string): Plan {
@@ -466,7 +514,14 @@ export function patchPlan(
     if (ages.includes("any") && ages.length > 1) {
       throw invalid("audience.ages", "전체와 특정 연령대를 함께 선택할 수 없습니다.");
     }
+    const changed =
+      audience.context !== plan.audience.context ||
+      JSON.stringify(ages) !== JSON.stringify(plan.audience.ages);
     next.audience = { context: audience.context, ages };
+    if (changed) {
+      next.segment_profiles = emptyProfiles(next.segments);
+      next.segment_generator = null;
+    }
   }
   if ("segments" in body) {
     const segments = body.segments as { id: string; count: number }[];
@@ -490,6 +545,9 @@ export function patchPlan(
       );
     }
     next.segments = segments;
+    next.segment_profiles = (next.segment_profiles ?? emptyProfiles(segments)).map(
+      (profile, index) => ({ ...profile, count: segments[index].count }),
+    );
   }
   if ("limits" in body) {
     const limits = body.limits as Partial<Plan["limits"]>;

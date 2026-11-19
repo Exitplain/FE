@@ -78,6 +78,18 @@ export async function patchPlan(planId: string, revision: number, body: PlanPatc
 }
 
 /*
+  P05b 세그먼트 유형 추론. 타겟 설명·연령대로 세그먼트 이름·상황·기본 능력치를 만들어 계획에 저장합니다.
+  다시 부르면 새로 만들고 revision 이 1 오릅니다 (확정 때는 다시 만들지 않습니다).
+*/
+export async function inferSegments(planId: string, revision: number): Promise<Plan> {
+  const { data } = await axiosInstance.post<Plan>(
+    `/api/v1/plans/${encodeURIComponent(planId)}/segment-inferences`,
+    { revision },
+  );
+  return data;
+}
+
+/*
   P05c → P06 계획 확정 (페르소나 생성). 같은 revision 을 다시 확정하면
   409 ALREADY_CONFIRMED 이고 fields.plan_revision_id 에 이미 만든 id 가 있습니다.
 */
