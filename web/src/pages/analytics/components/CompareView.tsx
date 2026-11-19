@@ -9,18 +9,20 @@ import type {
 } from "@/types/measurement.type";
 import { cn } from "@/utils/cn";
 
-import { formatError, PERIODS, periodText, reportLabel } from "../utils/funnel";
+import { ALL_TASKS, formatError, PERIODS, periodText, reportLabel } from "../utils/funnel";
 import { TaskChips } from "./FunnelView";
 
 /*
   R08 예측 vs 실측 — 기간·과업을 고르고, 단계별로 예측 범위와 실측 단일값을 비교합니다.
   예측 범위는 사전 테스트 도달 비율의 95% 구간이고, 실측이 범위 밖이면 차이 구간입니다.
   차이 구간은 원인 재현(R09)으로 넘어갈 수 있습니다.
+  과업 "전체"(allTasks)면 과업마다 요약·단계별 비교를 위아래로 이어 보여 줍니다 (단계가 달라 합치지 않음).
 */
 export default function CompareView({
   funnel,
   task,
   period,
+  allTasks = false,
   onPeriodChange,
   onTaskChange,
   onReproduce,
@@ -28,8 +30,66 @@ export default function CompareView({
   funnel: MeasurementFunnel;
   task: FunnelTaskCompare;
   period: FunnelDays;
+  allTasks?: boolean;
   onPeriodChange: (period: FunnelDays) => void;
   onTaskChange: (taskId: string) => void;
+  onReproduce: (stage: FunnelStageCompare, task: FunnelTaskCompare) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-10">
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="text-xs text-subtle">비교할 사전 테스트</span>
+        <p className="flex min-h-10 items-center rounded-lg bg-gray-50 px-3 text-caption text-ink">
+          {reportLabel(funnel)} · 가장 최근
+        </p>
+        <SegmentedTabs label="기간" options={PERIODS} value={period} onChange={onPeriodChange} />
+        <TaskChips
+          tasks={funnel.tasks}
+          taskId={allTasks ? ALL_TASKS : task.task_id}
+          onChange={onTaskChange}
+          allOption
+        />
+      </div>
+      {allTasks ? (
+        funnel.tasks.map((item) => (
+          <section
+            key={item.task_id}
+            aria-labelledby={`task-compare-${item.task_id}`}
+            className="flex flex-col gap-6 border-t border-line pt-8 first-of-type:border-t-0 first-of-type:pt-0"
+          >
+            <h2 id={`task-compare-${item.task_id}`} className="text-xl font-bold text-ink">
+              {item.name}
+            </h2>
+            <TaskCompare
+              funnel={funnel}
+              task={item}
+              titleId={`stage-compare-title-${item.task_id}`}
+              onReproduce={(stage) => onReproduce(stage, item)}
+            />
+          </section>
+        ))
+      ) : (
+        <TaskCompare
+          funnel={funnel}
+          task={task}
+          titleId="stage-compare-title"
+          onReproduce={(stage) => onReproduce(stage, task)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* 과업 하나의 요약(최대 이탈 구간·평균 오차·차이 구간)과 단계별 비교 표 */
+function TaskCompare({
+  funnel,
+  task,
+  titleId,
+  onReproduce,
+}: {
+  funnel: MeasurementFunnel;
+  task: FunnelTaskCompare;
+  titleId: string;
   onReproduce: (stage: FunnelStageCompare) => void;
 }) {
   const names = new Map(task.stages.map((stage) => [stage.id, stage.name]));
@@ -40,15 +100,6 @@ export default function CompareView({
 
   return (
     <div className="flex flex-col gap-10">
-      <div className="flex flex-wrap items-center gap-4">
-        <span className="text-xs text-subtle">비교할 사전 테스트</span>
-        <p className="flex min-h-10 items-center rounded-lg bg-gray-50 px-3 text-caption text-ink">
-          {reportLabel(funnel)} · 가장 최근
-        </p>
-        <SegmentedTabs label="기간" options={PERIODS} value={period} onChange={onPeriodChange} />
-        <TaskChips tasks={funnel.tasks} taskId={task.task_id} onChange={onTaskChange} />
-      </div>
-
       {task.collecting && (
         <p
           role="status"
@@ -88,9 +139,9 @@ export default function CompareView({
         </div>
       </dl>
 
-      <section aria-labelledby="stage-compare-title" className="flex flex-col gap-3">
+      <section aria-labelledby={titleId} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 id="stage-compare-title" className="text-lg font-bold text-ink">
+          <h2 id={titleId} className="text-lg font-bold text-ink">
             단계별 비교
           </h2>
           <p className="flex items-center gap-4 text-xs text-subtle">
@@ -107,7 +158,7 @@ export default function CompareView({
             </span>
           </p>
         </div>
-        <table aria-labelledby="stage-compare-title" className="w-full text-left text-caption">
+        <table aria-labelledby={titleId} className="w-full text-left text-caption">
           <thead>
             <tr className="border-b border-line text-xs text-muted">
               <th className="w-28 py-2 font-medium">단계</th>

@@ -41,6 +41,13 @@ describe("R01~R11 실제 고객 데이터 분석", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "실제 고객 데이터 단계별 이동" }),
     ).toBeInTheDocument();
+    /* 처음에는 과업 "전체" — 과업마다 단계별 이동을 위아래로 보여 줍니다 */
+    const tasks = await screen.findByRole("radiogroup", { name: "과업" });
+    expect(within(tasks).getByRole("radio", { name: "전체" })).toBeChecked();
+    expect(await screen.findByRole("table", { name: "첫 주문 완료" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "쿠폰으로 주문" })).toBeInTheDocument();
+
+    await user.click(within(tasks).getByRole("radio", { name: "첫 주문 완료" }));
     expect(await screen.findByText("비교 가능")).toBeInTheDocument();
     const funnel = screen.getByRole("table", { name: "실제 고객 데이터 단계별 이동" });
     expect(within(funnel).getAllByRole("row")).toHaveLength(6);
@@ -78,8 +85,11 @@ describe("R01~R11 실제 고객 데이터 분석", () => {
   });
 
   it("E09 — 표본이 모자라면 수집 중으로 알리고 단계마다 표본 부족을 표시한다", async () => {
+    const user = userEvent.setup();
     await renderAnalytics(await connectedProject({ scale: 0.05 }));
 
+    const tasks = await screen.findByRole("radiogroup", { name: "과업" });
+    await user.click(within(tasks).getByRole("radio", { name: "첫 주문 완료" }));
     expect(await screen.findByText("수집 중")).toBeInTheDocument();
     expect(screen.getByText("6단계 중 0개만 표본을 채웠어요")).toBeInTheDocument();
     expect(screen.getAllByText("표본 부족")).toHaveLength(6);
@@ -412,6 +422,13 @@ describe("R01~R11 실제 고객 데이터 분석", () => {
     );
     const user = userEvent.setup();
     await renderAnalytics(await connectedProject(), "?view=compare");
+
+    /* 예측과 비교하기도 처음에는 과업 "전체" — 과업마다 비교 표가 하나씩 */
+    const tasks = await screen.findByRole("radiogroup", { name: "과업" });
+    expect(within(tasks).getByRole("radio", { name: "전체" })).toBeChecked();
+    expect(await screen.findAllByRole("table", { name: "단계별 비교" })).toHaveLength(2);
+    expect(screen.getByRole("heading", { level: 2, name: "쿠폰으로 주문" })).toBeInTheDocument();
+    await user.click(within(tasks).getByRole("radio", { name: "첫 주문 완료" }));
 
     expect(await screen.findByText("불일치")).toBeInTheDocument();
     expect(
