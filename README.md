@@ -1,52 +1,149 @@
 # Exitplain FE
 
-[API 명세서](docs/API_SPEC.md) · [Figma UI 반영 내역](https://github.com/Exitplain/FE/blob/main/docs/FIGMA_IMPLEMENTATION.md) · [문서 목록](docs/README.md)
+> **AI 페르소나가 실제 브라우저로 사이트를 써 보고, 어디서 왜 이탈하는지 알려 주는 UX 점검 서비스**의 프론트엔드 저장소입니다.
 
-EXITPLAIN 프론트엔드 저장소입니다.
+[문서 목록](docs/README.md) · [협업 규칙](CONTRIBUTING.md) · 백엔드·AI 에이전트: [Exitplain/BE](https://github.com/Exitplain/BE)
 
-| 폴더 | 내용 | 상태 |
-| --- | --- | --- |
-| `web/` | React + TypeScript + Tailwind SaaS 앱 | **신규 개발 중** — [web/README.md](web/README.md) |
-| `saas-web/` | 기존 HTML/CSS/JavaScript SaaS 화면 | 유지 (BE 개발 서버가 제공, `web/` 완성 후 정리) |
-| `demo-shop/` | 합성 데이터 기반 반찬로드 테스트 쇼핑몰 | 유지 (페르소나 실행 대상) |
-| `docs/` | API 명세 사본, Figma 반영 내역, web 세팅·컨벤션·API·협업 가이드 | [목록](docs/README.md) |
+<br>
 
-`saas-web/`과 `demo-shop/`은 BE의 `agent.console`, `agent.shop`이 FE 루트에서 직접 읽으므로 경로를 바꾸지 않습니다.
-에이전트·개발 API·테스트·공통 설계 문서는 [Exitplain/BE](https://github.com/Exitplain/BE)에 있습니다.
+## 💡 팀원 소개
 
-## web 실행 (React 앱)
+<table>
+  <tr>
+    <td align="center" width="130"><b>장서후</b></td>
+    <td align="center" width="130"><b>고명준</b></td>
+    <td align="center" width="130"><b>이정능</b></td>
+    <td align="center" width="130"><b>심재현</b></td>
+    <td align="center" width="130"><b>이정은</b></td>
+    <td align="center" width="130"><b>정혜원</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/team-female.jpg" width="90" alt="장서후"></td>
+    <td align="center"><img src="docs/images/team-male.jpg" width="90" alt="고명준"></td>
+    <td align="center"><img src="docs/images/team-male.jpg" width="90" alt="이정능"></td>
+    <td align="center"><img src="docs/images/team-male.jpg" width="90" alt="심재현"></td>
+    <td align="center"><img src="docs/images/team-female.jpg" width="90" alt="이정은"></td>
+    <td align="center"><img src="docs/images/team-female.jpg" width="90" alt="정혜원"></td>
+  </tr>
+  <tr>
+    <td align="center">디자인</td>
+    <td align="center">프론트엔드</td>
+    <td align="center">프론트엔드</td>
+    <td align="center">기획·AI</td>
+    <td align="center">백엔드</td>
+    <td align="center">백엔드</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/SoWho-J">@SoWho-J</a></td>
+    <td align="center"><a href="https://github.com/kmj0973">@kmj0973</a></td>
+    <td align="center"><a href="https://github.com/jeongneung">@jeongneung</a></td>
+    <td align="center"><a href="https://github.com/Jaehyeon-kr">@Jaehyeon-kr</a></td>
+    <td align="center"><a href="https://github.com/abdc5307">@abdc5307</a></td>
+    <td align="center"><a href="https://github.com/HyewonC80">@HyewonC80</a></td>
+  </tr>
+</table>
+
+<br>
+
+## ✨ 주요 기능
+
+| 단계 | 기능 |
+|---|---|
+| **1. 사이트 확인** | URL(또는 공개 git 저장소의 정적 사이트 코드)을 받아 둘러보고, 확인할 과업 후보를 제안 |
+| **2. 계획 확정** | 과업·타겟 고객·연령대·세그먼트 인원을 정하고 확정하면, 그 기준으로 페르소나를 생성 |
+| **3. 실행** | 페르소나마다 독립된 브라우저로 과업을 수행하고, 진행·발화·화면을 실시간으로 수집 |
+| **4. 리포트** | 단계별 이동(퍼널), 이탈 원인 Top 3, 세그먼트 × 단계 히트맵, 근거 스크린샷, 방문별 종료 설명, Markdown·PDF 내보내기 |
+| **5. 실측 · 보정** | 실제 고객 데이터(수집 스크립트·CSV)를 모아 예측과 비교하고, 페르소나 수치를 보정 |
+
+<br>
+
+## 🛠️ 기술 스택
+
+**Core** &nbsp;
+<img src="https://img.shields.io/badge/React%2019-61DAFB?style=for-the-badge&logo=react&logoColor=black">
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
+<img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white">
+<img src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white">
+
+**Data · State** &nbsp;
+<img src="https://img.shields.io/badge/React%20Router-CA4245?style=for-the-badge&logo=reactrouter&logoColor=white">
+<img src="https://img.shields.io/badge/TanStack%20Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white">
+<img src="https://img.shields.io/badge/Zustand-443E38?style=for-the-badge">
+<img src="https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white">
+<img src="https://img.shields.io/badge/Recharts-22B5BF?style=for-the-badge">
+
+**Test · Quality** &nbsp;
+<img src="https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white">
+<img src="https://img.shields.io/badge/Testing%20Library-E33332?style=for-the-badge&logo=testinglibrary&logoColor=white">
+<img src="https://img.shields.io/badge/MSW-FF6A33?style=for-the-badge&logo=mockserviceworker&logoColor=white">
+<img src="https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white">
+<img src="https://img.shields.io/badge/Prettier-F7B93E?style=for-the-badge&logo=prettier&logoColor=black">
+
+**Deploy · CI** &nbsp;
+<img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white">
+<img src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">
+
+| 구분 | 기술 |
+|---|---|
+| Language / UI | React 19 + TypeScript |
+| Build | Vite — 개발 서버·빌드 |
+| Styling | Tailwind CSS |
+| Routing | React Router — 페이지 라우팅 |
+| Server State | TanStack Query — 서버 데이터 조회·캐싱 |
+| Client State | Zustand — 클라이언트 상태 관리 |
+| API | Axios — API 통신 |
+| Chart | Recharts — 차트 시각화 |
+| Test | Vitest + React Testing Library |
+| Mock | MSW — API 모킹 (BE 없이 화면 개발·테스트) |
+| Code Quality | ESLint + Prettier — 코드 품질·포맷 관리 |
+| CI | GitHub Actions — lint · format · test · build 자동 검사 |
+| Deploy | Vercel |
+
+<br>
+
+## 📁 저장소 구조
+
+```
+FE/
+├── web/                 # React 앱 (Exitplain 서비스 화면)
+│   └── src/
+│       ├── pages/       #   화면 (대시보드, 새 테스트, 실행, 리포트, 실측 분석, 예측 맞추기 …)
+│       ├── components/  #   공통 컴포넌트
+│       ├── apis/        #   API 호출 (Axios)
+│       ├── hooks/       #   TanStack Query 훅
+│       ├── stores/      #   Zustand 상태
+│       ├── mocks/       #   MSW 핸들러·목데이터
+│       └── types/       #   API 타입
+├── demo-shop/           # 페르소나 실행 대상 데모 쇼핑몰 (반찬로드, 합성 데이터)
+├── saas-web/            # 이전 HTML/JS 화면 (BE 개발 서버용, 유지)
+└── docs/                # API 명세 사본, Figma 반영 내역, 개발 가이드
+```
+
+<br>
+
+## 🚀 로컬 실행
 
 ```bash
-# BE 저장소, 가상환경에서
-python -m agent.console --port 4174
-
-# 이 저장소
-cd web
+git clone https://github.com/Exitplain/FE.git
+cd FE/web
 npm install
-npm run dev        # http://localhost:5173, /api 는 BE로 프록시
+cp .env.example .env.local   # API 프록시 주소 등 설정
+
+npm run dev        # http://localhost:5173 (/api 는 BE로 프록시)
 npm run dev:mock   # BE 없이 MSW mock으로 실행
 ```
 
-자세한 내용은 [web/README.md](web/README.md), 문서 목록은 [docs/README.md](docs/README.md), 협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+<br>
 
-## 기존 화면 실행 (saas-web, demo-shop)
-
-BE와 FE를 같은 상위 폴더 아래에 클론한 다음 [BE 설치 안내](https://github.com/Exitplain/BE#분리-저장소-로컬-실행)를 따릅니다.
-BE 가상환경에서 실행하세요.
+## ✅ 검사
 
 ```bash
-cd ../BE
-python -m agent.console --port 4174
-# 별도 터미널에서
-python -m agent.shop --port 4173
+cd web
+npm run lint
+npm run format:check
+npm run test:run
+npm run build
 ```
 
-SaaS: http://localhost:4174 · 데모 쇼핑몰: http://localhost:4173/lab
+GitHub Actions(`web-ci.yml`)가 `web/` 이 바뀐 PR과 main·develop 푸시마다 같은 검사를 실행합니다.
 
-BE의 개발 서버가 이 저장소의 화면과 `/api/*`를 같은 origin으로 제공합니다.
-FE 위치가 다르면 BE 실행 전에 `DROPSPOT_FE_ROOT`를 FE 절대 경로로 설정합니다.
-HTML 파일만 직접 열면 API와 쇼핑몰 라우팅이 동작하지 않습니다.
-Skyvern 라이브 연결은 별도 설치가 필요하며 Django 운영 API 통합은 후속 작업입니다.
-
-원본: [Jaehyeon-kr/dropspot_](https://github.com/Jaehyeon-kr/dropspot_/tree/c52730f5413cfeffb8b28b82b3eaa033a8a99b58), 커밋 `c52730f5413cfeffb8b28b82b3eaa033a8a99b58`의 스냅샷.
-폰트 라이선스와 이미지 출처는 `demo-shop/README.md`와 `demo-shop/assets/OFL-NotoSansKR.txt`를 참고하세요.
