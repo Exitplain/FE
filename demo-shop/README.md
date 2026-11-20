@@ -17,6 +17,14 @@ python -m agent.shop --port 4173
 
 `/lab`은 평가자가 쓰는 제어 화면이다. 에이전트는 각 랜딩 링크부터 시작한다. 외부 이미지·폰트 서버에 접근하지 않도록 자산을 로컬에 저장했다. 테스트 환경에서 띄운 임시 서버는 종료할 수 있으므로 필요하면 위 명령으로 다시 시작한다.
 
+## Vercel 배포 (실서버 테스트용)
+
+실서버 BE가 에이전트로 열 수 있도록 공개 주소에 올릴 때 사용한다. 빌드 없이 이 폴더를 그대로 배포한다.
+
+- Vercel 프로젝트 설정: Root Directory `demo-shop`, Framework Preset `Other`, Build Command·Output Directory 비움
+- `vercel.json`은 `/assets/` 밖의 모든 경로를 `index.html`로 보낸다 (`/cart`, `/checkout` 등을 직접 열거나 새로고침해도 404가 나지 않게). 없는 자산은 404로 응답하고, 끝 슬래시(`/cart/`)는 `/cart`로 이동한다. BE 로컬 서버(`agent.shop`)는 이 파일을 설정으로 읽지 않는다 (정적 파일로만 보인다).
+- 배포 주소를 제품 API 프로젝트의 `entry_url`로 등록하면 위저드·실행·리포트를 실서버에서 확인할 수 있다.
+
 ## 케이스
 
 | case | 문제 버전 | 개선 버전 |

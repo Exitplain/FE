@@ -1,0 +1,13 @@
+[role="dialog"]:has(.project-create-fields) {
+  width: 560px;
+  max-width: 100%;
+  padding: 32px;
+  gap: 24px;
+  border-radius: 12px;
+}
+[role="dialog"]:has(.project-create-fields) > div:first-child {
+  padding-top: 0;
+}
+.project-summary-column {
+  min-height: 240px;
+}

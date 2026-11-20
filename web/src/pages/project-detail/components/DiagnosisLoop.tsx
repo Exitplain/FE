@@ -1,0 +1,152 @@
+import { Link } from "react-router-dom";
+
+import { buttonVariants } from "@/components/Button/buttonVariants";
+import Icon from "@/components/Icon/Icon";
+import { buildPath } from "@/constants/routes";
+import type { ProjectOverview, ProjectRecord } from "@/types/project.type";
+import { cn } from "@/utils/cn";
+
+export default function DiagnosisLoop({
+  project,
+  overview,
+  loading = false,
+}: {
+  project: ProjectRecord;
+  overview: ProjectOverview;
+  loading?: boolean;
+}) {
+  const current = overview.phase - 1;
+  /* 사전 테스트가 진행 중이면 새로 시작하는 대신 그 실행 화면으로 보냅니다 */
+  const runningId =
+    overview.test.status === "running" || overview.test.status === "queued"
+      ? overview.test.runId
+      : null;
+  const stages = [
+    {
+      title: "사전 테스트",
+      description: "테스트 실행 · 리포트 · 수정 후 재테스트",
+      action: "사전 테스트 시작하기",
+      route: "newTest",
+    },
+    {
+      title: "실제 고객 데이터 분석",
+      description: "실제 고객 데이터 수집 · 예측 vs 실제 고객 데이터 · 원인 재현",
+      action: "실제 고객 데이터 연결하기",
+      route: "analytics",
+    },
+    {
+      title: "예측 맞추기",
+      description: "조정안 확인 · 적용 → 다음 사전 테스트",
+      action: "조정안 확인",
+      route: "calibration",
+    },
+  ] as const;
+  return (
+    <section className="space-y-5">
+      <h2 className="text-lg font-bold">진단 루프</h2>
+      <div className="grid gap-6 lg:grid-cols-3">
+        {stages.map((stage, index) => (
+          <div
+            key={stage.title}
+            className="space-y-4 lg:border-r lg:border-line lg:pr-6 lg:last:border-0"
+          >
+            <div
+              className="flex gap-1"
+              role="img"
+              aria-label={`${stage.title} 진행 ${
+                index < current
+                  ? index === 2
+                    ? 1
+                    : 3
+                  : index === 1 && index === current
+                    ? (overview.analytics.steps ?? []).filter(Boolean).length
+                    : 0
+              }/${index === 2 ? 1 : 3}`}
+            >
+              {Array.from({ length: index === 2 ? 1 : 3 }, (_, step) => {
+                /* 실제 고객 데이터 분석이 지금 단계면 세 칸을 실제 진행(수집 · 비교 · 원인 재현)으로 칠합니다 */
+                const steps =
+                  index === 1 && index === current ? overview.analytics.steps : undefined;
+                const done = index < current || !!steps?.[step];
+                const next = steps ? steps.findIndex((value) => !value) : 0;
+                return (
+                  <span
+                    key={step}
+                    className={cn(
+                      "h-1.5 flex-1 rounded-full bg-gray-200",
+                      done && "bg-subtle",
+                      index === current &&
+                        !done &&
+                        step === next &&
+                        "border border-ink bg-highlight",
+                    )}
+                  />
+                );
+              })}
+            </div>
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-bold">
+                <span className="text-xs font-normal text-muted">0{index + 1}</span>
+                {stage.title}
+                {index === current && (
+                  <span className="rounded bg-highlight px-2 py-1 text-xs font-medium">
+                    지금 단계
+                  </span>
+                )}
+              </h3>
+              <p className="mt-2 text-xs text-subtle">{stage.description}</p>
+            </div>
+            {index < current ? (
+              <p className="flex items-center gap-1 text-caption">
+                <Icon name="status-done" />
+                완료
+              </p>
+            ) : index === current && loading ? (
+              <p role="status" className="text-xs text-muted">
+                불러오는 중…
+              </p>
+            ) : index === current && index === 0 && runningId ? (
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                to={buildPath("testRun", { projectId: project.id, runId: runningId })}
+              >
+                진행 중 테스트 보기
+              </Link>
+            ) : index === current ? (
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                to={buildPath(stage.route, { projectId: project.id })}
+              >
+                {/* 실측이 이미 연결됐으면(스크립트·CSV) 연결하기 대신 분석 보기 */}
+                {index === 1 && overview.analytics.status === "connected"
+                  ? "실제 고객 데이터 분석 보기"
+                  : stage.action}
+              </Link>
+            ) : (
+              <p className="text-xs text-muted">다음</p>
+            )}
+          </div>
+        ))}
+      </div>
+      {overview.phase === 4 && (
+        <p className="flex flex-wrap items-center gap-3 text-caption text-subtle">
+          <Icon name="status-done" />한 바퀴를 마쳤어요 · 맞춘 예측으로 새 사전 테스트를 돌리면 다시
+          처음부터 시작해요
+          <Link
+            className={buttonVariants({ variant: "outline" })}
+            to={buildPath("newTest", { projectId: project.id })}
+          >
+            새 사전 테스트로 확인하기
+          </Link>
+        </p>
+      )}
+      {overview.connection && (
+        <p className="flex items-center gap-2 text-caption text-subtle">
+          <Icon name="key" />
+          로그인 연결 · 연결됨 · 시작 화면 {overview.connection.startPath} ·{" "}
+          {overview.connection.expiresLabel} 만료 · 샘플 연결
+        </p>
+      )}
+    </section>
+  );
+}

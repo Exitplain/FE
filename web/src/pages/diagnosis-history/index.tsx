@@ -1,5 +1,188 @@
-import PagePlaceholder from "@/components/PagePlaceholder/PagePlaceholder";
+import { type ReactNode, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
-export default function DiagnosisHistoryPage() {
-  return <PagePlaceholder routeKey="diagnosisHistory" />;
+import Button from "@/components/Button/Button";
+import WorkspacePageHeader from "@/components/Workspace/WorkspacePageHeader";
+import WorkspaceState, { WorkspaceRetry } from "@/components/Workspace/WorkspaceState";
+import { type RunsProject, useProjectRuns } from "@/hooks/useProjectRuns";
+
+import CompareRunsModal from "./components/CompareRunsModal";
+import HistoryFilters from "./components/HistoryFilters";
+import HistoryTable from "./components/HistoryTable";
+import { comparisonReason, filterRuns, type RunFilters } from "./utils/filterRuns";
+
+import "@/components/Workspace/workspace.css";
+
+/* project 를 주면 C08(그 프로젝트의 기록), 없으면 W02(모든 프로젝트) */
+export default function DiagnosisHistoryPage({
+  project,
+  header,
+}: { project?: RunsProject; header?: ReactNode } = {}) {
+  const projectId = project?.id;
+  const query = useProjectRuns(project);
+  /* 기간 필터 기준 시각 (화면을 연 때) */
+  const [asOf] = useState(() => new Date().toISOString());
+  const [params, setParams] = useSearchParams();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const defaults: RunFilters = {
+    search: "",
+    project: projectId ?? "all",
+    status: "all",
+    type: "all",
+    period: "30",
+    sort: "newest",
+  };
+  const filters = Object.fromEntries(
+    Object.entries(defaults).map(([key, value]) => [key, params.get(key) ?? value]),
+  ) as RunFilters;
+  if (projectId) filters.project = projectId;
+  const update = (key: keyof RunFilters, value: string) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (value === defaults[key]) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true },
+    );
+  const reset = () => {
+    setSelected([]);
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      Object.keys(defaults).forEach((key) => next.delete(key));
+      return next;
+    });
+  };
+  const runs = filterRuns(query.runs, filters, asOf);
+  /* 필터로 숨긴 실행은 선택에서 뺍니다 (보이지 않는 실행끼리 비교하지 않게) */
+  const selectedRuns = runs.filter((run) => selected.includes(run.id));
+  const reason = comparisonReason(selectedRuns);
+  const applied = Object.entries(filters).filter(
+    ([key, value]) => value !== defaults[key as keyof RunFilters] && key !== "sort",
+  );
+  return (
+    <div className="space-y-7 text-ink">
+      {header ?? (
+        <WorkspacePageHeader
+          title="진단 기록"
+          description="사전 테스트와 차이 구간 원인 재현 실행을 모두 모았어요"
+        />
+      )}
+      <HistoryFilters
+        filters={filters}
+        projects={query.projects}
+        onChange={update}
+        hideProject={Boolean(projectId)}
+      />
+      {applied.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-subtle">
+          <span>적용된 필터</span>
+          {applied.map(([key, value]) => (
+            <button
+              type="button"
+              key={key}
+              onClick={() => update(key as keyof RunFilters, defaults[key as keyof RunFilters])}
+              className="rounded-full bg-gray-50 px-3 py-2"
+            >
+              {query.projects.find((p) => p.id === value)?.name ?? value} ×
+            </button>
+          ))}
+          <Button variant="link" onClick={reset}>
+            필터 모두 해제
+          </Button>
+        </div>
+      )}
+      {selectedRuns.length > 0 && (
+        <section
+          aria-label="선택한 실행"
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-gray-50 px-4 py-2"
+        >
+          <span className="text-sm font-medium">{selectedRuns.length}개 선택됨</span>
+          {reason && (
+            <p className="min-w-0 flex-1 text-xs text-muted">
+              {selectedRuns.length === 1 ? "비교하려면 1개 더 선택하세요" : reason}
+            </p>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            <Button variant="link" onClick={() => setSelected([])}>
+              선택 해제
+            </Button>
+            <Button
+              variant="outline"
+              icon="compare"
+              disabled={Boolean(reason)}
+              title={reason || undefined}
+              onClick={() => setCompareOpen(true)}
+            >
+              선택한 2개 비교
+            </Button>
+          </div>
+        </section>
+      )}
+      {query.isPending ? (
+        <WorkspaceState kind="loading" title="기록을 불러오는 중이에요" />
+      ) : query.isError ? (
+        <WorkspaceState
+          kind="error"
+          title="진단 기록을 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요. 실행 중인 테스트에는 영향이 없어요."
+          action={<WorkspaceRetry onClick={query.refetch} />}
+        />
+      ) : (
+        <>
+          {query.failedProjects > 0 && (
+            <p role="status" className="text-xs text-danger">
+              프로젝트 {query.failedProjects}개의 기록을 불러오지 못했어요. 받은 기록만 보여 줘요.
+            </p>
+          )}
+          <HistoryTable
+            hideProject={Boolean(projectId)}
+            runs={runs}
+            selected={selected}
+            onToggle={(id) =>
+              setSelected((previous) =>
+                previous.includes(id)
+                  ? previous.filter((value) => value !== id)
+                  : [...previous, id],
+              )
+            }
+            onToggleAll={() =>
+              setSelected((previous) =>
+                runs.every((run) => previous.includes(run.id))
+                  ? previous.filter((id) => !runs.some((run) => run.id === id))
+                  : [...new Set([...previous, ...runs.map((run) => run.id)])],
+              )
+            }
+            ascending={filters.sort === "oldest"}
+            onSort={() => update("sort", filters.sort === "oldest" ? "newest" : "oldest")}
+          />
+          {runs.length === 0 ? (
+            <WorkspaceState
+              kind="empty"
+              title="조건에 맞는 실행이 없어요"
+              description="필터를 바꾸거나 모두 해제해 보세요"
+              action={
+                <Button variant="secondary" icon="close" onClick={reset}>
+                  필터 모두 해제
+                </Button>
+              }
+            />
+          ) : (
+            <p className="text-xs text-muted">
+              {runs.length}개 실행 ·{" "}
+              {filters.period === "all" ? "전체 기간" : `최근 ${filters.period}일`} · 실행일{" "}
+              {filters.sort === "oldest" ? "오래된순" : "최신순"}
+            </p>
+          )}
+        </>
+      )}
+      <CompareRunsModal
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        runs={selectedRuns}
+      />
+    </div>
+  );
 }

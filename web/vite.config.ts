@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from "node:path";
 
 import tailwindcss from "@tailwindcss/vite";
@@ -36,6 +37,18 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
+    },
+    /*
+      단위·컴포넌트 테스트 (npm run test). API 는 실서버 대신 src/mocks/handlers 를
+      msw/node 로 그대로 재사용하므로, mock 핸들러가 곧 테스트 픽스처입니다.
+    */
+    test: {
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
+      include: ["src/**/*.test.{ts,tsx}"],
+      // 테스트마다 vi.fn() 호출 기록을 지우고(clear) vi.spyOn 을 원래 함수로 돌립니다(restore)
+      clearMocks: true,
+      restoreMocks: true,
     },
   };
 });

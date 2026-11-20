@@ -15,7 +15,9 @@
 | 서버 상태 | TanStack Query 5 + axios | 실행 상태 polling, 캐시, 로딩·오류 처리 |
 | 클라이언트 상태 | zustand 5 | 새 테스트 단계별 입력처럼 화면 사이에서 유지할 값만 |
 | API mock | MSW 2 | 미구현 `/api/v1`을 핸들러만 지우면 실제 API로 전환 |
+| 차트 | recharts 3 | 퍼널·비교 막대 (`components/RangeBarChart`). 색은 SVG에도 토큰 클래스(`fill-*`)를 씁니다 |
 | 코드 품질 | ESLint 10 + Prettier 3 + `prettier-plugin-tailwindcss` | 클래스 순서까지 자동 정렬해 diff 충돌 감소 |
+| 테스트 | Vitest 5 + Testing Library + jsdom | Vite 설정·alias를 그대로 쓰고, MSW 핸들러를 `msw/node`로 재사용 |
 
 ### 버전을 고정한 이유
 
@@ -70,9 +72,14 @@ npx msw init public --save
 
 | 이름 | 기본값 | 설명 |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | 비움 | 비우면 `/api/...` 요청이 dev 서버 프록시로 갑니다 |
-| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:4174` | 프록시가 요청을 넘길 BE 주소 |
+| `VITE_API_BASE_URL` | 비움 | 비우면 `/api/...` 요청이 dev 서버 프록시로 갑니다. 로그인 쿠키 때문에 로컬에서는 **비워 둡니다** |
+| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:4174` (`.env.example`은 실서버 `http://43.200.218.110`) | 프록시가 요청을 넘길 BE 주소 |
 | `VITE_USE_MOCK_API` | `false` | `true`이면 MSW가 `/api` 요청을 가로챕니다 |
+| `VITE_GOOGLE_CLIENT_ID` | 비움 | 구글 로그인 버튼(GSI) 클라이언트 ID. 비우면 버튼이 비활성입니다 |
+
+실서버의 `csrftoken`·`sessionid` 쿠키는 `Secure; SameSite=None`입니다. `VITE_API_BASE_URL`에 실서버 주소(`http://43.200.218.110`)를 직접 넣으면 브라우저가 쿠키를 저장하지 않아 로그인이 되지 않습니다. 프록시를 쓰면 `http://localhost:5173`과 같은 origin이고, 브라우저는 localhost를 안전한 주소로 봐서 Secure 쿠키를 저장합니다.
+
+구글 로그인은 Google에 등록된 `http://localhost:5173`에서만 됩니다. IP 주소 배포본은 https 도메인이 생기기 전까지, Vercel 배포본은 BE가 그 도메인을 Google에 등록하기 전까지 이메일 코드 로그인만 쓸 수 있습니다. 지금은 BE에 테스트 사용자로 등록된 구글 계정만 로그인됩니다.
 
 `.env.mock`은 비밀 값이 없어 커밋합니다. `npm run dev:mock`, `npm run build:mock`이 이 파일을 씁니다.
 
@@ -90,7 +97,28 @@ proxy.on("proxyReq", (proxyReq) => {
 });
 ```
 
-이 처리는 개발 서버에만 해당합니다. 배포할 때는 BE와 같은 origin에서 제공하거나, BE의 Origin 검사 규칙을 함께 정해야 합니다.
+이 처리는 개발 서버에만 해당합니다. 배포본은 아래 Vercel rewrite를 씁니다.
+
+### Vercel 배포와 실서버 프록시
+
+실서버(`http://43.200.218.110`, 모든 API가 `/api/v1/*`)는 HTTP만 지원하고 CORS 헤더가 없습니다. HTTPS인 Vercel 페이지에서 직접 부르면 mixed content·CORS로 막히므로, `vercel.json`의 rewrite로 Vercel이 대신 요청합니다. 브라우저 입장에서는 같은 origin이라 CORS가 필요 없습니다.
+
+```json
+"rewrites": [
+  { "source": "/api/:path*", "destination": "http://43.200.218.110/api/:path*" },
+  { "source": "/(.*)", "destination": "/index.html" }
+]
+```
+
+- `/api` rewrite는 SPA fallback(`/(.*)`)보다 **앞에** 둡니다. 뒤에 두면 API 요청에 `index.html`이 돌아옵니다.
+- 배포 빌드는 실서버 빌드 `build`입니다(2026-11-16, 이전에는 `build:mock`). MSW가 켜지지 않으므로 모든 `/api/*`가 실서버로 갑니다. 실서버에 없는 경로(버전 없는 `/api/personas*` 등)는 404입니다.
+- Vercel 대시보드에 `VITE_USE_MOCK_API`·`VITE_API_BASE_URL`은 넣지 않습니다(`VITE_API_BASE_URL`이 비어야 rewrite를 탑니다).
+- `VITE_GOOGLE_CLIENT_ID`는 BE가 Google에 배포 도메인(`https://exitplain.vercel.app` 등)을 등록한 **뒤에** 대시보드에 넣습니다. 등록 전에 넣으면 Google 버튼이 나타나지만 눌렀을 때 `origin_mismatch` 오류가 납니다. 넣지 않으면 버튼이 비활성이고 이메일 로그인만 됩니다.
+- rewrite 대상에는 환경변수를 쓸 수 없습니다. 서버 주소가 바뀌면 `vercel.json`을 고치고 다시 배포합니다.
+- Origin 헤더는 바뀌지 않고 `https://exitplain.vercel.app`으로 전달됩니다. POST가 CSRF 검사에 걸리지 않으려면 BE의 `CSRF_TRUSTED_ORIGINS`에 배포 도메인이 있어야 합니다. Preview 배포는 `*.vercel.app`의 다른 도메인이라 따로 등록하지 않으면 POST가 실패합니다.
+- Vercel 외부 rewrite에는 프록시 타임아웃이 있습니다. 오래 걸리는 요청은 202 + 상태 polling으로 설계합니다.
+- Vercel → 서버 구간은 평문 HTTP입니다. 로그인 연동 전에 서버 HTTPS(도메인·인증서)가 필요합니다.
+- rewrite는 로컬·CI에서 검증되지 않습니다. 배포 후 브라우저 콘솔에서 `await (await fetch("/api/v1/auth/session")).json()`이 `{authenticated: false}`인지 확인합니다.
 
 ## 6. 스크립트
 
@@ -99,18 +127,29 @@ proxy.on("proxyReq", (proxyReq) => {
 | `npm run dev` | 개발 서버 (BE 프록시), http://localhost:5173 |
 | `npm run dev:mock` | 개발 서버 (MSW mock) |
 | `npm run build` | 타입 검사 + 프로덕션 빌드 |
-| `npm run build:mock` | mock 데모 빌드 |
+| `npm run build:mock` | mock 데모 빌드 (Vercel 배포에는 쓰지 않음) |
 | `npm run lint` | ESLint |
 | `npm run format` / `format:check` | Prettier 적용 / 검사 |
+| `npm run test` / `test:run` | Vitest 감시 모드 / 1회 실행 |
+
+### 테스트 작성 규칙
+
+- 테스트 파일은 대상 옆에 `*.test.ts(x)`로 둡니다. (예: `utils/cn.ts` → `utils/cn.test.ts`)
+- 테스트 대상: 검증·계산 로직(순수 함수), zustand 스토어 액션, API 훅, 화면 동작. 스타일은 테스트하지 않습니다.
+- API는 `src/mocks/handlers`가 `msw/node`로 응답합니다. 핸들러가 없는 요청은 테스트를 실패시킵니다.
+  테스트별 응답은 `server.use(...)`로 덮어쓰고, 각 테스트 뒤에 원래대로 돌아갑니다.
+- Query·Router가 필요한 컴포넌트는 `src/test/renderWithProviders.tsx`로 렌더링합니다.
+- `describe`·`it`·`expect`는 `vitest`에서 직접 import합니다(globals 미사용).
 
 ## 7. CI
 
-`.github/workflows/web-ci.yml`이 `web/**`를 바꾼 PR과 `main` 푸시에서 아래를 실행합니다.
+`.github/workflows/web-ci.yml`이 `web/**`를 바꾼 PR과 `main`·`develop` 푸시에서 아래를 실행합니다.
 
 1. `npm ci`
 2. `npm run lint`
 3. `npm run format:check`
-4. `npm run build`
+4. `npm run test:run`
+5. `npm run build`
 
 하나라도 실패하면 머지하지 않습니다.
 

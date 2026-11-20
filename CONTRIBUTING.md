@@ -46,7 +46,7 @@ docs: 라우트 표 갱신
 - 화면 1~2개, 변경 400줄 안팎으로 작게 올립니다. 작업 중이면 Draft PR로 먼저 엽니다.
 - [PR 템플릿](.github/pull_request_template.md)의 Figma 링크와 스크린샷 비교를 채웁니다.
 - 공통 영역 변경은 기능 PR과 섞지 않습니다.
-- 커밋 전에 `npm run format`을 실행합니다. CI가 lint, format 검사, build를 확인합니다.
+- 커밋 전에 `npm run format`을 실행합니다. CI가 lint, format 검사, 테스트, build를 확인합니다.
 
 ## 리뷰
 

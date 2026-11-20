@@ -12,7 +12,7 @@ const twMerge = extendTailwindMerge({
   extend: {
     theme: {
       radius: ["tooltip"],
-      shadow: ["tooltip", "surface"],
+      shadow: ["tooltip", "surface", "dialog"],
       text: ["caption"],
     },
   },
